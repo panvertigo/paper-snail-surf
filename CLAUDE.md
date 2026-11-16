@@ -14,6 +14,7 @@ iPhone game capturing the joy of CS:GO surfing. Owner: Jeffry (knows CS surf wel
 - verifier/: headless Node course checker (no deps). harness.js loads the physics block; input goes through `cmd {turn, touch, key}` once per tick. README.md logs every version's results; append a line for each physics or stage change.
   - `node verifier/sim.js index.html` and `node verifier/extra.js index.html`
   - Pick a level: `LVL=2 node -r ./verifier/lvl.js verifier/sim.js index.html` (default level 1)
+- verifier/golden.js: golden replay regression (`check` must pass before committing physics or stage changes).
 - tools/: one-off analysis scripts (air-strafe-gain.js, fall-map.js = where bots fall + no-air-control test, checkpoint-splits.js). Same usage as the verifier.
 - docs/decisions.md: decisions, open questions, measurements, feature plan, art direction. Read it before proposing design changes.
 
