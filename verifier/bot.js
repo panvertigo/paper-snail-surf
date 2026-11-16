@@ -15,7 +15,7 @@ function trial(aa,{hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false,tmax=300,re
       let cur=-1, Lc=null;
       for(let i=Math.max(0,lt-1);i<=Math.min(ramps.length-1,lt+2);i++){const r=ramps[i];const L=local(r,pos.x,pos.z); if(L.u>=0&&L.u<=r.L&&Math.abs(L.v)<r.W+40){cur=i;Lc={u:L.u,v:L.v,h:L.h};break;}}
       const yv=Math.atan2(-vel.x,-vel.z);
-      if(cur>=0){
+      if(G.inTube()){plan={on:null,s:0};} else if(cur>=0){
         const r=ramps[cur];const sd=Math.sign(Lc.v)||1,sv=Math.abs(Lc.v);
         plan={on:true, yd:Lc.h+sd*Math.max(-0.15,Math.min(0.15,0.6*(sv-0.5*r.W)/r.W))};
       } else {

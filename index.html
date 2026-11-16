@@ -93,6 +93,24 @@ function makeRamp(sx, oy, sz, h0, L, k, W, H, sec, tex, side, C = 0) {
   const e = ridgeAt(r, L); r.ex = e[0]; r.ez = e[1]; r.h1 = h0 + k * L; r.ey = oy + zOf(r, L);
   return r;
 }
+// A tube piece is the inside of a circular band: circle in the plane (e1 = travel dir, e2 = "up" banked by o.bank deg), radius R,
+// half-width wd along the axis. The ride starts phi rad before the bottom (a quarter-pipe you drop onto), goes 'turns' full circles
+// (axis shift 'pitch' per rad separates the turns, so a loop is a corkscrew) and leaves phi2 rad past the bottom as a launch.
+// The surface normal is radial, so contact is the same push-out + normal clip as a ramp face. Needs v^2 >= g R at the top of a vertical loop.
+const TAU = Math.PI * 2;
+function makeLoop(x, y, z, h, o, sec, tex, side) {
+  const R = o.R, wd = o.W || 500, phi = o.phi ?? 1.0, phi2 = o.phi2 ?? 0.6, turns = o.turns ?? 1, bank = (o.bank || 0) * Math.PI / 180;
+  const d = dirOf(h), rt = rightOf(h), cb = Math.cos(bank), sb = Math.sin(bank);
+  const e1 = d, e2 = [rt[0] * sb, cb, rt[2] * sb], ax = [cb * rt[0], -sb, cb * rt[2]];
+  const pitch = (o.pitch ?? 2.5 * wd / TAU) * (o.dir || 1), th0 = -Math.PI / 2 - phi, sweep = TAU * turns + phi + phi2;
+  const O = [x - R * (Math.cos(th0) * e1[0] + Math.sin(th0) * e2[0]), y - R * (Math.cos(th0) * e1[1] + Math.sin(th0) * e2[1]), z - R * (Math.cos(th0) * e1[2] + Math.sin(th0) * e2[2])];
+  const T = { ox: O[0], oy: O[1], oz: O[2], e1, e2, ax, R, wd, th0, sweep, pitch, bound: R + wd + Math.abs(pitch * sweep) + 300 };
+  const at = t => { const a = th0 + t, c = Math.cos(a), s = Math.sin(a), p = pitch * t;
+    return [O[0] + R * (c * e1[0] + s * e2[0]) + ax[0] * p, O[1] + R * (c * e1[1] + s * e2[1]) + ax[1] * p, O[2] + R * (c * e1[2] + s * e2[2]) + ax[2] * p]; };
+  let ymin = Infinity; for (let t = 0; t <= sweep; t += 0.05) ymin = Math.min(ymin, at(t)[1]);
+  const X = at(sweep);
+  return { tube: T, sx: x, sz: z, oy: ymin, h0: h, L: 0, k: 0, W: wd, H: 2 * R, sec, tex, side, C: 0, d0: d, r0: rt, ex: X[0], ez: X[2], ey: X[1], h1: h };
+}
 const LOC = { u: 0, v: 0, h: 0, q: 1 };
 function local(r, x, z) { // u along ramp, v across (+ = right of travel), h = ridge heading there, q = du/ds stretch
   if (!r.k) { const dx = x - r.sx, dz = z - r.sz; LOC.u = dx * r.d0[0] + dz * r.d0[2]; LOC.v = dx * r.r0[0] + dz * r.r0[2]; LOC.h = r.h0; LOC.q = 1; return LOC; }
@@ -108,7 +126,7 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
   const f = sd * L.v / r.W + (y - r.oy - zOf(r, L.u)) / r.H - 1;
   FACE.d = f / len; FACE.n = [gx / len, gy / len, gz / len]; return FACE;
 }
-const ramps = [], checkpoints = [];
+const ramps = [], checkpoints = [], rings = [];
 let fin;
 (function buildCourse() {
   // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
@@ -194,12 +212,14 @@ let fin;
       { L: 2000 },                                 // launch ramp
     ],
   };
-  const STAGE = STAGES[globalThis.SURF_LEVEL] || STAGES[1];
+  const STAGE = globalThis.SURF_STAGE || STAGES[globalThis.SURF_LEVEL] || STAGES[1]; // SURF_STAGE: stage data supplied by tools / the editor
   const FIN_DROP = 800, FIN_GAP = 700;           // leap of faith onto a pad far below
   let x = 0, y = 0, z = 0, h = 0, side = 1, W = 460, tex = 0; // wide early (forgiving), finale slalom narrows to 310 (mastery)
   STAGE.forEach((p, i) => {
+    let prevEnd = null;
     if (i > 0) {
       const prev = ramps[ramps.length - 1];
+      prevEnd = prev;
       h = prev.h1;
       const dir = dirOf(h), right = rightOf(h), gap = p.gap ?? 480;
       let shift = 0;
@@ -212,8 +232,14 @@ let fin;
     if (p.W) W = p.W;
     let L = p.L, k = 0;
     if (p.turn) { L = p.turn * Math.PI / 180 * p.R; k = -side / p.R; } // banked: always turn toward the face you're riding
-    ramps.push(makeRamp(x, y, z, h, L, k, W, W * 1.25, i, tex, side, p.C || 0));
-    tex += L;
+    if (p.loop) { const lp = makeLoop(x, y, z, h, p.loop, i, tex, side); ramps.push(lp); tex += lp.tube.sweep * p.loop.R; }
+    else { ramps.push(makeRamp(x, y, z, h, L, k, W, W * 1.25, i, tex, side, p.C || 0)); tex += L; }
+    // rings sit in the flight just before this piece, placed from the previous piece's end: d ahead, s to the right, y above its end height
+    if (p.rings && prevEnd) for (const q of p.rings) {
+      const dir = dirOf(prevEnd.h1), right = rightOf(prevEnd.h1), dip = (q.dip || 0) * Math.PI / 180, c = Math.cos(dip);
+      rings.push({ x: prevEnd.ex + dir[0] * q.d + right[0] * (q.s || 0), y: prevEnd.ey + (q.y || 0), z: prevEnd.ez + dir[2] * q.d + right[2] * (q.s || 0),
+        nx: dir[0] * c, ny: -Math.sin(dip), nz: dir[2] * c, R: q.R || 260, kind: q.kind || 'hoop', boost: q.boost ?? 120, theme: q.theme ?? 0, ramp: i, hit: false });
+    }
   });
   const last = ramps[ramps.length - 1];
   fin = { x: last.ex, z: last.ez, h: last.h1, dir: dirOf(last.h1), right: rightOf(last.h1),
@@ -222,7 +248,7 @@ let fin;
 // Sim state. Input arrives only through cmd, consumed once per tick: turn = yaw radians accumulated since the last tick,
 // touch / key = latched strafe signs (-1, 0, 1). A replay is the list of cmd snapshots, one per tick.
 const pos = new V(), vel = new V();
-let contactN = null, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
+let contactN = null, contactTube = false, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
 let yaw = 0, touchStrafe = 0, keyStrafe = 0;
 const cmd = { turn: 0, touch: 0, key: 0 };
 function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
@@ -230,13 +256,46 @@ function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
   pos.set(c[0] + rt[0] * v, r.oy + zOf(r, u) + r.H * 0.96 + 60, c[1] + rt[2] * v);
   vel.set(d[0] * 600, 0, d[2] * 600);
   yaw = r.h0 + r.k * u; lastTouched = i; contactN = null; contactTicks = 0;
+  for (const g of rings) if (g.ramp >= i) g.hit = false;
+}
+function tubeContact(T, i) {
+  const qx = pos.x - T.ox, qy = pos.y - T.oy, qz = pos.z - T.oz, e1 = T.e1, e2 = T.e2, ax = T.ax;
+  const a = qx * e1[0] + qy * e1[1] + qz * e1[2], b = qx * e2[0] + qy * e2[1] + qz * e2[2], s = qx * ax[0] + qy * ax[1] + qz * ax[2];
+  const rho = Math.hypot(a, b); if (rho < 1e-6) return;
+  const d = T.R - rho; if (!(d < P.r && d > -60)) return; // distance to the surface, measured from inside
+  let t = Math.atan2(b, a) - T.th0; t -= Math.floor(t / TAU) * TAU;
+  let w = s;
+  if (T.pitch) {
+    let k = Math.round((s - T.pitch * t) / (T.pitch * TAU)); k = Math.max(0, Math.min(Math.floor((T.sweep - t) / TAU), k));
+    if (t + TAU * k > T.sweep) return; w = s - T.pitch * (t + TAU * k);
+  } else if (t > T.sweep) return;
+  if (Math.abs(w) > T.wd) return;
+  const nx = -(a * e1[0] + b * e2[0]) / rho, ny = -(a * e1[1] + b * e2[1]) / rho, nz = -(a * e1[2] + b * e2[2]) / rho, push = P.r - d;
+  pos.x += nx * push; pos.y += ny * push; pos.z += nz * push;
+  const bn = vel.x * nx + vel.y * ny + vel.z * nz;
+  if (bn < 0) { vel.x -= nx * bn; vel.y -= ny * bn; vel.z -= nz * bn; }
+  if (!contactN && bn < -40) squash = Math.min(0.22, -bn / 1800);
+  if (T.pitch) { // follow the helix: the band slides along the axis as the rider goes round, so carry the rider with it and ease towards the centre
+    const va = vel.x * e1[0] + vel.y * e1[1] + vel.z * e1[2], vb = vel.x * e2[0] + vel.y * e2[1] + vel.z * e2[2], vAx = vel.x * ax[0] + vel.y * ax[1] + vel.z * ax[2];
+    const dv = (T.pitch * (a * vb - b * va) / (rho * rho) - vAx) * 0.5 - w * 0.01;
+    vel.x += ax[0] * dv; vel.y += ax[1] * dv; vel.z += ax[2] * dv;
+  }
+  contactN = [nx, ny, nz]; contactTube = true; contactTicks = 8;
+  if (i > lastTouched) lastTouched = i;
+}
+function inTube() { // true while inside a nearby tube's bounds; bots hold their heading there
+  for (let i = Math.max(0, lastTouched - 1); i <= Math.min(ramps.length - 1, lastTouched + 3); i++) {
+    const T = ramps[i].tube; if (!T) continue;
+    if (Math.hypot(pos.x - T.ox, pos.y - T.oy, pos.z - T.oz) < T.bound) return true;
+  }
+  return false;
 }
 function step() {
   yaw += cmd.turn; cmd.turn = 0; touchStrafe = cmd.touch; keyStrafe = cmd.key;
   vel.y -= P.g * P.dt;
   if (contactTicks > 0 && --contactTicks === 0) contactN = null;
   let strafe = keyStrafe || touchStrafe;
-  if (contactN && !keyStrafe) { // on a ramp you always push INTO the ramp (finger or not); lifting only matters in the air
+  if (contactN && !keyStrafe && !contactTube) { // on a ramp you always push INTO the ramp (finger or not); lifting only matters in the air
     const into = -(contactN[0] * Math.cos(yaw) - contactN[2] * Math.sin(yaw));
     strafe = into >= 0 ? 1 : -1;
   }
@@ -248,11 +307,26 @@ function step() {
     vel.x = Math.max(-P.maxvel, Math.min(P.maxvel, vel.x));
   vel.y = Math.max(-P.maxvel, Math.min(P.maxvel, vel.y));
   vel.z = Math.max(-P.maxvel, Math.min(P.maxvel, vel.z));
+  const ox = pos.x, oy = pos.y, oz = pos.z;
   pos.x += vel.x * P.dt; pos.y += vel.y * P.dt; pos.z += vel.z * P.dt;
+  for (const g of rings) { // rings: crossing the plane forward inside the radius. hoop = speed boost (more when centred), portal = scenery trigger
+    if (g.hit) continue;
+    const s0 = (ox - g.x) * g.nx + (oy - g.y) * g.ny + (oz - g.z) * g.nz, s1 = (pos.x - g.x) * g.nx + (pos.y - g.y) * g.ny + (pos.z - g.z) * g.nz;
+    if (s0 < 0 && s1 >= 0) {
+      const t = s0 / (s0 - s1), dd = Math.hypot(ox + (pos.x - ox) * t - g.x, oy + (pos.y - oy) * t - g.y, oz + (pos.z - oz) * t - g.z);
+      if (dd <= g.R) {
+        g.hit = true;
+        if (g.kind === 'hoop') { const sp = Math.hypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
+        onRing(g, dd / g.R);
+      }
+    }
+  }
 
   const i0 = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 3);
   for (let i = i0; i <= i1; i++) {
-    const r = ramps[i], L = local(r, pos.x, pos.z);
+    const r = ramps[i];
+    if (r.tube) { tubeContact(r.tube, i); continue; }
+    const L = local(r, pos.x, pos.z);
     if (L.u < 0 || L.u > r.L) continue;
     for (const sd of [1, -1]) {
       const s = sd * L.v;
@@ -264,7 +338,7 @@ function step() {
         const bn = vel.x * n[0] + vel.y * n[1] + vel.z * n[2];
         if (bn < 0) { vel.x -= n[0] * bn; vel.y -= n[1] * bn; vel.z -= n[2] * bn; }
         if (!contactN && bn < -40) squash = Math.min(0.22, -bn / 1800); // touchdown
-        contactN = n; contactTicks = 8;
+        contactN = n; contactTube = false; contactTicks = 8;
         if (i > lastTouched) lastTouched = i;
       }
     }
@@ -603,6 +677,7 @@ function updateStreaks(speed) {
 
 // ---------- State ----------
 const prevPos = new THREE.Vector3();
+function onRing(g, off) { /* visuals hooked up later */ }
 let fingerDown = false, falls = 0;
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
 const $ = id => document.getElementById(id);
