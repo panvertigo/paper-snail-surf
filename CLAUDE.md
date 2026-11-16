@@ -28,6 +28,7 @@ iPhone game capturing the joy of CS:GO surfing. Owner: Jeffry (knows CS surf wel
 - Business: Trackmania model (timed stages, medals, ghosts, user maps, seasons). Cosmetics only, never pay-to-win.
 
 ## Hard-won learnings
+- Inside the PHYSICS block never use Math.sin/cos/atan2/hypot/pow/exp (engines differ in the last bit, so replays diverge across devices). Use dsin/dcos/datan2/dhypot (+ - * / sqrt only). Open determinism.html on the iPhone after physics changes.
 - "Strafe follows swipe" on ramps was mathematically broken (couldn't correct oversteer). Fixed by auto-push.
 - Chained straight segments as curves made seams that pushed riders over the ridge. Use true arcs.
 - Banked turns hold only up to v ~ sqrt(1000 R) at this bank. Long downhill runs need climbs to bleed speed.

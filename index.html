@@ -63,6 +63,31 @@ try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^
 class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
 try { if (/^#custom/.test(location.hash)) { globalThis.SURF_STAGE = JSON.parse(localStorage.getItem('surf_custom_stage')); globalThis.SURF_LEVEL = 'custom'; } } catch (e) {}
 // ==PHYSICS START== (shared verbatim with the offline course verifier; needs a V class and onCheckpoint/finish/fail hooks)
+// Deterministic math: engines differ in the last bit for sin/cos/atan2/hypot, so replays would diverge across devices (Node vs Chrome already do).
+// These use only + - * / and sqrt, which IEEE 754 makes bit-identical everywhere.
+const DPI = Math.PI, DPIO2 = Math.PI / 2, DPIO2_1 = 1.57079632673412561417e+00, DPIO2_1T = 6.07710050650619224932e-11;
+function dksin(r) { const z = r * r; return r + z * r * (-1.66666666666666324348e-01 + z * (8.33333333332248946124e-03 + z * (-1.98412698298579493134e-04 + z * (2.75573137070700676789e-06 + z * (-2.50507602534068634195e-08 + z * 1.58969099521155010221e-10))))); }
+function dkcos(r) { const z = r * r, hz = 0.5 * z, w = 1 - hz, q = z * (4.16666666666666019037e-02 + z * (-1.38888888888741095749e-03 + z * (2.48015872894767294178e-05 + z * (-2.75573143513906633035e-07 + z * (2.08757232129817482790e-09 + z * -1.13596475577881948265e-11))))); return w + (((1 - w) - hz) + z * q); }
+function dsincos(x, wantSin) {
+  const k = Math.floor(x * 0.6366197723675814 + 0.5), r = (x - k * DPIO2_1) - k * DPIO2_1T, n = ((k % 4) + 4) % 4;
+  const s = dksin(r), c = dkcos(r);
+  if (wantSin) return n === 0 ? s : n === 1 ? c : n === 2 ? -s : -c;
+  return n === 0 ? c : n === 1 ? -s : n === 2 ? -c : s;
+}
+function dsin(x) { return dsincos(x, true); }
+function dcos(x) { return dsincos(x, false); }
+function dhypot(a, b, c) { return Math.sqrt(a * a + b * b + (c === undefined ? 0 : c * c)); }
+function datan(t) { // t >= 0: two half-angle steps, then a Taylor series on |t| <= tan(pi/16)
+  let inv = false; if (t > 1) { t = 1 / t; inv = true; }
+  t = t / (1 + Math.sqrt(1 + t * t)); t = t / (1 + Math.sqrt(1 + t * t));
+  const z = t * t, a = 4 * t * (1 + z * (-1 / 3 + z * (1 / 5 + z * (-1 / 7 + z * (1 / 9 + z * (-1 / 11 + z * (1 / 13 + z * (-1 / 15 + z * (1 / 17 + z * (-1 / 19 + z * (1 / 21 + z * (-1 / 23 + z * (1 / 25))))))))))))) ;
+  return inv ? DPIO2 - a : a;
+}
+function datan2(y, x) {
+  const ax = Math.abs(x), ay = Math.abs(y); if (ax === 0 && ay === 0) return 0;
+  let a = ax >= ay ? datan(ay / ax) : DPIO2 - datan(ax / ay);
+  if (x < 0) a = DPI - a; return y < 0 ? -a : a;
+}
 const P = {
   g: 800,          // sv_gravity
   airaccel: 400,   // sv_airaccelerate (150 = classic skill surf, 400-800 forgiving)
@@ -80,8 +105,8 @@ function zOf(r, u) { if (!r.C) return -SLOPE * u; const t = u / r.L, c = r.C / r
   return r.L * ((t * t * t - 2 * t * t + t) * m0 + (3 * t * t - 2 * t * t * t) * c - (t * t * t - t * t) * SLOPE); }
 function zD(r, u) { if (!r.C) return -SLOPE; const t = u / r.L, c = r.C / r.L, m0 = 1.5 * c + SLOPE; // dz/du
   return (3 * t * t - 4 * t + 1) * m0 + (6 * t - 6 * t * t) * c - (3 * t * t - 2 * t) * SLOPE; }
-const dirOf = h => [-Math.sin(h), 0, -Math.cos(h)];  // yaw h faces along -Z at 0
-const rightOf = h => [Math.cos(h), 0, -Math.sin(h)];
+const dirOf = h => [-dsin(h), 0, -dcos(h)];  // yaw h faces along -Z at 0
+const rightOf = h => [dcos(h), 0, -dsin(h)];
 const wrapPi = a => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
 function rng(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
   t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -106,16 +131,16 @@ function makeRamp(sx, oy, sz, h0, L, k, W, H, sec, tex, side, C = 0) {
 const TAU = Math.PI * 2;
 function makeLoop(x, y, z, h, o, sec, tex, side) {
   const R = o.R, wd = o.W || 600, phi = o.phi ?? 1.0, phi2 = o.phi2 ?? (o.bank ? 0 : 0.3), turns = o.turns ?? 1, bank = (o.bank || 0) * Math.PI / 180;
-  const d = dirOf(h), rt = rightOf(h), cb = Math.cos(bank), sb = Math.sin(bank);
+  const d = dirOf(h), rt = rightOf(h), cb = dcos(bank), sb = dsin(bank);
   const e1 = d, e2 = [rt[0] * sb, cb, rt[2] * sb], ax = [cb * rt[0], -sb, cb * rt[2]];
   const pitch = (o.pitch ?? 2.5 * wd / TAU) * (o.dir || 1), th0 = -Math.PI / 2 - phi, sweep = TAU * turns + phi + phi2;
-  const O = [x - R * (Math.cos(th0) * e1[0] + Math.sin(th0) * e2[0]), y - R * (Math.cos(th0) * e1[1] + Math.sin(th0) * e2[1]), z - R * (Math.cos(th0) * e1[2] + Math.sin(th0) * e2[2])];
+  const O = [x - R * (dcos(th0) * e1[0] + dsin(th0) * e2[0]), y - R * (dcos(th0) * e1[1] + dsin(th0) * e2[1]), z - R * (dcos(th0) * e1[2] + dsin(th0) * e2[2])];
   // axis shift of the band centre: only during the full turns, eased in and out so the rider's sideways speed fades to zero before it leaves
   const U = TAU * turns, fv = u => Math.max(0, Math.min(1, u / 0.8, (U - u) / 1.2)), N = Math.ceil(U / 0.02) + 1, tab = new Float64Array(N + 1);
   for (let i = 1; i <= N; i++) tab[i] = tab[i - 1] + pitch * fv((i - 0.5) * 0.02) * 0.02;
   const shift = t => { const u = Math.max(0, Math.min(t - phi, U)) / 0.02, i = Math.floor(u); return i >= N ? tab[N] : tab[i] + (tab[i + 1] - tab[i]) * (u - i); };
   const T = { ox: O[0], oy: O[1], oz: O[2], e1, e2, ax, R, wd, th0, sweep, pitch, phi, fv, shift, bound: R + wd + Math.abs(pitch * U) + 300 };
-  const at = t => { const a = th0 + t, c = Math.cos(a), s = Math.sin(a), p = shift(t);
+  const at = t => { const a = th0 + t, c = dcos(a), s = dsin(a), p = shift(t);
     return [O[0] + R * (c * e1[0] + s * e2[0]) + ax[0] * p, O[1] + R * (c * e1[1] + s * e2[1]) + ax[1] * p, O[2] + R * (c * e1[2] + s * e2[2]) + ax[2] * p]; };
   let ymin = Infinity; for (let t = 0; t <= sweep; t += 0.05) ymin = Math.min(ymin, at(t)[1]);
   const X = at(sweep);
@@ -124,15 +149,15 @@ function makeLoop(x, y, z, h, o, sec, tex, side) {
 const LOC = { u: 0, v: 0, h: 0, q: 1 };
 function local(r, x, z) { // u along ramp, v across (+ = right of travel), h = ridge heading there, q = du/ds stretch
   if (!r.k) { const dx = x - r.sx, dz = z - r.sz; LOC.u = dx * r.d0[0] + dz * r.d0[2]; LOC.v = dx * r.r0[0] + dz * r.r0[2]; LOC.h = r.h0; LOC.q = 1; return LOC; }
-  const qx = x - r.cx, qz = z - r.cz, rho = Math.hypot(qx, qz) || 1e-6;
-  const dh = wrapPi(Math.atan2(-r.sk * qz / rho, r.sk * qx / rho) - r.h0);
+  const qx = x - r.cx, qz = z - r.cz, rho = dhypot(qx, qz) || 1e-6;
+  const dh = wrapPi(datan2(-r.sk * qz / rho, r.sk * qx / rho) - r.h0);
   LOC.u = dh / r.k; LOC.h = r.h0 + dh; LOC.v = (rho - r.Rc) * r.sk; LOC.q = r.Rc / rho; return LOC;
 }
 const FACE = { d: 0, n: null };
 function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) and its normal at this spot
   const rt = rightOf(L.h), dr = dirOf(L.h);
   const sl = -zD(r, L.u), gx = sd * rt[0] / r.W + sl * L.q * dr[0] / r.H, gy = 1 / r.H, gz = sd * rt[2] / r.W + sl * L.q * dr[2] / r.H;
-  const len = Math.hypot(gx, gy, gz);
+  const len = dhypot(gx, gy, gz);
   const f = sd * L.v / r.W + (y - r.oy - zOf(r, L.u)) / r.H - 1;
   FACE.d = f / len; FACE.n = [gx / len, gy / len, gz / len]; return FACE;
 }
@@ -298,10 +323,10 @@ function buildCourse(S, meta) {
     ramps[ramps.length - 1].hue = hue;
     // rings sit in the flight just before this piece, placed from the previous piece's end: d ahead, s to the right, y above its end height
     if (p.rings && prevEnd) for (const q of p.rings) {
-      const dir = dirOf(prevEnd.h1), right = rightOf(prevEnd.h1), dip = (q.dip || 0) * Math.PI / 180, c = Math.cos(dip);
+      const dir = dirOf(prevEnd.h1), right = rightOf(prevEnd.h1), dip = (q.dip || 0) * Math.PI / 180, c = dcos(dip);
       const lane = q.s ?? prevEnd.side * 0.5 * prevEnd.W; // default lane: where the rider flies, mid-face of the previous ramp
       rings.push({ x: prevEnd.ex + dir[0] * q.d + right[0] * lane, y: prevEnd.ey + (q.y || 0), z: prevEnd.ez + dir[2] * q.d + right[2] * lane,
-        nx: dir[0] * c, ny: -Math.sin(dip), nz: dir[2] * c, R: q.R || 260, kind: q.kind || 'hoop', boost: q.boost ?? 120, theme: q.theme ?? 0, ramp: i, hit: false });
+        nx: dir[0] * c, ny: -dsin(dip), nz: dir[2] * c, R: q.R || 260, kind: q.kind || 'hoop', boost: q.boost ?? 120, theme: q.theme ?? 0, ramp: i, hit: false });
     }
   });
   const last = ramps[ramps.length - 1];
@@ -326,9 +351,9 @@ function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
 function tubeContact(T, i) {
   const qx = pos.x - T.ox, qy = pos.y - T.oy, qz = pos.z - T.oz, e1 = T.e1, e2 = T.e2, ax = T.ax;
   const a = qx * e1[0] + qy * e1[1] + qz * e1[2], b = qx * e2[0] + qy * e2[1] + qz * e2[2], s = qx * ax[0] + qy * ax[1] + qz * ax[2];
-  const rho = Math.hypot(a, b); if (rho < 1e-6) return;
+  const rho = dhypot(a, b); if (rho < 1e-6) return;
   const d = T.R - rho; if (!(d < P.r && d > -60)) return; // distance to the surface, measured from inside
-  let t = Math.atan2(b, a) - T.th0; t -= Math.floor(t / TAU) * TAU;
+  let t = datan2(b, a) - T.th0; t -= Math.floor(t / TAU) * TAU;
   let w = s, tt = t;
   if (T.pitch) { // which turn are we on? the one whose band is nearest in axis position
     let best = Infinity;
@@ -352,7 +377,7 @@ function tubeContact(T, i) {
 function inTube() { // true while inside a nearby tube's bounds; bots hold their heading there
   for (let i = Math.max(0, lastTouched - 1); i <= Math.min(ramps.length - 1, lastTouched + 3); i++) {
     const T = ramps[i].tube; if (!T) continue;
-    if (Math.hypot(pos.x - T.ox, pos.y - T.oy, pos.z - T.oz) < T.bound) return true;
+    if (dhypot(pos.x - T.ox, pos.y - T.oy, pos.z - T.oz) < T.bound) return true;
   }
   return false;
 }
@@ -362,12 +387,12 @@ function step() {
   if (contactTicks > 0 && --contactTicks === 0) contactN = null;
   let strafe = keyStrafe || touchStrafe;
   if (contactN && !keyStrafe && !contactTube) { // on a ramp you always push INTO the ramp (finger or not); lifting only matters in the air
-    const into = -(contactN[0] * Math.cos(yaw) - contactN[2] * Math.sin(yaw));
+    const into = -(contactN[0] * dcos(yaw) - contactN[2] * dsin(yaw));
     strafe = into >= 0 ? 1 : -1;
   }
   if (contactN && contactTube) strafe = 0; // no air control while riding a tube: in a banked tube air-accel against the climb would brake you hard
   if (strafe) { // Source AirAccelerate, wishdir = +/- right vector of view
-    const wx = Math.cos(yaw) * strafe, wz = -Math.sin(yaw) * strafe;
+    const wx = dcos(yaw) * strafe, wz = -dsin(yaw) * strafe;
     const add = Math.min(P.wishspeed, P.aircap) - (vel.x * wx + vel.z * wz);
     if (add > 0) { const a = Math.min(P.airaccel * P.wishspeed * P.dt, add); vel.x += a * wx; vel.z += a * wz; }
   }
@@ -380,10 +405,10 @@ function step() {
     if (g.hit) continue;
     const s0 = (ox - g.x) * g.nx + (oy - g.y) * g.ny + (oz - g.z) * g.nz, s1 = (pos.x - g.x) * g.nx + (pos.y - g.y) * g.ny + (pos.z - g.z) * g.nz;
     if (s0 < 0 && s1 >= 0) {
-      const t = s0 / (s0 - s1), dd = Math.hypot(ox + (pos.x - ox) * t - g.x, oy + (pos.y - oy) * t - g.y, oz + (pos.z - oz) * t - g.z);
+      const t = s0 / (s0 - s1), dd = dhypot(ox + (pos.x - ox) * t - g.x, oy + (pos.y - oy) * t - g.y, oz + (pos.z - oz) * t - g.z);
       if (dd <= g.R) {
         g.hit = true;
-        if (g.kind === 'hoop') { const sp = Math.hypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
+        if (g.kind === 'hoop') { const sp = dhypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
         onRing(g, dd / g.R);
       }
     }

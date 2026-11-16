@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Determinism check</title>
+<style>body{font:16px/1.4 system-ui,sans-serif;background:#0b0f1a;color:#e8eeff;margin:0;padding:16px}h1{font-size:18px}pre{white-space:pre-wrap;background:#111a2e;padding:12px;border-radius:8px}.ok{color:#7be495}.bad{color:#ff8a8a}</style></head>
+<body>
+<h1>Physics determinism check</h1>
+<p>Replays the recorded Node runs (Levels 1-3, about 24,000 physics ticks) in this browser's JavaScript engine and compares a digest of position and velocity every 100 ticks. All three should say OK. A mismatch means this engine's Math.sin / cos / atan2 / hypot differ from Node's, and the replays (ghosts, leaderboards) would diverge.</p>
+<button id="go" style="font-size:18px;padding:10px 18px">Run</button>
+<pre id="out">press Run</pre>
+<script>
+const EVERY = 100, AA = 400;
+function fnv(h, s) { for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
+const out = document.getElementById('out'), log = t => { out.innerHTML += '\n' + t; };
+document.getElementById('go').onclick = async () => {
+  out.textContent = navigator.userAgent + '\n';
+  const src = await (await fetch('index.html?x=' + Date.now())).text();
+  const phys = src.slice(src.indexOf('// ==PHYSICS START=='), src.indexOf('// ==PHYSICS END=='));
+  const mk = () => new Function('V', `let state='run',falls=0;function onCheckpoint(){}function onRing(){}function finish(){state='done'}function fail(){falls++;state='fail'}` + phys +
+    `return {P,cmd,step,spawnOn,pos,vel,g:()=>({yaw,state})};`)(V);
+  let bad = 0;
+  for (const L of [1, 2, 3]) {
+    const g = await (await fetch('verifier/golden/L' + L + '.json?x=' + Date.now())).json();
+    globalThis.SURF_LEVEL = L; globalThis.SURF_STAGE = undefined;
+    const G = mk(); G.P.airaccel = AA; G.spawnOn(0);
+    let h = 2166136261, first = -1; const trace = [];
+    for (let i = 0; i < g.cmds.length; i += 3) {
+      G.cmd.turn = g.cmds[i]; G.cmd.touch = g.cmds[i + 1]; G.cmd.key = g.cmds[i + 2]; G.step();
+      const t = i / 3 + 1;
+      if (t % EVERY === 0) { h = fnv(h, [G.pos.x, G.pos.y, G.pos.z, G.vel.x, G.vel.y, G.vel.z, G.g().yaw].join(',')); trace.push(h); if (first < 0 && h !== g.trace[trace.length - 1]) first = t; }
+    }
+    const fin = [G.pos.x, G.pos.y, G.pos.z, G.vel.x, G.vel.y, G.vel.z, G.g().yaw].join(',');
+    const ok = first < 0 && fin === g.final && G.g().state === g.state;
+    if (!ok) bad++;
+    log('Level ' + L + ': ' + (ok ? '<span class="ok">OK</span>' : '<span class="bad">MISMATCH' + (first > 0 ? ' first at tick ' + first : ' (final state differs)') + '</span>') + '  (' + g.ticks + ' ticks)');
+    await new Promise(r => setTimeout(r));
+  }
+  log('\n' + (bad ? '<span class="bad">DIVERGES from Node: ship our own sin/cos/atan2/hypot</span>' : '<span class="ok">Identical to Node on this engine.</span>'));
+};
+</script></body></html>
