@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Surf Prototype</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0f1a;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:-apple-system,system-ui,sans-serif;color:#fff}
+canvas{display:block;touch-action:none}
+#speed{position:fixed;left:16px;bottom:12px;font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;text-shadow:0 2px 6px #000a;pointer-events:none}
+#speed small{font-size:13px;opacity:.7;font-weight:500}
+#timer{position:fixed;left:50%;top:12px;transform:translateX(-50%);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;text-shadow:0 2px 6px #000a;pointer-events:none}
+#best,#prog{position:fixed;left:12px;font-size:13px;opacity:.8;pointer-events:none;text-shadow:0 1px 4px #000a}
+#best{top:12px}#prog{top:30px}
+.btn{position:fixed;top:8px;width:40px;height:40px;border-radius:20px;border:0;background:#ffffff22;color:#fff;font-size:20px;backdrop-filter:blur(6px)}
+#restart{right:8px}#gear{right:56px}
+#msg{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:17px;line-height:1.4;background:#000a;padding:14px 18px;border-radius:12px;max-width:80vw;pointer-events:none}
+#msg b{font-size:22px}
+#toast{position:fixed;left:50%;top:44px;transform:translateX(-50%);font-size:15px;font-weight:600;color:#ffe066;opacity:0;transition:opacity .4s;pointer-events:none;text-shadow:0 1px 4px #000a}
+#settings{position:fixed;right:8px;top:56px;background:#000c;padding:12px;border-radius:12px;font-size:14px;width:220px}
+#settings label{display:block;margin:6px 0 4px}
+#settings .row{display:flex;gap:6px}
+#settings .row button{flex:1;padding:8px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px}
+#settings .row button.on{background:#3fc1c9;color:#000}
+#settings input{width:100%}
+#flash{position:fixed;inset:0;background:#f33;opacity:0;pointer-events:none;transition:opacity .3s}
+</style>
+</head>
+<body>
+<div id="timer">0.00</div>
+<div id="best"></div>
+<div id="prog"></div>
+<div id="toast"></div>
+<div id="speed">0 <small>u/s</small></div>
+<button class="btn" id="gear">⚙</button>
+<button class="btn" id="restart">↺</button>
+<div id="settings" hidden>
+  <label>Level</label>
+  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button></div>
+  <label>Air accel (ramp grip)</label>
+  <div class="row" id="aa">
+    <button data-v="150">150<br>classic</button><button data-v="400">400<br>medium</button><button data-v="800">800<br>easy</button>
+  </div>
+  <label>Swipe sensitivity <span id="sv"></span></label>
+  <input id="sens" type="range" min="4" max="30" step="1">
+  <label>Camera</label>
+  <div class="row" id="cam"><button data-c="3">third<br>person</button><button data-c="1">first<br>person</button></div>
+  <label>Game speed <span id="gsv"></span></label>
+  <input id="gspeed" type="range" min="100" max="115" step="1">
+</div>
+<div id="msg"></div>
+<div id="flash"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
+// ==PHYSICS START== (shared verbatim with the offline course verifier)
+const P = {
+  g: 800,          // sv_gravity
+  airaccel: 400,   // sv_airaccelerate (150 = classic skill surf, 400-800 forgiving)
+  wishspeed: 250,  // strafe input speed
+  aircap: 30,      // Source caps air wishspeed at 30 inside AirAccelerate
+  maxvel: 3500,    // sv_maxvelocity, per axis
+  r: 16,           // player hull half-width
+  sens: 0.011,     // radians of yaw per px of swipe
+  dt: 0.01         // 100 Hz fixed physics tick
+};
+const SLOPE = 0.08;      // downhill grade along a normal ramp
+// Ridge height above r.oy at distance u: normal ramps fall at SLOPE. Uphill ramps (r.C = net climb) follow a cubic
+// that climbs, rounds over a crest and exits at the normal -SLOPE grade, so the transfer after it is a normal one.
+function zOf(r, u) { if (!r.C) return -SLOPE * u; const t = u / r.L, c = r.C / r.L, m0 = 1.5 * c + SLOPE;
+  return r.L * ((t * t * t - 2 * t * t + t) * m0 + (3 * t * t - 2 * t * t * t) * c - (t * t * t - t * t) * SLOPE); }
+function zD(r, u) { if (!r.C) return -SLOPE; const t = u / r.L, c = r.C / r.L, m0 = 1.5 * c + SLOPE; // dz/du
+  return (3 * t * t - 4 * t + 1) * m0 + (6 * t - 6 * t * t) * c - (3 * t * t - 2 * t) * SLOPE; }
+const dirOf = h => [-Math.sin(h), 0, -Math.cos(h)];  // yaw h faces along -Z at 0
+const rightOf = h => [Math.cos(h), 0, -Math.sin(h)];
+const wrapPi = a => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+function rng(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// A ramp is a triangular prism whose ridge follows a straight line (k = 0) or a true circular arc
+// (k = curvature, signed). Arcs are analytic, so turns have no seams.
+function ridgeAt(r, u) {
+  if (!r.k) return [r.sx + r.d0[0] * u, r.sz + r.d0[2] * u];
+  const rt = rightOf(r.h0 + r.k * u);
+  return [r.cx + r.sk * rt[0] * r.Rc, r.cz + r.sk * rt[2] * r.Rc];
+}
+function makeRamp(sx, oy, sz, h0, L, k, W, H, sec, tex, side, C = 0) {
+  const r = { sx, oy, sz, h0, L, k, W, H, sec, tex, side, C, d0: dirOf(h0), r0: rightOf(h0) };
+  if (k) { r.sk = Math.sign(k); r.Rc = 1 / Math.abs(k); r.cx = sx - r.sk * r.r0[0] * r.Rc; r.cz = sz - r.sk * r.r0[2] * r.Rc; }
+  const e = ridgeAt(r, L); r.ex = e[0]; r.ez = e[1]; r.h1 = h0 + k * L; r.ey = oy + zOf(r, L);
+  return r;
+}
+const LOC = { u: 0, v: 0, h: 0, q: 1 };
+function local(r, x, z) { // u along ramp, v across (+ = right of travel), h = ridge heading there, q = du/ds stretch
+  if (!r.k) { const dx = x - r.sx, dz = z - r.sz; LOC.u = dx * r.d0[0] + dz * r.d0[2]; LOC.v = dx * r.r0[0] + dz * r.r0[2]; LOC.h = r.h0; LOC.q = 1; return LOC; }
+  const qx = x - r.cx, qz = z - r.cz, rho = Math.hypot(qx, qz) || 1e-6;
+  const dh = wrapPi(Math.atan2(-r.sk * qz / rho, r.sk * qx / rho) - r.h0);
+  LOC.u = dh / r.k; LOC.h = r.h0 + dh; LOC.v = (rho - r.Rc) * r.sk; LOC.q = r.Rc / rho; return LOC;
+}
+const FACE = { d: 0, n: null };
+function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) and its normal at this spot
+  const rt = rightOf(L.h), dr = dirOf(L.h);
+  const sl = -zD(r, L.u), gx = sd * rt[0] / r.W + sl * L.q * dr[0] / r.H, gy = 1 / r.H, gz = sd * rt[2] / r.W + sl * L.q * dr[2] / r.H;
+  const len = Math.hypot(gx, gy, gz);
+  const f = sd * L.v / r.W + (y - r.oy - zOf(r, L.u)) / r.H - 1;
+  FACE.d = f / len; FACE.n = [gx / len, gy / len, gz / len]; return FACE;
+}
+const ramps = [], checkpoints = [];
+let fin;
+(function buildCourse() {
+  // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
+  //   L: straight length | turn: degrees + R: radius (direction is forced: banked toward the face you ride)
+  //   gap [480] and drop [190]: transfer from the previous ramp | zig: zigzag transfer (shift 0.75 W, swap faces)
+  //   W: half-width, carries over [460] | C: net climb (uphill ramp) | cp: checkpoint on this ramp
+  // Speed rules: banked turn holds v < sqrt(1000 R) (R 4500 ~ 2100 u/s). Uphill sits just before a checkpoint;
+  // never put an uphill within 3 ramps after a checkpoint (respawn at 600 u/s soft-locks).
+  const STAGES = {
+    1: [
+    // LEVEL 1: wide ramps, long runs, few jumps, one huge easy jump
+    { L: 3500, W: 700 },
+    { L: 4000, gap: 600, drop: 220 },
+    { turn: 50, R: 6000 },
+    { L: 4500 },
+    { turn: 45, R: 6000, zig: true },
+    { L: 4500, C: 300 },
+    { turn: 60, R: 6500 },
+    { L: 4000 },
+    { L: 4000, C: 600 },                         // climb into checkpoint 1
+    { L: 3500, cp: true },
+    { L: 4000 },
+    { turn: 40, R: 6000 },
+    { L: 3000 },                                 // launch ramp
+    { L: 6000, W: 1000, gap: 1800, drop: 2200 }, // THE BIG ONE: huge drop onto a giant landing ramp
+    { L: 4500, W: 700, C: 1000 },                // long climb pays the speed back
+    { turn: 90, R: 6500, zig: true },
+    { L: 4000, C: 300 },
+    { turn: 45, R: 6000, zig: true },
+    { L: 4000, C: 500 },                         // climb into checkpoint 2
+    { L: 3500, cp: true },
+    { turn: 50, R: 6000 },
+    { L: 4500 },
+    { turn: 45, R: 6000, zig: true },
+    { L: 4000, C: 300 },
+    { turn: 120, R: 7000, zig: true },           // final sweep
+    { L: 3000 },                                 // launch onto the finish
+    ],
+    2: [
+      // LEVEL 2
+      // 1. Warm-up: learn the rhythm
+      { L: 1800 },
+      { L: 1600 },
+      { turn: 45, R: 3800 },
+      { L: 1500, zig: true },
+      { turn: 45, R: 3800 },
+      { turn: 40, R: 3800, zig: true },           // S-bend
+      { L: 1500 },
+      // THE SWEEP: one long 180
+      { turn: 180, R: 4500, gap: 520 },
+      { L: 1500 },
+      { turn: 50, R: 3800, zig: true },
+      { L: 1600 },
+      { L: 1800, C: 350 },                         // climb into checkpoint 1
+      // 2. Plunge and strafe gap
+      { L: 1600, cp: true },
+      { turn: 45, R: 3800 },
+      { L: 1500 },
+      { L: 2200, gap: 950, drop: 750 },            // THE PLUNGE: big drop
+      { L: 2000, C: 450 },                         // pay it back
+      { turn: 50, R: 3800, zig: true },
+      { L: 1600, gap: 1350, drop: 320, zig: true }, // STRAFE GAP: too far to make without air strafing
+      { turn: 45, R: 4000 },
+      { L: 1500, zig: true },
+      { turn: 60, R: 4200 },
+      { L: 1600, C: 250 },
+      { turn: 50, R: 4000, zig: true },
+      { L: 1500 },
+      { turn: 45, R: 4000, zig: true },
+      { L: 1800, C: 350 },                         // climb into checkpoint 2
+      // 3. Finale: narrowing slalom, final sweep, leap of faith
+      { L: 1600, cp: true },
+      { turn: 40, R: 4000 },
+      { L: 1500 },
+      { turn: 35, R: 4000, zig: true, W: 370 },    // slalom: four quick zigzags, ramps narrowing
+      { turn: 35, R: 4000, zig: true, W: 350 },
+      { turn: 35, R: 4000, zig: true, W: 330 },
+      { turn: 35, R: 4000, zig: true, W: 310 },
+      { L: 1600, C: 300 },
+      { turn: 45, R: 4000, zig: true },
+      { L: 1600, C: 200 },
+      { turn: 160, R: 4600 },                      // final sweep
+      { L: 2000 },                                 // launch ramp
+    ],
+  };
+  const STAGE = STAGES[globalThis.SURF_LEVEL] || STAGES[1];
+  const FIN_DROP = 800, FIN_GAP = 700;           // leap of faith onto a pad far below
+  let x = 0, y = 0, z = 0, h = 0, side = 1, W = 460, tex = 0; // wide early (forgiving), finale slalom narrows to 310 (mastery)
+  STAGE.forEach((p, i) => {
+    if (i > 0) {
+      const prev = ramps[ramps.length - 1];
+      h = prev.h1;
+      const dir = dirOf(h), right = rightOf(h), gap = p.gap ?? 480;
+      let shift = 0;
+      if (p.zig) { shift = side * W * 0.75; side = -side; } // land high on the face that faces you
+      x = prev.ex + dir[0] * gap + right[0] * shift; z = prev.ez + dir[2] * gap + right[2] * shift;
+      y = prev.ey - (p.drop ?? 190);
+      tex += gap;
+      if (p.cp) checkpoints.push(ramps.length);
+    }
+    if (p.W) W = p.W;
+    let L = p.L, k = 0;
+    if (p.turn) { L = p.turn * Math.PI / 180 * p.R; k = -side / p.R; } // banked: always turn toward the face you're riding
+    ramps.push(makeRamp(x, y, z, h, L, k, W, W * 1.25, i, tex, side, p.C || 0));
+    tex += L;
+  });
+  const last = ramps[ramps.length - 1];
+  fin = { x: last.ex, z: last.ez, h: last.h1, dir: dirOf(last.h1), right: rightOf(last.h1),
+          y: last.ey - FIN_DROP, u0: FIN_GAP, u1: FIN_GAP + 5000, half: 1300 };
+})();
+function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
+  const r = ramps[i], u = 60, c = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u), v = r.side * 0.04 * r.W, d = dirOf(r.h0 + r.k * u);
+  pos.set(c[0] + rt[0] * v, r.oy + zOf(r, u) + r.H * 0.96 + 60, c[1] + rt[2] * v);
+  vel.set(d[0] * 600, 0, d[2] * 600);
+  yaw = r.h0 + r.k * u; lastTouched = i; contactN = null; contactTicks = 0;
+}
+function step() {
+  vel.y -= P.g * P.dt;
+  if (contactTicks > 0 && --contactTicks === 0) contactN = null;
+  let strafe = keyStrafe || touchStrafe;
+  if (contactN && !keyStrafe) { // on a ramp you always push INTO the ramp (finger or not); lifting only matters in the air
+    const into = -(contactN[0] * Math.cos(yaw) - contactN[2] * Math.sin(yaw));
+    strafe = into >= 0 ? 1 : -1;
+  }
+  if (strafe) { // Source AirAccelerate, wishdir = +/- right vector of view
+    const wx = Math.cos(yaw) * strafe, wz = -Math.sin(yaw) * strafe;
+    const add = Math.min(P.wishspeed, P.aircap) - (vel.x * wx + vel.z * wz);
+    if (add > 0) { const a = Math.min(P.airaccel * P.wishspeed * P.dt, add); vel.x += a * wx; vel.z += a * wz; }
+  }
+    vel.x = Math.max(-P.maxvel, Math.min(P.maxvel, vel.x));
+  vel.y = Math.max(-P.maxvel, Math.min(P.maxvel, vel.y));
+  vel.z = Math.max(-P.maxvel, Math.min(P.maxvel, vel.z));
+  pos.x += vel.x * P.dt; pos.y += vel.y * P.dt; pos.z += vel.z * P.dt;
+
+  const i0 = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 3);
+  for (let i = i0; i <= i1; i++) {
+    const r = ramps[i], L = local(r, pos.x, pos.z);
+    if (L.u < 0 || L.u > r.L) continue;
+    for (const sd of [1, -1]) {
+      const s = sd * L.v;
+      if (s < -2 || s > r.W) continue;
+      const F = face(r, sd, pos.y, L), n = F.n, d = F.d;
+      if (d < P.r && d > -60) {
+        const push = P.r - d;
+        pos.x += n[0] * push; pos.y += n[1] * push; pos.z += n[2] * push;
+        const bn = vel.x * n[0] + vel.y * n[1] + vel.z * n[2];
+        if (bn < 0) { vel.x -= n[0] * bn; vel.y -= n[1] * bn; vel.z -= n[2] * bn; }
+        if (!contactN && bn < -40) squash = Math.min(0.22, -bn / 1800); // touchdown
+        contactN = n; contactTicks = 8;
+        if (i > lastTouched) lastTouched = i;
+      }
+    }
+  }
+  if (nextCp < checkpoints.length && lastTouched >= checkpoints[nextCp]) { cpRamp = checkpoints[nextCp]; nextCp++; onCheckpoint(); }
+  { // finish pad
+    const dx = pos.x - fin.x, dz = pos.z - fin.z;
+    const u = dx * fin.dir[0] + dz * fin.dir[2], v = dx * fin.right[0] + dz * fin.right[2];
+    if (u > fin.u0 - 60 && u < fin.u1 && Math.abs(v) < fin.half && pos.y - P.r <= fin.y && pos.y > fin.y - 150) {
+      pos.y = fin.y + P.r; finish(); return;
+    }
+  }
+  const lr = ramps[lastTouched], nr = ramps[lastTouched + 1]; // next ramp too, so big drops aren't counted as falls
+  if (pos.y < Math.min(lr.oy, lr.ey, nr ? nr.oy : Infinity) - 900) fail();
+}
+// ==PHYSICS END==
+
+// ---------- Settings ----------
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+                set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+P.airaccel = +(store.get('surf_aa') || P.airaccel);
+P.sens = +(store.get('surf_sens_v2') || P.sens);
+const LEVEL = globalThis.SURF_LEVEL, BK = 'surf_best_L' + LEVEL, BFK = 'surf_bestf_L' + LEVEL;
+let best = +(store.get(BK) || 0), bestFalls = +(store.get(BFK) || 0);
+
+// ---------- Scene ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a2240);
+scene.fog = new THREE.Fog(0x1a2240, 6000, 70000); // light haze: whole course (~58k diagonal) stays visible for scale
+const camera = new THREE.PerspectiveCamera(70, 1, 10, 90000);
+scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x302040, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+sun.position.set(1, 1.4, 0.4); scene.add(sun);
+
+function gridTex(bg, line) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = bg; x.fillRect(0, 0, 256, 256);
+  x.strokeStyle = line; x.lineWidth = 3; x.strokeRect(0, 0, 256, 256);
+  x.lineWidth = 1; x.beginPath(); x.moveTo(128, 0); x.lineTo(128, 256); x.moveTo(0, 128); x.lineTo(256, 128); x.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  return t;
+}
+{ // all ramps in one mesh; color shifts by section so progress reads at a glance
+  const T = 256, pos = [], uv = [], col = [], cpos = [], ccol = [];
+  const c = new THREE.Color(), capC = new THREE.Color();
+  const Pt = (r, u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; };
+  for (const r of ramps) {
+    c.setHSL((0.55 + r.sec * 0.037) % 1, 0.45, 0.8); capC.setHSL((0.55 + r.sec * 0.037) % 1, 0.4, 0.45);
+    const slant = Math.hypot(r.W, r.H) / T, n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 120)) : 1;
+    for (let j = 0; j < n; j++) {
+      const ua = r.L * j / n, ub = r.L * (j + 1) / n, ta = (r.tex + ua) / T, tb = (r.tex + ub) / T;
+      for (const sd of [1, -1]) {
+        const A = Pt(r, ua, 0, r.H), B = Pt(r, ua, sd * r.W, 0), A2 = Pt(r, ub, 0, r.H), B2 = Pt(r, ub, sd * r.W, 0);
+        pos.push(...A, ...B, ...B2, ...A, ...B2, ...A2);
+        uv.push(ta, slant, ta, 0, tb, 0, ta, slant, tb, 0, tb, slant);
+        for (let m = 0; m < 6; m++) col.push(c.r, c.g, c.b);
+      }
+    }
+    cpos.push(...Pt(r, 0, -r.W, 0), ...Pt(r, 0, 0, r.H), ...Pt(r, 0, r.W, 0));
+    cpos.push(...Pt(r, r.L, -r.W, 0), ...Pt(r, r.L, r.W, 0), ...Pt(r, r.L, 0, r.H));
+    for (let m = 0; m < 6; m++) ccol.push(capC.r, capC.g, capC.b);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
+  const cg = new THREE.BufferGeometry();
+  cg.setAttribute('position', new THREE.Float32BufferAttribute(cpos, 3));
+  cg.setAttribute('color', new THREE.Float32BufferAttribute(ccol, 3));
+  cg.computeVertexNormals();
+  scene.add(new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+}
+const gates = checkpoints.map(i => { // checkpoint gates
+  const r = ramps[i];
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(r.W * 2.2, r.H * 1.7),
+    new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
+  m.position.set(r.sx, r.oy + r.H * 0.75, r.sz); m.rotation.y = r.h0; scene.add(m);
+  return m;
+});
+{ // finish pad
+  const w = fin.half * 2, d = fin.u1 - fin.u0;
+  const t = gridTex('#7be495', '#2f8f52'); t.repeat.set(w / 256, d / 256);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, 60, d), new THREE.MeshLambertMaterial({ map: t }));
+  const um = (fin.u0 + fin.u1) / 2;
+  m.position.set(fin.x + fin.dir[0] * um, fin.y - 30, fin.z + fin.dir[2] * um); m.rotation.y = fin.h;
+  scene.add(m);
+}
+{ // void floor grid for height reference
+  let minY = 0, sx = 0, sz = 0;
+  for (const r of ramps) { minY = Math.min(minY, r.oy, r.ey); sx += r.sx; sz += r.sz; }
+  const grid = new THREE.GridHelper(400000, 400, 0x4a5a9a, 0x2a3466);
+  grid.position.set(sx / ramps.length, minY - 2500, sz / ramps.length); scene.add(grid);
+}
+
+// ---------- Paper snail ----------
+const CAM_BACK = 700, CAM_UP = 850, CAM_AHEAD = 600, FP_EYE = 120;
+let camMode = +(store.get('surf_cam') || 3), gameSpeed = +(store.get('surf_speed') || 1.07);
+const camOff = new THREE.Vector3(0, CAM_UP, CAM_BACK);
+function paperTex(draw, size = 256) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'); draw(x, size);
+  for (let i = 0; i < 1400; i++) { x.fillStyle = `rgba(0,0,0,${Math.random() * 0.05})`; x.fillRect(Math.random() * size, Math.random() * size, 2, 2); }
+  return new THREE.CanvasTexture(c);
+}
+const shellTex = paperTex((x, s) => {
+  x.fillStyle = '#fbe9d0'; x.fillRect(0, 0, s, s);
+  x.strokeStyle = '#e8735a'; x.lineWidth = 14; x.lineCap = 'round'; x.beginPath();
+  for (let t = 0; t < 6 * Math.PI; t += 0.05) { const r = 6 + t * 6.2; const px = s / 2 + Math.cos(t) * r, py = s / 2 + Math.sin(t) * r; t === 0 ? x.moveTo(px, py) : x.lineTo(px, py); }
+  x.stroke();
+});
+const bodyTex = paperTex((x, s) => { x.fillStyle = '#ffe3a3'; x.fillRect(0, 0, s, s); });
+const ink = new THREE.LineBasicMaterial({ color: 0x5a3b2e });
+const snail = new THREE.Group(), snailInner = new THREE.Group(), eyes = new THREE.Group();
+snail.add(snailInner); scene.add(snail);
+function addInk(mesh) { mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), ink)); return mesh; }
+{
+  const sh = new THREE.Shape();
+  sh.moveTo(-30, 0); sh.lineTo(24, 0); sh.quadraticCurveTo(32, 0, 32, 10);
+  sh.quadraticCurveTo(32, 28, 24, 30); sh.quadraticCurveTo(16, 30, 16, 20);
+  sh.lineTo(16, 11); sh.lineTo(-18, 9); sh.quadraticCurveTo(-30, 6, -30, 0);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 16, bevelEnabled: false, curveSegments: 6 });
+  g.rotateY(Math.PI / 2); g.translate(-8, 0, 0);
+  snailInner.add(addInk(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: bodyTex, flatShading: true }))));
+  const sg = new THREE.CylinderGeometry(19, 19, 8, 20); sg.rotateZ(Math.PI / 2);
+  const side = new THREE.MeshLambertMaterial({ color: 0xe8735a, flatShading: true }), face = new THREE.MeshLambertMaterial({ map: shellTex });
+  const shell = addInk(new THREE.Mesh(sg, [side, face, face])); shell.position.set(0, 27, 6); snailInner.add(shell);
+  const white = new THREE.MeshLambertMaterial({ color: 0xffffff }), black = new THREE.MeshBasicMaterial({ color: 0x2b1d17 });
+  const stalkM = new THREE.MeshLambertMaterial({ color: 0xf2c879 }), pink = new THREE.MeshBasicMaterial({ color: 0xff9aa8 });
+  eyes.position.set(0, 28, -24); snailInner.add(eyes); // pivot: eyes blow back with speed
+  for (const sx of [-1, 1]) {
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 16, 6), stalkM);
+    st.position.set(sx * 4.5, 8, 0); st.rotation.z = -sx * 0.25; eyes.add(st);
+    const eye = addInk(new THREE.Mesh(new THREE.SphereGeometry(4.2, 10, 8), white)); eye.position.set(sx * 6.5, 16, 0); eyes.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), black); pupil.position.set(sx * 6.5, 16, -3.6); eyes.add(pupil);
+    const blush = new THREE.Mesh(new THREE.CircleGeometry(2.6, 10), pink);
+    blush.position.set(sx * 8.2, 18, -26); blush.rotation.y = sx * Math.PI / 2; snailInner.add(blush);
+  }
+}
+function surfaceBelow(p) {
+  let best = null;
+  const i0 = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 3);
+  for (let i = i0; i <= i1; i++) {
+    const r = ramps[i], L = local(r, p.x, p.z);
+    if (L.u < 0 || L.u > r.L) continue;
+    for (const sd of [1, -1]) {
+      const s = sd * L.v; if (s < 0 || s > r.W) continue;
+      const F = face(r, sd, p.y, L); if (F.d < -60) continue;
+      const t = F.d / F.n[1];
+      if (!best || t < best.t) best = { t, n: F.n, d: F.d, y: p.y - t };
+    }
+  }
+  const dx = p.x - fin.x, dz = p.z - fin.z, u = dx * fin.dir[0] + dz * fin.dir[2], v = dx * fin.right[0] + dz * fin.right[2];
+  if (u > fin.u0 && u < fin.u1 && Math.abs(v) < fin.half) { const t = p.y - fin.y; if (t > -20 && (!best || t < best.t)) best = { t, n: [0, 1, 0], d: t, y: fin.y }; }
+  return best;
+}
+const shadow = new THREE.Mesh(new THREE.CircleGeometry(26, 20),
+  new THREE.MeshBasicMaterial({ color: 0x0a0820, transparent: true, opacity: 0.45, depthWrite: false, fog: false }));
+scene.add(shadow);
+const sUp = new THREE.Vector3(0, 1, 0), tmpF = new THREE.Vector3(), tmpR = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpM = new THREE.Matrix4(), Z = new THREE.Vector3(0, 0, 1);
+const rp = new THREE.Vector3();
+let squash = 0, lastSquash = 0, wasTouching = false, sqY = 0, sqYv = 0, stZ = 0, stZv = 0;
+const SPR_K = 220, SPR_C = 11; // ~2.4 Hz, bouncy (damping ratio ~0.37)
+function updateSnail(dt, now, speed) {
+  const below = surfaceBelow(rp);
+  let tx = 0, ty = 1, tz = 0;
+  if (contactN) { tx = contactN[0]; ty = contactN[1]; tz = contactN[2]; }
+  else if (below && below.d < 220) {
+    const w0 = Math.min(1, Math.max(0, (220 - below.d) / 190)), w = w0 * w0 * (3 - 2 * w0);
+    tx = below.n[0] * w; ty = 1 - w + below.n[1] * w; tz = below.n[2] * w;
+  }
+  const k = 1 - Math.exp(-dt * 9);
+  sUp.x += (tx - sUp.x) * k; sUp.y += (ty - sUp.y) * k; sUp.z += (tz - sUp.z) * k; sUp.normalize();
+  tmpF.set(-Math.sin(yaw), 0, -Math.cos(yaw)); tmpF.addScaledVector(sUp, -tmpF.dot(sUp)).normalize();
+  tmpB.copy(tmpF).negate(); tmpR.crossVectors(sUp, tmpB);
+  tmpM.makeBasis(tmpR, sUp, tmpB); snail.quaternion.setFromRotationMatrix(tmpM);
+  snail.position.set(rp.x - sUp.x * P.r, rp.y - sUp.y * P.r, rp.z - sUp.z * P.r);
+  // Squash & stretch: two damped springs. Landing kicks a vertical squash, launch kicks a forward stretch; both overshoot and wobble.
+  if (squash > lastSquash + 0.005) sqYv -= squash * 16;            // touchdown (physics sets squash from impact speed)
+  lastSquash = squash; squash *= Math.exp(-dt * 9);
+  const touching = !!contactN;
+  if (wasTouching && !touching && state === 'run') stZv += 1.6 + Math.min(1.6, speed / 1500); // launch
+  wasTouching = touching;
+  for (let t = dt; t > 0; t -= 1 / 120) { const h = Math.min(t, 1 / 120);
+    sqYv += (-SPR_K * sqY - SPR_C * sqYv) * h; sqY += sqYv * h;
+    stZv += (-SPR_K * stZ - SPR_C * stZv) * h; stZ += stZv * h; }
+  sqY = Math.max(-0.45, Math.min(0.4, sqY)); stZ = Math.max(-0.3, Math.min(0.45, stZ));
+  const sp = Math.min(1, speed / 3000);
+  const wob = contactN && state === 'run' ? 0.03 * Math.sin(now / 70) : 0;
+  snailInner.scale.set(1 - sqY * 0.6 - stZ * 0.35, 1 + sqY - stZ * 0.35 - wob, 1 - sqY * 0.6 + stZ + wob + sp * 0.18); // stretches with speed
+  eyes.rotation.x = sp * 1.1 + Math.sin(now / 45) * 0.06 * sp; // eye stalks blown back, fluttering
+  if (below && below.t < 4000) {
+    const h = Math.max(0, below.t - P.r), n = below.n;
+    shadow.visible = true;
+    shadow.position.set(rp.x + n[0] * 2, below.y + n[1] * 2, rp.z + n[2] * 2);
+    tmpF.set(n[0], n[1], n[2]); shadow.quaternion.setFromUnitVectors(Z, tmpF);
+    const sc = 1 + h / 500; shadow.scale.set(sc, sc, 1);
+    shadow.material.opacity = 0.55 / (1 + h / 350);
+  } else shadow.visible = false;
+}
+
+// ---------- Speed FX: slime trail, wind streaks, FOV kick ----------
+const TRAIL_N = 220, trail = [];
+const trailPos = new Float32Array(TRAIL_N * 6), trailCol = new Float32Array(TRAIL_N * 6);
+const trailGeo = new THREE.BufferGeometry();
+trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+trailGeo.setAttribute('color', new THREE.BufferAttribute(trailCol, 3));
+{ const idx = []; for (let i = 0; i < TRAIL_N - 1; i++) { const a = 2 * i; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } trailGeo.setIndex(idx); }
+const trailMesh = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+trailMesh.frustumCulled = false; scene.add(trailMesh);
+const vTmp = new THREE.Vector3(), lat = new THREE.Vector3();
+function updateTrail(speed) {
+  const cx = snail.position.x + sUp.x * 1.5, cy = snail.position.y + sUp.y * 1.5, cz = snail.position.z + sUp.z * 1.5;
+  const l = trail[0];
+  if (state === 'run' && (!l || (cx - l.x) ** 2 + (cy - l.y) ** 2 + (cz - l.z) ** 2 > 400)) {
+    vTmp.set(vel.x, vel.y, vel.z); lat.crossVectors(vTmp, sUp); if (lat.lengthSq() < 1e-6) lat.set(1, 0, 0); lat.normalize();
+    const on = !!contactN, w = on ? 9 + Math.min(8, speed / 300) : 3;
+    trail.unshift({ x: cx, y: cy, z: cz, lx: lat.x * w, ly: lat.y * w, lz: lat.z * w, b: on ? 1 : 0.45 });
+    if (trail.length > TRAIL_N) trail.pop();
+  }
+  const n = trail.length;
+  for (let i = 0; i < n; i++) {
+    const s = trail[i], w = 1 - i / TRAIL_N, o = i * 6; // slime ribbon tapers with age
+    trailPos[o] = s.x - s.lx * w; trailPos[o + 1] = s.y - s.ly * w; trailPos[o + 2] = s.z - s.lz * w;
+    trailPos[o + 3] = s.x + s.lx * w; trailPos[o + 4] = s.y + s.ly * w; trailPos[o + 5] = s.z + s.lz * w;
+    const f = 0.55 + 0.45 * s.b, r = 0.3 * f, g = 0.95 * f, b = 0.6 * f; // slime green
+    trailCol[o] = trailCol[o + 3] = r; trailCol[o + 1] = trailCol[o + 4] = g; trailCol[o + 2] = trailCol[o + 5] = b;
+  }
+  trailGeo.setDrawRange(0, Math.max(0, n - 1) * 6);
+  trailGeo.attributes.position.needsUpdate = trailGeo.attributes.color.needsUpdate = true;
+}
+const NST = 90, stPts = [], stPos = new Float32Array(NST * 6);
+const stGeo = new THREE.BufferGeometry(); stGeo.setAttribute('position', new THREE.BufferAttribute(stPos, 3));
+const stMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+const streaks = new THREE.LineSegments(stGeo, stMat); streaks.frustumCulled = false; scene.add(streaks);
+const camFwd = new THREE.Vector3();
+function updateStreaks(speed) {
+  vTmp.set(vel.x, vel.y, vel.z); const sp = vTmp.length(); if (sp > 1) vTmp.divideScalar(sp); else vTmp.set(0, 0, -1);
+  camera.getWorldDirection(camFwd);
+  const len = Math.min(700, speed * 0.14);
+  for (let i = 0; i < NST; i++) {
+    let p = stPts[i];
+    const behind = p && ((p.x - camera.position.x) * camFwd.x + (p.y - camera.position.y) * camFwd.y + (p.z - camera.position.z) * camFwd.z) < 0;
+    if (!p || behind || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 3000 * 3000) {
+      lat.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); lat.addScaledVector(vTmp, -lat.dot(vTmp)).normalize();
+      const off = 140 + Math.random() * 650, ahead = 300 + Math.random() * 2200;
+      p = stPts[i] = { x: rp.x + vTmp.x * ahead + lat.x * off, y: rp.y + vTmp.y * ahead + lat.y * off, z: rp.z + vTmp.z * ahead + lat.z * off };
+    }
+    const o = i * 6;
+    stPos[o] = p.x; stPos[o + 1] = p.y; stPos[o + 2] = p.z;
+    stPos[o + 3] = p.x - vTmp.x * len; stPos[o + 4] = p.y - vTmp.y * len; stPos[o + 5] = p.z - vTmp.z * len;
+  }
+  stGeo.attributes.position.needsUpdate = true;
+  stMat.opacity = Math.max(0, Math.min(0.75, (speed - 700) / 1600));
+}
+
+// ---------- State ----------
+const pos = new THREE.Vector3(), vel = new THREE.Vector3(), prevPos = new THREE.Vector3();
+let contactN = null, contactTicks = 0, fingerDown = false, lastTouched = 0, nextCp = 0, cpRamp = 0, falls = 0;
+let yaw = 0, touchStrafe = 0, keyStrafe = 0, state = 'ready', tRun = 0, acc = 0, fovKick = 0;
+const $ = id => document.getElementById(id);
+const msg = $('msg');
+function showMsg(html) { msg.innerHTML = html; msg.style.display = html ? 'block' : 'none'; }
+function toast(t) { const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.opacity = 0, 1200); }
+function hud() {
+  $('best').textContent = 'Level ' + LEVEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');
+  $('prog').textContent = 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
+}
+const START_MSG = '<b>Paper snail surf</b><br>You stick to ramps on your own. <b>Swipe</b> to turn.<br>In the air, <b>hold</b> and swipe toward where you want to drift; <b>lift</b> to fly straight.<br>Falls send you to the last checkpoint; the clock keeps running.<br><br>Touch to drop in';
+function resetRun() {
+  intro.on = false;
+  nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = 0;
+  gates.forEach(g => g.material.color.set(0xffe066));
+  spawnOn(0); prevPos.copy(pos);
+  showMsg(START_MSG);
+  hud();
+}
+function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); toast('Checkpoint ' + nextCp + '/' + checkpoints.length + '  ·  ' + tRun.toFixed(2) + 's'); hud(); }
+function fail() {
+  falls++;
+  $('flash').style.opacity = .3; setTimeout(() => $('flash').style.opacity = 0, 120);
+  spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = 0;
+  state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
+}
+function finish() {
+  state = 'done';
+  const pb = !best || tRun < best;
+  if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); }
+  hud();
+  showMsg('<b>' + tRun.toFixed(2) + 's</b><br>' + (falls ? falls + ' falls' : 'Clean run!') + (pb ? '<br>New best!' : '<br>Best ' + best.toFixed(2) + 's') + '<br><br>Touch to go again');
+}
+
+// ---------- Input ----------
+let pid = null, lastX = 0;
+const cv = renderer.domElement;
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault(); $('settings').hidden = true;
+  if (pid !== null) return;
+  if (intro.on) { intro.on = false; showMsg(START_MSG); return; } // tap skips the flyover, never drops in blind
+  pid = e.pointerId; lastX = e.clientX; fingerDown = true;
+  if (state === 'ready') { state = 'run'; showMsg(''); }
+  else if (state === 'done') resetRun();
+});
+cv.addEventListener('pointermove', e => {
+  if (e.pointerId !== pid) return;
+  e.preventDefault();
+  const dx = e.clientX - lastX; lastX = e.clientX;
+  yaw -= dx * P.sens;
+  if (Math.abs(dx) > 0.5) touchStrafe = Math.sign(dx);
+});
+const up = e => { if (e.pointerId === pid) { pid = null; touchStrafe = 0; fingerDown = false; } };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+addEventListener('keydown', e => {
+  if (e.key === 'a' || e.key === 'A') keyStrafe = -1;
+  if (e.key === 'd' || e.key === 'D') keyStrafe = 1;
+  if (e.key === 'ArrowLeft') yaw += 0.08; if (e.key === 'ArrowRight') yaw -= 0.08;
+  if (e.key === 'r' || e.key === 'R') resetRun();
+  if (e.key === 'c' || e.key === 'C') { camMode = camMode === 1 ? 3 : 1; store.set('surf_cam', camMode); syncSettings(); }
+  if (intro.on) { intro.on = false; showMsg(START_MSG); keyStrafe = 0; return; }
+  if (state === 'ready' && keyStrafe) { state = 'run'; showMsg(''); }
+});
+addEventListener('keyup', e => {
+  if ((e.key === 'a' || e.key === 'A') && keyStrafe === -1) keyStrafe = 0;
+  if ((e.key === 'd' || e.key === 'D') && keyStrafe === 1) keyStrafe = 0;
+});
+
+// ---------- UI ----------
+$('restart').onclick = e => { e.stopPropagation(); resetRun(); };
+$('gear').onclick = e => { e.stopPropagation(); $('settings').hidden = !$('settings').hidden; };
+function syncSettings() {
+  document.querySelectorAll('#aa button').forEach(b => b.classList.toggle('on', +b.dataset.v === P.airaccel));
+  $('sens').value = Math.round(P.sens * 1000); $('sv').textContent = Math.round(P.sens * 1000);
+  document.querySelectorAll('#cam button').forEach(b => b.classList.toggle('on', +b.dataset.c === camMode));
+  $('gspeed').value = Math.round(gameSpeed * 100); $('gsv').textContent = Math.round(gameSpeed * 100) + '%';
+}
+document.querySelectorAll('#lvl button').forEach(b => { b.classList.toggle('on', +b.dataset.l === LEVEL); b.onclick = () => { if (+b.dataset.l !== LEVEL) { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; location.reload(); } }; });
+document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airaccel = +b.dataset.v; store.set('surf_aa', P.airaccel); syncSettings(); });
+$('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
+document.querySelectorAll('#cam button').forEach(b => b.onclick = () => { camMode = +b.dataset.c; store.set('surf_cam', camMode); syncSettings(); });
+$('gspeed').oninput = e => { gameSpeed = e.target.value / 100; store.set('surf_speed', gameSpeed); syncSettings(); };
+syncSettings();
+let baseFov = 70;
+// ---------- Speed blur: zoom blur toward the screen edges, clear in the middle, grows with speed ----------
+const blurRT = renderer.capabilities.isWebGL2 ? new THREE.WebGLMultisampleRenderTarget(1, 1) : new THREE.WebGLRenderTarget(1, 1);
+const blurMat = new THREE.ShaderMaterial({
+  uniforms: { tDiffuse: { value: blurRT.texture }, strength: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength; varying vec2 vUv;
+    void main(){
+      vec2 d = vUv - 0.5; float r = length(d * vec2(1.0, 0.75));
+      float m = smoothstep(0.12, 0.7, r) * strength;
+      vec4 c = vec4(0.0);
+      for (int i = 0; i < 10; i++) c += texture2D(tDiffuse, vUv - d * m * float(i) / 9.0);
+      c /= 10.0;
+      c.rgb *= 1.0 - 2.5 * strength * smoothstep(0.35, 0.9, r); // soft tunnel vignette
+      gl_FragColor = c;
+    }`,
+  depthTest: false, depthWrite: false
+});
+const blurScene = new THREE.Scene(), blurCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const blurQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurMat); blurQuad.frustumCulled = false; blurScene.add(blurQuad);
+function renderFrame(speed) {
+  const s = 0.07 * Math.max(0, Math.min(1, (speed - 900) / 2100)); // very slight: max 7% smear at the edges
+  if (s < 0.002) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
+  blurMat.uniforms.strength.value = s;
+  renderer.setRenderTarget(blurRT); renderer.render(scene, camera);
+  renderer.setRenderTarget(null); renderer.render(blurScene, blurCam);
+}
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h); camera.aspect = w / h;
+  const pr = renderer.getPixelRatio(); blurRT.setSize(Math.round(w * pr), Math.round(h * pr));
+  baseFov = Math.max(55, Math.min(100, 2 * Math.atan(Math.tan(50 * Math.PI / 180) / camera.aspect) * 180 / Math.PI));
+}
+addEventListener('resize', resize); resize();
+
+// ---------- Course flyover (page load only) ----------
+// Opens on the whole course framed to fit, holds, then swoops down to the follow camera. Fog and far plane are
+// pushed out during the overview (uniforms only, no shader recompile) and eased back.
+const intro = { on: false, t: 0 }, INTRO_HOLD = 2.2, INTRO_SWOOP = 1.4, FOG_FAR = 70000, CAM_FAR = 90000;
+const ovPos = new THREE.Vector3(), ovLook = new THREE.Vector3(), folPos = new THREE.Vector3(), folLook = new THREE.Vector3();
+let ovFar = CAM_FAR;
+function startIntro() {
+  const pts = [], lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+  for (const r of ramps) for (let u = 0; u <= r.L; u += 400) {
+    const c = ridgeAt(r, u), p = [c[0], r.oy + zOf(r, u) + r.H, c[1]]; pts.push(p);
+    for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
+  }
+  ovLook.set((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
+  let R = 0; for (const p of pts) R = Math.max(R, Math.hypot(p[0] - ovLook.x, p[1] - ovLook.y, p[2] - ovLook.z));
+  const pitch = 40 * Math.PI / 180, v = new THREE.Vector3();
+  let dx = fin.x - ramps[0].sx, dz = fin.z - ramps[0].sz; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl; // look down the run
+  const place = d => { ovPos.set(ovLook.x - dx * d * Math.cos(pitch), ovLook.y + d * Math.sin(pitch), ovLook.z - dz * d * Math.cos(pitch));
+    camera.position.copy(ovPos); camera.lookAt(ovLook); camera.fov = baseFov; camera.far = 1e6; camera.updateProjectionMatrix(); camera.updateMatrixWorld(); };
+  const fits = d => { place(d); for (const p of pts) { v.set(p[0], p[1], p[2]).project(camera); if (v.z > 1 || Math.abs(v.x) > 0.92 || Math.abs(v.y) > 0.92) return false; } return true; };
+  let lo2 = 0.2 * R, hi2 = 6 * R; for (let i = 0; i < 24; i++) { const m = (lo2 + hi2) / 2; fits(m) ? hi2 = m : lo2 = m; } // tightest distance that frames every ridge point
+  place(hi2); ovFar = hi2 + 2 * R;
+  intro.on = true; intro.t = 0; showMsg('');
+}
+
+// ---------- Loop ----------
+let last = performance.now();
+const speedEl = $('speed'), timerEl = $('timer');
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (state === 'run') {
+    acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
+    while (acc >= P.dt && state === 'run') { prevPos.copy(pos); step(); if (state === 'run') tRun += P.dt; acc -= P.dt; }
+  } else { acc = 0; prevPos.copy(pos); }
+  rp.lerpVectors(prevPos, pos, state === 'run' ? acc / P.dt : 1);
+  const speed = Math.hypot(vel.x, vel.z);
+  updateSnail(dt, now, speed);
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+  const k = 1 - Math.exp(-dt * 14);
+  camOff.x += (-fx * CAM_BACK - camOff.x) * k; camOff.y += (CAM_UP - camOff.y) * k; camOff.z += (-fz * CAM_BACK - camOff.z) * k;
+  const shake = Math.max(0, (speed - 1800) / 1700) * 5; // faint buzz at high speed
+  if (camMode === 1) { // first person: eye height, looking along yaw, slightly down at the ramp
+    folPos.set(rp.x + (Math.random() - 0.5) * shake, rp.y + FP_EYE + (Math.random() - 0.5) * shake, rp.z);
+    folLook.set(rp.x + fx * 600, rp.y + FP_EYE - 100, rp.z + fz * 600);
+  } else {
+  folPos.set(rp.x + camOff.x + (Math.random() - 0.5) * shake, rp.y + camOff.y + (Math.random() - 0.5) * shake, rp.z + camOff.z);
+  folLook.set(rp.x + fx * CAM_AHEAD, rp.y + 30, rp.z + fz * CAM_AHEAD);
+  }
+  snail.visible = camMode !== 1 || intro.on;
+  if (intro.on) {
+    intro.t += dt;
+    const a = Math.min(1, Math.max(0, (intro.t - INTRO_HOLD) / INTRO_SWOOP)), e = a * a * (3 - 2 * a);
+    camera.position.lerpVectors(ovPos, folPos, e); camera.lookAt(folLook.lerp(ovLook, 1 - e));
+    scene.fog.far = ovFar + (FOG_FAR - ovFar) * e; camera.far = ovFar + (CAM_FAR - ovFar) * e;
+    if (a >= 1) { intro.on = false; showMsg(START_MSG); }
+  } else {
+    camera.position.copy(folPos); camera.lookAt(folLook);
+    scene.fog.far = FOG_FAR; camera.far = CAM_FAR;
+  }
+  fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
+  camera.fov = baseFov + fovKick; camera.updateProjectionMatrix();
+  updateTrail(speed); updateStreaks(speed);
+  const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
+  speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
+  speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
+  timerEl.textContent = tRun.toFixed(2);
+  renderFrame(speed);
+  requestAnimationFrame(frame);
+}
+resetRun();
+startIntro();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

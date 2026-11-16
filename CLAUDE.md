@@ -1,0 +1,38 @@
+# Paper Snail Surf
+
+iPhone game capturing the joy of CS:GO surfing. Owner: Jeffry (knows CS surf well; don't over-explain basics). Jeffry develops on Windows (no Mac): test on iPhone via a hosted HTTPS build in Safari; native iOS builds need a cloud Mac build service or a Mac.
+
+## How to work
+- Extremely concise and direct. No em dashes. Quantify (hours, probabilities, tradeoffs).
+- Ask before assuming intent. Simplest solution first; no unrequested abstractions.
+- Don't touch unrelated code. Flag uncertainty explicitly.
+- Point out second-order effects and long-term risks. Challenge assumptions.
+- Commit after each completed step.
+
+## Files
+- index.html: the whole game (three.js r128 from cdnjs). Physics lives between `// ==PHYSICS START==` and `// ==PHYSICS END==` and is shared verbatim with the verifier. Stages are the STAGES list inside buildCourse().
+- verifier/: headless Node course checker (no deps). README.md logs every version's results; append a line for each physics or stage change.
+  - `node verifier/sim.js index.html` and `node verifier/extra.js index.html`
+  - Pick a level: `LVL=2 node -r ./verifier/lvl.js verifier/sim.js index.html` (default level 1)
+- tools/: one-off analysis scripts (air-strafe-gain.js, fall-map.js = where bots fall + no-air-control test, checkpoint-splits.js). Same usage as the verifier.
+- docs/decisions.md: decisions, open questions, measurements, feature plan, art direction. Read it before proposing design changes.
+
+## Locked decisions (change only with Jeffry's OK)
+- Controls: one finger. Auto-push into the ramp face is always on during ramp contact. Swipe left/right = turn (0.011 rad/px). In the air, finger down = strafe toward last swipe direction; lift = fly straight.
+- Physics: Source-style air accel (sv_airaccelerate 400 default; 150/800 options), gravity 800, air wishspeed cap 30, fixed 100 Hz tick, deterministic. Frictionless; speed comes from altitude lost plus strafe gains.
+- Ramps: ~51 deg faces (H = 1.25 W). Base half-width 460, finales narrow to 310 (Level 1 uses 700, landing 1000).
+- Course rules: turns are analytic arcs, always banked toward the face being ridden. Zigzag transfers shift 0.75 W so you land on the face that faces you. Uphill ramp just before each checkpoint; never an uphill within 3 ramps after a checkpoint (respawn at 600 u/s soft-locks). Checkpoints about every 30 s; falls respawn there, clock keeps running.
+- Camera: third person, high and far (back 700, up 850). Avatar: cute paper snail. Speed FX: slime trail, wind streaks, FOV kick, eye stalks blow back.
+- Art scale: whole house (courses span rooms, island to floor).
+- Business: Trackmania model (timed stages, medals, ghosts, user maps, seasons). Cosmetics only, never pay-to-win.
+
+## Hard-won learnings
+- "Strafe follows swipe" on ramps was mathematically broken (couldn't correct oversteer). Fixed by auto-push.
+- Chained straight segments as curves made seams that pushed riders over the ridge. Use true arcs.
+- Banked turns hold only up to v ~ sqrt(1000 R) at this bank. Long downhill runs need climbs to bleed speed.
+- Transfers that require drifting outward (away from the ridge you're on) are impossible at speed.
+- Third person needs a contact shadow, anticipatory lean, and render interpolation (120 Hz) or landings feel snappy.
+- Falls are detected 900 below the lower of the last-touched and next ramp bases (so big drops aren't falls).
+
+## v1 scope
+3 stages, friend ghosts, friend leaderboards (Game Center). User-made maps in v2.
