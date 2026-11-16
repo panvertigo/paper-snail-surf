@@ -36,7 +36,7 @@ canvas{display:block;touch-action:none}
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button></div>
+  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button></div>
   <label>Air accel (ramp grip)</label>
   <div class="row" id="aa">
     <button data-v="150">150<br>classic</button><button data-v="400">400<br>medium</button><button data-v="800">800<br>easy</button>
@@ -515,6 +515,67 @@ const gates = checkpoints.map(i => { // checkpoint gates
   }
 }
 
+// ---------- Level 3 scenery: themes (switched by portals), moon mesa, Earth, stars ----------
+const THEMES = LEVEL !== 3 ? null : [
+  { bg: 0x03040b, fog: 0x03040b, sky: 0x9fb0e0, gnd: 0x161a2c, stars: 1 },     // 0 moon
+  { bg: 0x0a1f52, fog: 0x0a1f52, sky: 0xb5ccff, gnd: 0x1f2c55, stars: 0.55 },  // 1 upper atmosphere
+  { bg: 0x5fa8f0, fog: 0x9cc8f5, sky: 0xffffff, gnd: 0x6f8fb8, stars: 0 },     // 2 sky
+  { bg: 0x8fd0ff, fog: 0xc7e6ff, sky: 0xffffff, gnd: 0x4a9a52, stars: 0 },     // 3 Earth
+];
+const theme = { bg: new THREE.Color(), fog: new THREE.Color(), sky: new THREE.Color(), gnd: new THREE.Color(), stars: 1 }, _tc = new THREE.Color();
+let themeTarget = 0;
+const starsMat = THEMES ? new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 1, depthWrite: false, fog: false }) : { opacity: 0 };
+const stars = THEMES ? (() => {
+  const n = 1800, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const a = Math.random() * 6.2832, z = Math.random() * 2 - 1, r = Math.sqrt(1 - z * z); p[i * 3] = Math.cos(a) * r * 3e5; p[i * 3 + 1] = z * 3e5; p[i * 3 + 2] = Math.sin(a) * r * 3e5; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const pts = new THREE.Points(g, starsMat); pts.frustumCulled = false; pts.renderOrder = -20; scene.add(pts); return pts;
+})() : null;
+function applyTheme() { scene.background.copy(theme.bg); scene.fog.color.copy(theme.fog); hemi.color.copy(theme.sky); hemi.groundColor.copy(theme.gnd); starsMat.opacity = theme.stars; }
+function themeFor(i) { let th = 0; for (const g of rings) if (g.kind === 'portal' && g.ramp <= i) th = Math.max(th, g.theme); return th; } // scene in force once you reach piece i
+function setTheme(i, instant) {
+  if (!THEMES) return; themeTarget = i;
+  if (instant) { const T = THEMES[i]; theme.bg.set(T.bg); theme.fog.set(T.fog); theme.sky.set(T.sky); theme.gnd.set(T.gnd); theme.stars = T.stars; applyTheme(); }
+}
+function tickTheme(dt) {
+  if (!THEMES) return; const T = THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4);
+  theme.bg.lerp(_tc.set(T.bg), k); theme.fog.lerp(_tc.set(T.fog), k); theme.sky.lerp(_tc.set(T.sky), k); theme.gnd.lerp(_tc.set(T.gnd), k);
+  theme.stars += (T.stars - theme.stars) * k; applyTheme(); stars.position.copy(camera.position);
+}
+if (THEMES) {
+  const blotch = (x, w, h, n, cols, rmin, rmax, a) => { for (let i = 0; i < n; i++) { x.fillStyle = cols[i % cols.length]; x.globalAlpha = a; x.beginPath();
+    x.ellipse(Math.random() * w, Math.random() * h, rmin + Math.random() * (rmax - rmin), (rmin + Math.random() * (rmax - rmin)) * 0.6, Math.random() * 3, 0, 6.2832); x.fill(); } x.globalAlpha = 1; };
+  const tex = draw => { const c = document.createElement('canvas'); c.width = 1024; c.height = 512; draw(c.getContext('2d'), 1024, 512); const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; };
+  const moonTex = tex((x, w, h) => { x.fillStyle = '#8d8f99'; x.fillRect(0, 0, w, h); blotch(x, w, h, 90, ['#7a7c86', '#9ea0aa', '#6c6e78'], 8, 70, 0.5);
+    for (let i = 0; i < 40; i++) { const cx = Math.random() * w, cy = Math.random() * h, r = 10 + Math.random() * 40; x.strokeStyle = 'rgba(40,40,50,.5)'; x.lineWidth = 3; x.beginPath(); x.arc(cx, cy, r, 0, 6.2832); x.stroke(); } });
+  const earthTex = tex((x, w, h) => { x.fillStyle = '#1f62ad'; x.fillRect(0, 0, w, h);
+    blotch(x, w, h, 70, ['#3f8f4a', '#6b9a4f', '#b6a46a', '#2f7a45'], 20, 120, 0.95); blotch(x, w, h, 110, ['#ffffff'], 10, 90, 0.35); });
+  const first = ramps[0], d0 = dirOf(first.h0), RM = 26000;
+  const mesa = new THREE.Mesh(new THREE.CylinderGeometry(RM, RM, 6000, 72), [new THREE.MeshLambertMaterial({ color: 0x777a85, fog: false }), new THREE.MeshLambertMaterial({ map: moonTex, fog: false }), new THREE.MeshLambertMaterial({ color: 0x555762, fog: false })]);
+  mesa.position.set(first.sx - d0[0] * (RM - 3500), first.oy - 250 - 3000, first.sz - d0[2] * (RM - 3500)); scene.add(mesa); // the course leaves the rim of a moon base
+  const RE = 700000, earth = new THREE.Mesh(new THREE.SphereGeometry(RE, 96, 64), new THREE.MeshLambertMaterial({ map: earthTex, fog: false }));
+  earth.rotation.x = -Math.PI / 2; earth.position.set(fin.x, fin.y - 2500 - RE, fin.z); scene.add(earth); // equator patch on top, finish pad just above
+}
+
+// ---------- Rings: hoops (speed boost when centred) and portals (scene change) ----------
+const ringObjs = rings.map(g => {
+  const portal = g.kind === 'portal', base = portal ? 0xb18cff : 0xffd24a, grp = new THREE.Group();
+  const torus = new THREE.Mesh(new THREE.TorusGeometry(g.R, g.R * (portal ? 0.08 : 0.1), 14, 64), new THREE.MeshBasicMaterial({ color: base, fog: false }));
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(g.R, 48), new THREE.MeshBasicMaterial({ color: portal ? 0xe5d4ff : 0xffe9a0, transparent: true, opacity: portal ? 0.4 : 0.12,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  grp.add(torus, disc); grp.position.set(g.x, g.y, g.z); grp.lookAt(g.x + g.nx, g.y + g.ny, g.z + g.nz); scene.add(grp);
+  return { grp, torus, disc, base, fx: 0, portal };
+});
+function updateRings(dt, now) {
+  for (let i = 0; i < rings.length; i++) {
+    const g = rings[i], o = ringObjs[i]; o.fx = Math.max(0, o.fx - dt * 1.5);
+    o.grp.scale.setScalar(g.hit ? 1 + o.fx * 0.9 : 1 + 0.03 * Math.sin(now / 280 + i));
+    o.torus.material.color.setHex(g.hit ? 0x7be495 : o.base);
+    o.disc.material.opacity = g.hit ? 0.3 * o.fx : (o.portal ? 0.4 : 0.12) + 0.08 * Math.sin(now / 200 + i);
+    o.grp.visible = !(g.hit && o.portal) || o.fx > 0.01;
+  }
+}
+
 // ---------- Paper snail ----------
 const CAM_BACK = 700, CAM_UP = 850, CAM_AHEAD = 600, FP_EYE = 120;
 let camMode = +(store.get('surf_cam') || 3), gameSpeed = +(store.get('surf_speed') || 1.07);
@@ -751,7 +812,11 @@ function updateStreaks(speed) {
 
 // ---------- State ----------
 const prevPos = new THREE.Vector3();
-function onRing(g, off) { /* visuals hooked up later */ }
+function onRing(g, off) {
+  const o = ringObjs[rings.indexOf(g)]; if (o) o.fx = 1;
+  if (g.kind === 'portal') { setTheme(g.theme); fovKick += 16; toast('Portal'); }
+  else toast('Hoop  +' + Math.round(g.boost * (1 - off * off)));
+}
 let fingerDown = false, falls = 0;
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
 const $ = id => document.getElementById(id);
@@ -767,7 +832,7 @@ function resetRun() {
   intro.on = false;
   nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
   gates.forEach(g => g.material.color.set(0xffe066));
-  spawnOn(0); prevPos.copy(pos);
+  spawnOn(0); prevPos.copy(pos); setTheme(0, true);
   showMsg(START_MSG);
   hud();
 }
@@ -775,7 +840,7 @@ function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); toast(
 function fail() {
   falls++;
   $('flash').style.opacity = .3; setTimeout(() => $('flash').style.opacity = 0, 120);
-  spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.turn = 0;
+  spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.turn = 0; setTheme(themeFor(cpRamp), true);
   state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
 }
 function finish() {
@@ -878,7 +943,7 @@ addEventListener('resize', resize); resize();
 // ---------- Course flyover (page load only) ----------
 // Opens on the whole course framed to fit, holds, then swoops down to the follow camera. Fog and far plane are
 // pushed out during the overview (uniforms only, no shader recompile) and eased back.
-const intro = { on: false, t: 0 }, INTRO_HOLD = 2.2, INTRO_SWOOP = 1.4, FOG_FAR = 70000, CAM_FAR = 90000;
+const intro = { on: false, t: 0 }, INTRO_HOLD = 2.2, INTRO_SWOOP = 1.4, FOG_FAR = LEVEL === 3 ? 600000 : 70000, CAM_FAR = LEVEL === 3 ? 4e6 : 90000;
 const ovPos = new THREE.Vector3(), ovLook = new THREE.Vector3(), folPos = new THREE.Vector3(), folLook = new THREE.Vector3();
 let ovFar = CAM_FAR;
 function startIntro() {
@@ -938,7 +1003,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick; camera.updateProjectionMatrix();
-  updateTrail(speed); updateStreaks(speed);
+  updateTrail(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now);
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
