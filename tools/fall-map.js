@@ -1,17 +1,8 @@
 let FALLS={};
-const fs=require('fs');const src=fs.readFileSync(process.argv[2]||'index.html','utf8');
-const phys=src.slice(src.indexOf('// ==PHYSICS START=='),src.indexOf('// ==PHYSICS END=='));
-class V{constructor(){this.x=this.y=this.z=0}set(a,b,c){this.x=a;this.y=b;this.z=c;return this}}
-const mk=new Function('V',`
-const pos=new V(),vel=new V();let contactN=null,contactTicks=0,fingerDown=false,lastTouched=0,nextCp=0,cpRamp=0,squash=0;
-let yaw=0,touchStrafe=0,keyStrafe=0,state='run',falls=0;
-function onCheckpoint(){} function finish(){state='done'} function fail(){falls++; state='fail'}
-`+phys+`
-return {P,ramps,checkpoints,fin,pos,vel,step,spawnOn,SLOPE,local,ridgeAt,rightOf,
- g:()=>({yaw,touchStrafe,state,contactN,lastTouched,cpRamp}), setYaw:v=>yaw=v, setStrafe:v=>touchStrafe=v, setFinger:v=>fingerDown=v, setState:v=>state=v};`);
+const H=require('../verifier/harness.js').load(process.argv[2]||'index.html');const mk=()=>H();
 const wrap=a=>((a+Math.PI*3)%(Math.PI*2))-Math.PI;
 function trial(aa,{noAir=false,hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false,tmax=300}={}){
-  const G=mk(V); const {P,ramps,fin,pos,vel,SLOPE,local,ridgeAt,rightOf}=G; P.airaccel=aa; G.spawnOn(0);
+  const G=mk(); const {P,ramps,fin,pos,vel,SLOPE,local,ridgeAt,rightOf}=G; P.airaccel=aa; G.spawnOn(0);
   let rnd=seed; const rand=()=>(rnd=(rnd*16807)%2147483647)/2147483647;
   let t=0, plan={s:0}, falls=0, vmax=0, speedSum=0, n=0;
   while(t<tmax){
@@ -37,11 +28,11 @@ function trial(aa,{noAir=false,hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false
       }
     }
     const lifted=lift&&rand()<lift; const cap=maxTurn*P.dt/P.sens;
-    if(lifted){G.setFinger(false);G.setStrafe(0);}
-    else if(plan.on){ G.setFinger(true); let dx=-wrap(plan.yd-G.g().yaw)/P.sens; dx=Math.max(-cap,Math.min(cap,dx)); G.setYaw(G.g().yaw-dx*P.sens); if(Math.abs(dx)>0.5) G.setStrafe(Math.sign(dx)); }
-    else if(plan.on===false && noAir){G.setFinger(false);G.setStrafe(0);}
-    else if(plan.on===false && plan.s!==0){ G.setFinger(true); const s=plan.s, stf=G.g().touchStrafe; let dx=-wrap(plan.yd-G.g().yaw)/P.sens; dx=Math.max(-cap,Math.min(cap,dx)); if(stf!==s) dx=s; else if(Math.sign(dx)!==s) dx=0; G.setYaw(G.g().yaw-dx*P.sens); if(Math.abs(dx)>0.5) G.setStrafe(Math.sign(dx)); }
-    else { G.setFinger(true); } // hold, no swipe
+    if(lifted){G.setStrafe(0);}
+    else if(plan.on){  let dx=-wrap(plan.yd-G.g().yaw)/P.sens; dx=Math.max(-cap,Math.min(cap,dx)); G.cmd.turn-=dx*P.sens; if(Math.abs(dx)>0.5) G.setStrafe(Math.sign(dx)); }
+    else if(plan.on===false && noAir){G.setStrafe(0);}
+    else if(plan.on===false && plan.s!==0){  const s=plan.s, stf=G.g().touchStrafe; let dx=-wrap(plan.yd-G.g().yaw)/P.sens; dx=Math.max(-cap,Math.min(cap,dx)); if(stf!==s) dx=s; else if(Math.sign(dx)!==s) dx=0; G.cmd.turn-=dx*P.sens; if(Math.abs(dx)>0.5) G.setStrafe(Math.sign(dx)); }
+    else {  } // hold, no swipe
     G.step(); t+=P.dt; const sp=Math.hypot(vel.x,vel.z); vmax=Math.max(vmax,sp); speedSum+=sp; n++;
   }
   return {res:G.g().state==='done'?'done':'fail', t:+t.toFixed(1), falls, lt:G.g().lastTouched, of:ramps.length, vmax:vmax|0, vavg:(speedSum/n)|0};

@@ -53,7 +53,8 @@ canvas{display:block;touch-action:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
-// ==PHYSICS START== (shared verbatim with the offline course verifier)
+class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
+// ==PHYSICS START== (shared verbatim with the offline course verifier; needs a V class and onCheckpoint/finish/fail hooks)
 const P = {
   g: 800,          // sv_gravity
   airaccel: 400,   // sv_airaccelerate (150 = classic skill surf, 400-800 forgiving)
@@ -216,6 +217,12 @@ let fin;
   fin = { x: last.ex, z: last.ez, h: last.h1, dir: dirOf(last.h1), right: rightOf(last.h1),
           y: last.ey - FIN_DROP, u0: FIN_GAP, u1: FIN_GAP + 5000, half: 1300 };
 })();
+// Sim state. Input arrives only through cmd, consumed once per tick: turn = yaw radians accumulated since the last tick,
+// touch / key = latched strafe signs (-1, 0, 1). A replay is the list of cmd snapshots, one per tick.
+const pos = new V(), vel = new V();
+let contactN = null, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
+let yaw = 0, touchStrafe = 0, keyStrafe = 0;
+const cmd = { turn: 0, touch: 0, key: 0 };
 function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
   const r = ramps[i], u = 60, c = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u), v = r.side * 0.04 * r.W, d = dirOf(r.h0 + r.k * u);
   pos.set(c[0] + rt[0] * v, r.oy + zOf(r, u) + r.H * 0.96 + 60, c[1] + rt[2] * v);
@@ -223,6 +230,7 @@ function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
   yaw = r.h0 + r.k * u; lastTouched = i; contactN = null; contactTicks = 0;
 }
 function step() {
+  yaw += cmd.turn; cmd.turn = 0; touchStrafe = cmd.touch; keyStrafe = cmd.key;
   vel.y -= P.g * P.dt;
   if (contactTicks > 0 && --contactTicks === 0) contactN = null;
   let strafe = keyStrafe || touchStrafe;
@@ -422,7 +430,7 @@ const shadow = new THREE.Mesh(new THREE.CircleGeometry(26, 20),
 scene.add(shadow);
 const sUp = new THREE.Vector3(0, 1, 0), tmpF = new THREE.Vector3(), tmpR = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpM = new THREE.Matrix4(), Z = new THREE.Vector3(0, 0, 1);
 const rp = new THREE.Vector3();
-let squash = 0, lastSquash = 0, wasTouching = false, sqY = 0, sqYv = 0, stZ = 0, stZv = 0;
+let lastSquash = 0, wasTouching = false, sqY = 0, sqYv = 0, stZ = 0, stZv = 0;
 const SPR_K = 220, SPR_C = 11; // ~2.4 Hz, bouncy (damping ratio ~0.37)
 function updateSnail(dt, now, speed) {
   const below = surfaceBelow(rp);
@@ -518,9 +526,9 @@ function updateStreaks(speed) {
 }
 
 // ---------- State ----------
-const pos = new THREE.Vector3(), vel = new THREE.Vector3(), prevPos = new THREE.Vector3();
-let contactN = null, contactTicks = 0, fingerDown = false, lastTouched = 0, nextCp = 0, cpRamp = 0, falls = 0;
-let yaw = 0, touchStrafe = 0, keyStrafe = 0, state = 'ready', tRun = 0, acc = 0, fovKick = 0;
+const prevPos = new THREE.Vector3();
+let fingerDown = false, falls = 0;
+let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
 const $ = id => document.getElementById(id);
 const msg = $('msg');
 function showMsg(html) { msg.innerHTML = html; msg.style.display = html ? 'block' : 'none'; }
@@ -532,7 +540,7 @@ function hud() {
 const START_MSG = '<b>Paper snail surf</b><br>You stick to ramps on your own. <b>Swipe</b> to turn.<br>In the air, <b>hold</b> and swipe toward where you want to drift; <b>lift</b> to fly straight.<br>Falls send you to the last checkpoint; the clock keeps running.<br><br>Touch to drop in';
 function resetRun() {
   intro.on = false;
-  nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = 0;
+  nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
   gates.forEach(g => g.material.color.set(0xffe066));
   spawnOn(0); prevPos.copy(pos);
   showMsg(START_MSG);
@@ -542,7 +550,7 @@ function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); toast(
 function fail() {
   falls++;
   $('flash').style.opacity = .3; setTimeout(() => $('flash').style.opacity = 0, 120);
-  spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = 0;
+  spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.turn = 0;
   state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
 }
 function finish() {
@@ -555,6 +563,7 @@ function finish() {
 
 // ---------- Input ----------
 let pid = null, lastX = 0;
+function turn(r) { if (state === 'run') cmd.turn += r; else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
 const cv = renderer.domElement;
 cv.addEventListener('pointerdown', e => {
   e.preventDefault(); $('settings').hidden = true;
@@ -568,24 +577,24 @@ cv.addEventListener('pointermove', e => {
   if (e.pointerId !== pid) return;
   e.preventDefault();
   const dx = e.clientX - lastX; lastX = e.clientX;
-  yaw -= dx * P.sens;
-  if (Math.abs(dx) > 0.5) touchStrafe = Math.sign(dx);
+  turn(-dx * P.sens);
+  if (Math.abs(dx) > 0.5) cmd.touch = Math.sign(dx);
 });
-const up = e => { if (e.pointerId === pid) { pid = null; touchStrafe = 0; fingerDown = false; } };
+const up = e => { if (e.pointerId === pid) { pid = null; cmd.touch = 0; fingerDown = false; } };
 cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 addEventListener('keydown', e => {
-  if (e.key === 'a' || e.key === 'A') keyStrafe = -1;
-  if (e.key === 'd' || e.key === 'D') keyStrafe = 1;
-  if (e.key === 'ArrowLeft') yaw += 0.08; if (e.key === 'ArrowRight') yaw -= 0.08;
+  if (e.key === 'a' || e.key === 'A') cmd.key = -1;
+  if (e.key === 'd' || e.key === 'D') cmd.key = 1;
+  if (e.key === 'ArrowLeft') turn(0.08); if (e.key === 'ArrowRight') turn(-0.08);
   if (e.key === 'r' || e.key === 'R') resetRun();
   if (e.key === 'c' || e.key === 'C') { camMode = camMode === 1 ? 3 : 1; store.set('surf_cam', camMode); syncSettings(); }
-  if (intro.on) { intro.on = false; showMsg(START_MSG); keyStrafe = 0; return; }
-  if (state === 'ready' && keyStrafe) { state = 'run'; showMsg(''); }
+  if (intro.on) { intro.on = false; showMsg(START_MSG); cmd.key = 0; return; }
+  if (state === 'ready' && cmd.key) { state = 'run'; showMsg(''); }
 });
 addEventListener('keyup', e => {
-  if ((e.key === 'a' || e.key === 'A') && keyStrafe === -1) keyStrafe = 0;
-  if ((e.key === 'd' || e.key === 'D') && keyStrafe === 1) keyStrafe = 0;
+  if ((e.key === 'a' || e.key === 'A') && cmd.key === -1) cmd.key = 0;
+  if ((e.key === 'd' || e.key === 'D') && cmd.key === 1) cmd.key = 0;
 });
 
 // ---------- UI ----------

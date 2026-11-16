@@ -11,7 +11,7 @@ iPhone game capturing the joy of CS:GO surfing. Owner: Jeffry (knows CS surf wel
 
 ## Files
 - index.html: the whole game (three.js r128 from cdnjs). Physics lives between `// ==PHYSICS START==` and `// ==PHYSICS END==` and is shared verbatim with the verifier. Stages are the STAGES list inside buildCourse().
-- verifier/: headless Node course checker (no deps). README.md logs every version's results; append a line for each physics or stage change.
+- verifier/: headless Node course checker (no deps). harness.js loads the physics block; input goes through `cmd {turn, touch, key}` once per tick. README.md logs every version's results; append a line for each physics or stage change.
   - `node verifier/sim.js index.html` and `node verifier/extra.js index.html`
   - Pick a level: `LVL=2 node -r ./verifier/lvl.js verifier/sim.js index.html` (default level 1)
 - tools/: one-off analysis scripts (air-strafe-gain.js, fall-map.js = where bots fall + no-air-control test, checkpoint-splits.js). Same usage as the verifier.
