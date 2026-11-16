@@ -56,6 +56,7 @@ canvas{display:block;touch-action:none}
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
 class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
+try { if (/^#custom/.test(location.hash)) { globalThis.SURF_STAGE = JSON.parse(localStorage.getItem('surf_custom_stage')); globalThis.SURF_LEVEL = 'custom'; } } catch (e) {}
 // ==PHYSICS START== (shared verbatim with the offline course verifier; needs a V class and onCheckpoint/finish/fail hooks)
 const P = {
   g: 800,          // sv_gravity
@@ -131,15 +132,17 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
   FACE.d = f / len; FACE.n = [gx / len, gy / len, gz / len]; return FACE;
 }
 const ramps = [], checkpoints = [], rings = [];
-let fin;
-(function buildCourse() {
+let fin, stageMeta = {};
+const STAGE_META = { 3: { scenery: 'descent' } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
+const STAGES = {};
+{
   // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
   //   L: straight length | turn: degrees + R: radius (direction is forced: banked toward the face you ride)
   //   gap [480] and drop [190]: transfer from the previous ramp | zig: zigzag transfer (shift 0.75 W, swap faces)
   //   W: half-width, carries over [460] | C: net climb (uphill ramp) | cp: checkpoint on this ramp
   // Speed rules: banked turn holds v < sqrt(1000 R) (R 4500 ~ 2100 u/s). Uphill sits just before a checkpoint;
   // never put an uphill within 3 ramps after a checkpoint (respawn at 600 u/s soft-locks).
-  const STAGES = {
+  Object.assign(STAGES, {
     1: [
     // LEVEL 1: wide ramps, long runs, few jumps, one huge easy jump
     { L: 3500, W: 700 },
@@ -256,8 +259,12 @@ let fin;
       { turn: 120, R: 7000, zig: true },             // final sweep
       { L: 3000 },                                   // launch onto the finish
     ],
-  };
-  const STAGE = globalThis.SURF_STAGE || STAGES[globalThis.SURF_LEVEL] || STAGES[1]; // SURF_STAGE: stage data supplied by tools / the editor
+  });
+}
+// buildCourse(S, meta): S = array of pieces, or { name, scenery, theme0, pieces }. Rebuilds ramps / checkpoints / rings / fin (the editor calls it again).
+function buildCourse(S, meta) {
+  ramps.length = 0; checkpoints.length = 0; rings.length = 0;
+  const STAGE = Array.isArray(S) ? S : S.pieces; stageMeta = Array.isArray(S) ? (meta || {}) : S;
   const FIN_DROP = 800, FIN_GAP = 700;           // leap of faith onto a pad far below
   let hue = null, x = 0, y = 0, z = 0, h = 0, side = 1, W = 460, tex = 0; // wide early (forgiving), finale slalom narrows to 310 (mastery)
   STAGE.forEach((p, i) => {
@@ -295,7 +302,8 @@ let fin;
   const last = ramps[ramps.length - 1];
   fin = { x: last.ex, z: last.ez, h: last.h1, dir: dirOf(last.h1), right: rightOf(last.h1),
           y: last.ey - FIN_DROP, u0: FIN_GAP, u1: FIN_GAP + 5000, half: 1300 };
-})();
+}
+buildCourse(globalThis.SURF_STAGE || STAGES[globalThis.SURF_LEVEL] || STAGES[1], globalThis.SURF_STAGE ? null : STAGE_META[globalThis.SURF_LEVEL]); // SURF_STAGE: stage data from tools / the editor / #custom
 // Sim state. Input arrives only through cmd, consumed once per tick: turn = yaw radians accumulated since the last tick,
 // touch / key = latched strafe signs (-1, 0, 1). A replay is the list of cmd snapshots, one per tick.
 const pos = new V(), vel = new V();
@@ -418,7 +426,7 @@ const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return
                 set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
 P.airaccel = +(store.get('surf_aa') || P.airaccel);
 P.sens = +(store.get('surf_sens_v2') || P.sens);
-const LEVEL = globalThis.SURF_LEVEL, BK = 'surf_best_L' + LEVEL, BFK = 'surf_bestf_L' + LEVEL;
+const LEVEL = globalThis.SURF_LEVEL, LEVEL_LABEL = LEVEL === 'custom' ? (stageMeta.name || 'Custom stage') : 'Level ' + LEVEL, BK = 'surf_best_L' + LEVEL, BFK = 'surf_bestf_L' + LEVEL;
 let best = +(store.get(BK) || 0), bestFalls = +(store.get(BFK) || 0);
 
 // ---------- Scene ----------
@@ -443,129 +451,153 @@ function gridTex(bg, line) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
   return t;
 }
-{ // all ramps in one mesh; color shifts by section so progress reads at a glance
-  const T = 256, pos = [], uv = [], col = [], cpos = [], ccol = [];
-  const c = new THREE.Color(), capC = new THREE.Color();
-  const Pt = (r, u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; };
-  for (const r of ramps) {
-    const hu = r.hue ?? (0.55 + r.sec * 0.037) % 1;
-    c.setHSL(hu, 0.45, 0.8); capC.setHSL(hu, 0.4, 0.45);
-    if (r.tube) { // tube piece: the band you ride the inside of; rims a shade darker
-      const Tb = r.tube, nt = Math.max(12, Math.ceil(Tb.sweep * Tb.R / 120)), nw = 8, rim = new THREE.Color();
-      const Q = (t, w) => { const a = Tb.th0 + t, ca = Math.cos(a), sa = Math.sin(a), q = Tb.shift(t) + w;
-        return [Tb.ox + Tb.R * (ca * Tb.e1[0] + sa * Tb.e2[0]) + Tb.ax[0] * q, Tb.oy + Tb.R * (ca * Tb.e1[1] + sa * Tb.e2[1]) + Tb.ax[1] * q, Tb.oz + Tb.R * (ca * Tb.e1[2] + sa * Tb.e2[2]) + Tb.ax[2] * q]; };
-      for (let j = 0; j < nt; j++) for (let m = 0; m < nw; m++) {
-        const t0 = Tb.sweep * j / nt, t1 = Tb.sweep * (j + 1) / nt, w0 = -Tb.wd + 2 * Tb.wd * m / nw, w1 = -Tb.wd + 2 * Tb.wd * (m + 1) / nw;
-        const A = Q(t0, w0), B = Q(t1, w0), C2 = Q(t1, w1), D = Q(t0, w1);
-        pos.push(...A, ...B, ...C2, ...A, ...C2, ...D);
-        const ua = (r.tex + t0 * Tb.R) / T, ub = (r.tex + t1 * Tb.R) / T, va = (w0 + Tb.wd) / T, vb = (w1 + Tb.wd) / T;
-        uv.push(ua, va, ub, va, ub, vb, ua, va, ub, vb, ua, vb);
-        rim.copy(c); if (m === 0 || m === nw - 1) rim.multiplyScalar(0.6); else if (j % 2) rim.multiplyScalar(0.93); // edge rails + faint banding to read the curve
-        for (let q2 = 0; q2 < 6; q2++) col.push(rim.r, rim.g, rim.b);
-      }
-      continue;
-    }
-    const slant = Math.hypot(r.W, r.H) / T, n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 120)) : 1;
-    for (let j = 0; j < n; j++) {
-      const ua = r.L * j / n, ub = r.L * (j + 1) / n, ta = (r.tex + ua) / T, tb = (r.tex + ub) / T;
-      for (const sd of [1, -1]) {
-        const A = Pt(r, ua, 0, r.H), B = Pt(r, ua, sd * r.W, 0), A2 = Pt(r, ub, 0, r.H), B2 = Pt(r, ub, sd * r.W, 0);
-        pos.push(...A, ...B, ...B2, ...A, ...B2, ...A2);
-        uv.push(ta, slant, ta, 0, tb, 0, ta, slant, tb, 0, tb, slant);
-        for (let m = 0; m < 6; m++) col.push(c.r, c.g, c.b);
-      }
-    }
-    cpos.push(...Pt(r, 0, -r.W, 0), ...Pt(r, 0, 0, r.H), ...Pt(r, 0, r.W, 0));
-    cpos.push(...Pt(r, r.L, -r.W, 0), ...Pt(r, r.L, r.W, 0), ...Pt(r, r.L, 0, r.H));
-    for (let m = 0; m < 6; m++) ccol.push(capC.r, capC.g, capC.b);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
-  const cg = new THREE.BufferGeometry();
-  cg.setAttribute('position', new THREE.Float32BufferAttribute(cpos, 3));
-  cg.setAttribute('color', new THREE.Float32BufferAttribute(ccol, 3));
-  cg.computeVertexNormals();
-  scene.add(new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
-}
-const gates = checkpoints.map(i => { // checkpoint gates
-  const r = ramps[i];
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(r.W * 2.2, r.H * 1.7),
-    new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
-  m.position.set(r.sx, r.oy + r.H * 0.75, r.sz); m.rotation.y = r.h0; scene.add(m);
-  return m;
-});
-{ // finish pad
-  const w = fin.half * 2, d = fin.u1 - fin.u0;
-  const t = gridTex('#7be495', '#2f8f52'); t.repeat.set(w / 256, d / 256);
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, 60, d), new THREE.MeshLambertMaterial({ map: t }));
-  const um = (fin.u0 + fin.u1) / 2;
-  m.position.set(fin.x + fin.dir[0] * um, fin.y - 30, fin.z + fin.dir[2] * um); m.rotation.y = fin.h;
-  scene.add(m);
-}
-{ // void floor grid for height reference
-  let minY = 0, sx = 0, sz = 0;
-  for (const r of ramps) { minY = Math.min(minY, r.oy, r.ey); sx += r.sx; sz += r.sz; }
-  if (LEVEL !== 3) { // Descent has planets for ground instead
-    const grid = new THREE.GridHelper(400000, 400, 0x4a5a9a, 0x2a3466);
-    grid.position.set(sx / ramps.length, minY - 2500, sz / ramps.length); scene.add(grid);
-  }
-}
-
 // ---------- Level 3 scenery: themes (switched by portals), moon mesa, Earth, stars ----------
-const THEMES = LEVEL !== 3 ? null : [
+const THEMES = [
   { bg: 0x03040b, fog: 0x03040b, sky: 0x9fb0e0, gnd: 0x161a2c, stars: 1 },     // 0 moon
   { bg: 0x0a1f52, fog: 0x0a1f52, sky: 0xb5ccff, gnd: 0x1f2c55, stars: 0.55 },  // 1 upper atmosphere
   { bg: 0x5fa8f0, fog: 0x9cc8f5, sky: 0xffffff, gnd: 0x6f8fb8, stars: 0 },     // 2 sky
   { bg: 0x8fd0ff, fog: 0xc7e6ff, sky: 0xffffff, gnd: 0x4a9a52, stars: 0 },     // 3 Earth
 ];
 const theme = { bg: new THREE.Color(), fog: new THREE.Color(), sky: new THREE.Color(), gnd: new THREE.Color(), stars: 1 }, _tc = new THREE.Color();
-let themeTarget = 0;
-const starsMat = THEMES ? new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 1, depthWrite: false, fog: false }) : { opacity: 0 };
-const stars = THEMES ? (() => {
+let themeTarget = 0, themesOn = stageMeta.scenery === 'descent';
+const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false });
+const stars = (() => {
   const n = 1800, p = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) { const a = Math.random() * 6.2832, z = Math.random() * 2 - 1, r = Math.sqrt(1 - z * z); p[i * 3] = Math.cos(a) * r * 3e5; p[i * 3 + 1] = z * 3e5; p[i * 3 + 2] = Math.sin(a) * r * 3e5; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
   const pts = new THREE.Points(g, starsMat); pts.frustumCulled = false; pts.renderOrder = -20; scene.add(pts); return pts;
-})() : null;
+})();
 function applyTheme() { scene.background.copy(theme.bg); scene.fog.color.copy(theme.fog); hemi.color.copy(theme.sky); hemi.groundColor.copy(theme.gnd); starsMat.opacity = theme.stars; }
 function themeFor(i) { let th = 0; for (const g of rings) if (g.kind === 'portal' && g.ramp <= i) th = Math.max(th, g.theme); return th; } // scene in force once you reach piece i
 function setTheme(i, instant) {
-  if (!THEMES) return; themeTarget = i;
+  if (!themesOn) return; themeTarget = i;
   if (instant) { const T = THEMES[i]; theme.bg.set(T.bg); theme.fog.set(T.fog); theme.sky.set(T.sky); theme.gnd.set(T.gnd); theme.stars = T.stars; applyTheme(); }
 }
 function tickTheme(dt) {
-  if (!THEMES) return; const T = THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4);
+  if (!themesOn) return; const T = THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4);
   theme.bg.lerp(_tc.set(T.bg), k); theme.fog.lerp(_tc.set(T.fog), k); theme.sky.lerp(_tc.set(T.sky), k); theme.gnd.lerp(_tc.set(T.gnd), k);
   theme.stars += (T.stars - theme.stars) * k; applyTheme(); stars.position.copy(camera.position);
 }
-if (THEMES) {
+function applyScenery(on) {
+  themesOn = on; FOG_FAR = on ? 600000 : 70000; CAM_FAR = on ? 4e6 : 90000;
+  if (!on) { theme.bg.set(0x1a2240); theme.fog.set(0x1a2240); theme.sky.set(0xbfd8ff); theme.gnd.set(0x302040); theme.stars = 0; applyTheme(); }
+  else setTheme(0, true);
+}
+
+let courseObjs = [], gates = [], ringObjs = [];
+const addObj = o => { scene.add(o); courseObjs.push(o); return o; };
+function clearCourse() {
+  for (const o of courseObjs) { scene.remove(o); o.traverse(n => { if (n.geometry) n.geometry.dispose();
+    if (n.material) for (const m of Array.isArray(n.material) ? n.material : [n.material]) { if (m.map && m.map !== moonTexC && m.map !== earthTexC) m.map.dispose(); m.dispose(); } }); }
+  courseObjs = []; gates = []; ringObjs = [];
+}
+let moonTexC = null, earthTexC = null;
+function sceneryTex() {
+  if (moonTexC) return;
   const blotch = (x, w, h, n, cols, rmin, rmax, a) => { for (let i = 0; i < n; i++) { x.fillStyle = cols[i % cols.length]; x.globalAlpha = a; x.beginPath();
     x.ellipse(Math.random() * w, Math.random() * h, rmin + Math.random() * (rmax - rmin), (rmin + Math.random() * (rmax - rmin)) * 0.6, Math.random() * 3, 0, 6.2832); x.fill(); } x.globalAlpha = 1; };
   const tex = draw => { const c = document.createElement('canvas'); c.width = 1024; c.height = 512; draw(c.getContext('2d'), 1024, 512); const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; };
-  const moonTex = tex((x, w, h) => { x.fillStyle = '#8d8f99'; x.fillRect(0, 0, w, h); blotch(x, w, h, 90, ['#7a7c86', '#9ea0aa', '#6c6e78'], 8, 70, 0.5);
+  moonTexC = tex((x, w, h) => { x.fillStyle = '#8d8f99'; x.fillRect(0, 0, w, h); blotch(x, w, h, 90, ['#7a7c86', '#9ea0aa', '#6c6e78'], 8, 70, 0.5);
     for (let i = 0; i < 40; i++) { const cx = Math.random() * w, cy = Math.random() * h, r = 10 + Math.random() * 40; x.strokeStyle = 'rgba(40,40,50,.5)'; x.lineWidth = 3; x.beginPath(); x.arc(cx, cy, r, 0, 6.2832); x.stroke(); } });
-  const earthTex = tex((x, w, h) => { x.fillStyle = '#1f62ad'; x.fillRect(0, 0, w, h);
+  earthTexC = tex((x, w, h) => { x.fillStyle = '#1f62ad'; x.fillRect(0, 0, w, h);
     blotch(x, w, h, 70, ['#3f8f4a', '#6b9a4f', '#b6a46a', '#2f7a45'], 20, 120, 0.95); blotch(x, w, h, 110, ['#ffffff'], 10, 90, 0.35); });
-  const first = ramps[0], d0 = dirOf(first.h0), RM = 26000;
-  const mesa = new THREE.Mesh(new THREE.CylinderGeometry(RM, RM, 6000, 72), [new THREE.MeshLambertMaterial({ color: 0x777a85, fog: false }), new THREE.MeshLambertMaterial({ map: moonTex, fog: false }), new THREE.MeshLambertMaterial({ color: 0x555762, fog: false })]);
-  mesa.position.set(first.sx - d0[0] * (RM - 3500), first.oy - 250 - 3000, first.sz - d0[2] * (RM - 3500)); scene.add(mesa); // the course leaves the rim of a moon base
-  const RE = 700000, earth = new THREE.Mesh(new THREE.SphereGeometry(RE, 96, 64), new THREE.MeshLambertMaterial({ map: earthTex, fog: false }));
-  earth.rotation.x = -Math.PI / 2; earth.position.set(fin.x, fin.y - 2500 - RE, fin.z); scene.add(earth); // equator patch on top, finish pad just above
 }
 
-// ---------- Rings: hoops (speed boost when centred) and portals (scene change) ----------
-const ringObjs = rings.map(g => {
-  const portal = g.kind === 'portal', base = portal ? 0xb18cff : 0xffd24a, grp = new THREE.Group();
-  const torus = new THREE.Mesh(new THREE.TorusGeometry(g.R, g.R * (portal ? 0.08 : 0.1), 14, 64), new THREE.MeshBasicMaterial({ color: base, fog: false }));
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(g.R, 48), new THREE.MeshBasicMaterial({ color: portal ? 0xe5d4ff : 0xffe9a0, transparent: true, opacity: portal ? 0.4 : 0.12,
-    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-  grp.add(torus, disc); grp.position.set(g.x, g.y, g.z); grp.lookAt(g.x + g.nx, g.y + g.ny, g.z + g.nz); scene.add(grp);
-  return { grp, torus, disc, base, fx: 0, portal };
-});
+function buildScene() { // (re)builds every course-dependent mesh from ramps / rings / fin; the editor calls this after each edit
+  clearCourse();
+  { // all ramps in one mesh; color shifts by section so progress reads at a glance
+    const T = 256, pos = [], uv = [], col = [], cpos = [], ccol = [];
+    const c = new THREE.Color(), capC = new THREE.Color();
+    const Pt = (r, u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; };
+    for (const r of ramps) {
+      const hu = r.hue ?? (0.55 + r.sec * 0.037) % 1;
+      c.setHSL(hu, 0.45, 0.8); capC.setHSL(hu, 0.4, 0.45);
+      if (r.tube) { // tube piece: the band you ride the inside of; rims a shade darker
+        const Tb = r.tube, nt = Math.max(12, Math.ceil(Tb.sweep * Tb.R / 120)), nw = 8, rim = new THREE.Color();
+        const Q = (t, w) => { const a = Tb.th0 + t, ca = Math.cos(a), sa = Math.sin(a), q = Tb.shift(t) + w;
+          return [Tb.ox + Tb.R * (ca * Tb.e1[0] + sa * Tb.e2[0]) + Tb.ax[0] * q, Tb.oy + Tb.R * (ca * Tb.e1[1] + sa * Tb.e2[1]) + Tb.ax[1] * q, Tb.oz + Tb.R * (ca * Tb.e1[2] + sa * Tb.e2[2]) + Tb.ax[2] * q]; };
+        for (let j = 0; j < nt; j++) for (let m = 0; m < nw; m++) {
+          const t0 = Tb.sweep * j / nt, t1 = Tb.sweep * (j + 1) / nt, w0 = -Tb.wd + 2 * Tb.wd * m / nw, w1 = -Tb.wd + 2 * Tb.wd * (m + 1) / nw;
+          const A = Q(t0, w0), B = Q(t1, w0), C2 = Q(t1, w1), D = Q(t0, w1);
+          pos.push(...A, ...B, ...C2, ...A, ...C2, ...D);
+          const ua = (r.tex + t0 * Tb.R) / T, ub = (r.tex + t1 * Tb.R) / T, va = (w0 + Tb.wd) / T, vb = (w1 + Tb.wd) / T;
+          uv.push(ua, va, ub, va, ub, vb, ua, va, ub, vb, ua, vb);
+          rim.copy(c); if (m === 0 || m === nw - 1) rim.multiplyScalar(0.6); else if (j % 2) rim.multiplyScalar(0.93); // edge rails + faint banding to read the curve
+          for (let q2 = 0; q2 < 6; q2++) col.push(rim.r, rim.g, rim.b);
+        }
+        continue;
+      }
+      const slant = Math.hypot(r.W, r.H) / T, n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 120)) : 1;
+      for (let j = 0; j < n; j++) {
+        const ua = r.L * j / n, ub = r.L * (j + 1) / n, ta = (r.tex + ua) / T, tb = (r.tex + ub) / T;
+        for (const sd of [1, -1]) {
+          const A = Pt(r, ua, 0, r.H), B = Pt(r, ua, sd * r.W, 0), A2 = Pt(r, ub, 0, r.H), B2 = Pt(r, ub, sd * r.W, 0);
+          pos.push(...A, ...B, ...B2, ...A, ...B2, ...A2);
+          uv.push(ta, slant, ta, 0, tb, 0, ta, slant, tb, 0, tb, slant);
+          for (let m = 0; m < 6; m++) col.push(c.r, c.g, c.b);
+        }
+      }
+      cpos.push(...Pt(r, 0, -r.W, 0), ...Pt(r, 0, 0, r.H), ...Pt(r, 0, r.W, 0));
+      cpos.push(...Pt(r, r.L, -r.W, 0), ...Pt(r, r.L, r.W, 0), ...Pt(r, r.L, 0, r.H));
+      for (let m = 0; m < 6; m++) ccol.push(capC.r, capC.g, capC.b);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
+    const cg = new THREE.BufferGeometry();
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(cpos, 3));
+    cg.setAttribute('color', new THREE.Float32BufferAttribute(ccol, 3));
+    cg.computeVertexNormals();
+    addObj(new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+  }
+  gates = checkpoints.map(i => { // checkpoint gates
+    const r = ramps[i];
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(r.W * 2.2, r.H * 1.7),
+      new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
+    m.position.set(r.sx, r.oy + r.H * 0.75, r.sz); m.rotation.y = r.h0; addObj(m);
+    return m;
+  });
+  { // finish pad
+    const w = fin.half * 2, d = fin.u1 - fin.u0;
+    const t = gridTex('#7be495', '#2f8f52'); t.repeat.set(w / 256, d / 256);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 60, d), new THREE.MeshLambertMaterial({ map: t }));
+    const um = (fin.u0 + fin.u1) / 2;
+    m.position.set(fin.x + fin.dir[0] * um, fin.y - 30, fin.z + fin.dir[2] * um); m.rotation.y = fin.h;
+    addObj(m);
+  }
+  { // void floor grid for height reference
+    let minY = 0, sx = 0, sz = 0;
+    for (const r of ramps) { minY = Math.min(minY, r.oy, r.ey); sx += r.sx; sz += r.sz; }
+    if (!themesOn) { // themed scenery has planets for ground instead
+      const grid = new THREE.GridHelper(400000, 400, 0x4a5a9a, 0x2a3466);
+      grid.position.set(sx / ramps.length, minY - 2500, sz / ramps.length); addObj(grid);
+    }
+  }
+  
+  
+  if (themesOn) {
+    sceneryTex();
+    const first = ramps[0], d0 = dirOf(first.h0), RM = 26000;
+    const mesa = new THREE.Mesh(new THREE.CylinderGeometry(RM, RM, 6000, 72), [new THREE.MeshLambertMaterial({ color: 0x777a85, fog: false }), new THREE.MeshLambertMaterial({ map: moonTexC, fog: false }), new THREE.MeshLambertMaterial({ color: 0x555762, fog: false })]);
+    mesa.position.set(first.sx - d0[0] * (RM - 3500), first.oy - 250 - 3000, first.sz - d0[2] * (RM - 3500)); addObj(mesa); // the course leaves the rim of a moon base
+    const RE = 700000, earth = new THREE.Mesh(new THREE.SphereGeometry(RE, 96, 64), new THREE.MeshLambertMaterial({ map: earthTexC, fog: false }));
+    earth.rotation.x = -Math.PI / 2; earth.position.set(fin.x, fin.y - 2500 - RE, fin.z); addObj(earth); // equator patch on top, finish pad just above
+  
+  }
+  // ---------- Rings: hoops (speed boost when centred) and portals (scene change) ----------
+  ringObjs = rings.map(g => {
+    const portal = g.kind === 'portal', base = portal ? 0xb18cff : 0xffd24a, grp = new THREE.Group();
+    const torus = new THREE.Mesh(new THREE.TorusGeometry(g.R, g.R * (portal ? 0.08 : 0.1), 14, 64), new THREE.MeshBasicMaterial({ color: base, fog: false }));
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(g.R, 48), new THREE.MeshBasicMaterial({ color: portal ? 0xe5d4ff : 0xffe9a0, transparent: true, opacity: portal ? 0.4 : 0.12,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    grp.add(torus, disc); grp.position.set(g.x, g.y, g.z); grp.lookAt(g.x + g.nx, g.y + g.ny, g.z + g.nz); addObj(grp);
+    return { grp, torus, disc, base, fx: 0, portal };
+  });
+  
+}
 function updateRings(dt, now) {
   for (let i = 0; i < rings.length; i++) {
     const g = rings[i], o = ringObjs[i]; o.fx = Math.max(0, o.fx - dt * 1.5);
@@ -575,6 +607,8 @@ function updateRings(dt, now) {
     o.grp.visible = !(g.hit && o.portal) || o.fx > 0.01;
   }
 }
+
+buildScene();
 
 // ---------- Paper snail ----------
 const CAM_BACK = 700, CAM_UP = 850, CAM_AHEAD = 600, FP_EYE = 120;
@@ -824,7 +858,7 @@ const msg = $('msg');
 function showMsg(html) { msg.innerHTML = html; msg.style.display = html ? 'block' : 'none'; }
 function toast(t) { const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.opacity = 0, 1200); }
 function hud() {
-  $('best').textContent = 'Level ' + LEVEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');
+  $('best').textContent = LEVEL_LABEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');
   $('prog').textContent = 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
 }
 const START_MSG = '<b>Paper snail surf</b><br>You stick to ramps on your own. <b>Swipe</b> to turn.<br>In the air, <b>hold</b> and swipe toward where you want to drift; <b>lift</b> to fly straight.<br>Falls send you to the last checkpoint; the clock keeps running.<br><br>Touch to drop in';
@@ -943,7 +977,8 @@ addEventListener('resize', resize); resize();
 // ---------- Course flyover (page load only) ----------
 // Opens on the whole course framed to fit, holds, then swoops down to the follow camera. Fog and far plane are
 // pushed out during the overview (uniforms only, no shader recompile) and eased back.
-const intro = { on: false, t: 0 }, INTRO_HOLD = 2.2, INTRO_SWOOP = 1.4, FOG_FAR = LEVEL === 3 ? 600000 : 70000, CAM_FAR = LEVEL === 3 ? 4e6 : 90000;
+const intro = { on: false, t: 0 }, INTRO_HOLD = 2.2, INTRO_SWOOP = 1.4;
+let FOG_FAR = 70000, CAM_FAR = 90000; // applyScenery() raises them for themed (space) scenery
 const ovPos = new THREE.Vector3(), ovLook = new THREE.Vector3(), folPos = new THREE.Vector3(), folLook = new THREE.Vector3();
 let ovFar = CAM_FAR;
 function startIntro() {
@@ -969,6 +1004,7 @@ let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
   if (state === 'run') {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
     while (acc >= P.dt && state === 'run') { prevPos.copy(pos); step(); if (state === 'run') tRun += P.dt; acc -= P.dt; }
@@ -1011,8 +1047,18 @@ function frame(now) {
   renderFrame(speed);
   requestAnimationFrame(frame);
 }
+applyScenery(themesOn);
 resetRun();
 startIntro();
+// Start from a recorded mid-stage state (editor "Play from here"): position, velocity and heading come from a bot run
+function startFrom(f) {
+  intro.on = false; spawnOn(0); setTheme(themeFor(f.i), true);
+  pos.set(f.x, f.y, f.z); vel.set(f.vx, f.vy, f.vz); yaw = f.yaw; lastTouched = f.i; nextCp = f.nextCp; cpRamp = f.cpRamp; prevPos.copy(pos);
+  gates.forEach((g, i) => g.material.color.set(i < nextCp ? 0x7be495 : 0xffe066));
+  showMsg(START_MSG); hud();
+}
+if (LEVEL === 'custom') { try { const f = JSON.parse(store.get('surf_custom_from') || 'null'); if (f) { store.set('surf_custom_from', ''); startFrom(f); } } catch (e) {} }
+if (/^#edit/.test(location.hash)) { const sc = document.createElement('script'); sc.src = 'editor.js'; document.body.appendChild(sc); } // desktop level editor
 requestAnimationFrame(frame);
 </script>
 </body>
