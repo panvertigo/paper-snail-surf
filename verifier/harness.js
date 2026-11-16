@@ -6,11 +6,11 @@ function load(file) {
   const src = fs.readFileSync(file || process.argv[2] || 'index.html', 'utf8');
   const phys = src.slice(src.indexOf('// ==PHYSICS START=='), src.indexOf('// ==PHYSICS END=='));
   return (hooks = {}) => new Function('V', 'hooks', `
-let state = 'run', falls = 0;
-function onCheckpoint() {} function finish() { state = 'done'; } function fail() { falls++; state = 'fail'; }
+let state = 'run', falls = 0, failInfo = null;
+function onCheckpoint() {} function finish() { state = 'done'; } function fail() { falls++; state = 'fail'; failInfo = { x: pos.x, y: pos.y, z: pos.z, lt: lastTouched }; }
 ` + phys + `
 return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, SLOPE, local, ridgeAt, rightOf,
-  g: () => ({ yaw, touchStrafe, state, contactN, lastTouched, cpRamp, falls }),
+  g: () => ({ yaw, touchStrafe, state, contactN, lastTouched, cpRamp, falls, failInfo }),
   setYaw: v => yaw = v, setStrafe: v => cmd.touch = v, setState: v => state = v };`)(V, hooks);
 }
 module.exports = { load, V };

@@ -47,6 +47,8 @@ canvas{display:block;touch-action:none}
   <div class="row" id="cam"><button data-c="3">third<br>person</button><button data-c="1">first<br>person</button></div>
   <label>Game speed <span id="gsv"></span></label>
   <input id="gspeed" type="range" min="100" max="115" step="1">
+  <label>Speed effects <span id="fxv"></span></label>
+  <input id="fx" type="range" min="0" max="150" step="5">
 </div>
 <div id="msg"></div>
 <div id="flash"></div>
@@ -268,15 +270,16 @@ function step() {
     }
   }
   if (nextCp < checkpoints.length && lastTouched >= checkpoints[nextCp]) { cpRamp = checkpoints[nextCp]; nextCp++; onCheckpoint(); }
+  let overPad = false;
   { // finish pad
     const dx = pos.x - fin.x, dz = pos.z - fin.z;
     const u = dx * fin.dir[0] + dz * fin.dir[2], v = dx * fin.right[0] + dz * fin.right[2];
-    if (u > fin.u0 - 60 && u < fin.u1 && Math.abs(v) < fin.half && pos.y - P.r <= fin.y && pos.y > fin.y - 150) {
-      pos.y = fin.y + P.r; finish(); return;
-    }
+    overPad = u > fin.u0 - 60 && u < fin.u1 && Math.abs(v) < fin.half && pos.y > fin.y - 150;
+    if (overPad && pos.y - P.r <= fin.y) { pos.y = fin.y + P.r; finish(); return; }
   }
   const lr = ramps[lastTouched], nr = ramps[lastTouched + 1]; // next ramp too, so big drops aren't counted as falls
-  if (pos.y < Math.min(lr.oy, lr.ey, nr ? nr.oy : Infinity) - 900) fail();
+  // The pad is never a fall: anywhere over it (above its surface) you either finish or are still dropping onto it, whichever ramp you touched last.
+  if (!overPad && pos.y < Math.min(lr.oy, lr.ey, nr ? nr.oy : Infinity) - 900) fail();
 }
 // ==PHYSICS END==
 
@@ -367,7 +370,8 @@ const gates = checkpoints.map(i => { // checkpoint gates
 // ---------- Paper snail ----------
 const CAM_BACK = 700, CAM_UP = 850, CAM_AHEAD = 600, FP_EYE = 120;
 let camMode = +(store.get('surf_cam') || 3), gameSpeed = +(store.get('surf_speed') || 1.07);
-const camOff = new THREE.Vector3(0, CAM_UP, CAM_BACK);
+let fxAmt = store.get('surf_fx') === null ? 1 : +store.get('surf_fx'); // speed-effects intensity (ribbons, clouds, edge shimmer, camera lag, long stalks); 0 = off
+const camOff = new THREE.Vector3(0, CAM_UP, CAM_BACK), camLag = new THREE.Vector3(), lagT = new THREE.Vector3(); // camLag: camera trails the snail as speed builds, then catches up
 function paperTex(draw, size = 256) {
   const c = document.createElement('canvas'); c.width = c.height = size;
   const x = c.getContext('2d'); draw(x, size);
@@ -382,7 +386,8 @@ const shellTex = paperTex((x, s) => {
 });
 const bodyTex = paperTex((x, s) => { x.fillStyle = '#ffe3a3'; x.fillRect(0, 0, s, s); });
 const ink = new THREE.LineBasicMaterial({ color: 0x5a3b2e });
-const snail = new THREE.Group(), snailInner = new THREE.Group(), eyes = new THREE.Group();
+const snail = new THREE.Group(), snailInner = new THREE.Group(), eyes = new THREE.Group(), eyeParts = [];
+let eyeA = 0, eyeV = 0; // stalk sweep-back angle spring (overshoots on launch and landing)
 snail.add(snailInner); scene.add(snail);
 function addInk(mesh) { mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), ink)); return mesh; }
 {
@@ -400,10 +405,11 @@ function addInk(mesh) { mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(
   const stalkM = new THREE.MeshLambertMaterial({ color: 0xf2c879 }), pink = new THREE.MeshBasicMaterial({ color: 0xff9aa8 });
   eyes.position.set(0, 28, -24); snailInner.add(eyes); // pivot: eyes blow back with speed
   for (const sx of [-1, 1]) {
-    const st = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 16, 6), stalkM);
-    st.position.set(sx * 4.5, 8, 0); st.rotation.z = -sx * 0.25; eyes.add(st);
-    const eye = addInk(new THREE.Mesh(new THREE.SphereGeometry(4.2, 10, 8), white)); eye.position.set(sx * 6.5, 16, 0); eyes.add(eye);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), black); pupil.position.set(sx * 6.5, 16, -3.6); eyes.add(pupil);
+    const pivot = new THREE.Group(); pivot.position.set(sx * 4.5, 0, 0); eyes.add(pivot); // stalk base; rotates back and stretches with speed
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 16, 6), stalkM); st.position.y = 8; pivot.add(st);
+    const eye = addInk(new THREE.Mesh(new THREE.SphereGeometry(4.2, 10, 8), white)); eye.position.set(sx * 2, 16, 0); pivot.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), black); pupil.position.set(sx * 2, 16, -3.6); pivot.add(pupil);
+    eyeParts.push({ sx, pivot, st, eye, pupil });
     const blush = new THREE.Mesh(new THREE.CircleGeometry(2.6, 10), pink);
     blush.position.set(sx * 8.2, 18, -26); blush.rotation.y = sx * Math.PI / 2; snailInner.add(blush);
   }
@@ -430,7 +436,7 @@ const shadow = new THREE.Mesh(new THREE.CircleGeometry(26, 20),
 scene.add(shadow);
 const sUp = new THREE.Vector3(0, 1, 0), tmpF = new THREE.Vector3(), tmpR = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpM = new THREE.Matrix4(), Z = new THREE.Vector3(0, 0, 1);
 const rp = new THREE.Vector3();
-let lastSquash = 0, wasTouching = false, sqY = 0, sqYv = 0, stZ = 0, stZv = 0;
+let lastSquashEye = 0, lastSquash = 0, wasTouching = false, sqY = 0, sqYv = 0, stZ = 0, stZv = 0;
 const SPR_K = 220, SPR_C = 11; // ~2.4 Hz, bouncy (damping ratio ~0.37)
 function updateSnail(dt, now, speed) {
   const below = surfaceBelow(rp);
@@ -459,7 +465,16 @@ function updateSnail(dt, now, speed) {
   const sp = Math.min(1, speed / 3000);
   const wob = contactN && state === 'run' ? 0.03 * Math.sin(now / 70) : 0;
   snailInner.scale.set(1 - sqY * 0.6 - stZ * 0.35, 1 + sqY - stZ * 0.35 - wob, 1 - sqY * 0.6 + stZ + wob + sp * 0.18); // stretches with speed
-  eyes.rotation.x = sp * 1.1 + Math.sin(now / 45) * 0.06 * sp; // eye stalks blown back, fluttering
+  { // eye stalks: swept back by speed, stretching comedically long near top speed, with a springy whip on launch and landing
+    const sp2 = sp * Math.min(1, fxAmt), tgt = 0.9 * Math.pow(sp2, 0.8), L = 1 + 3.6 * Math.pow(sp2, 2.5);
+    for (let t = dt; t > 0; t -= 1 / 120) { const h = Math.min(t, 1 / 120); eyeV += (-120 * (eyeA - tgt) - 7 * eyeV) * h; eyeA += eyeV * h; }
+    if (squash > lastSquashEye + 0.005) eyeV -= 6 * squash * 4; lastSquashEye = squash; // landing flicks the stalks forward
+    const flutter = Math.sin(now / 45) * 0.07 * sp2;
+    for (const e of eyeParts) {
+      e.pivot.rotation.set(Math.max(-0.4, eyeA + flutter), 0, -e.sx * (0.25 + 0.35 * sp2));
+      e.st.scale.y = L; e.st.position.y = 8 * L; e.eye.position.y = e.pupil.position.y = 16 * L;
+    }
+  }
   if (below && below.t < 4000) {
     const h = Math.max(0, below.t - P.r), n = below.n;
     shadow.visible = true;
@@ -500,29 +515,90 @@ function updateTrail(speed) {
   trailGeo.setDrawRange(0, Math.max(0, n - 1) * 6);
   trailGeo.attributes.position.needsUpdate = trailGeo.attributes.color.needsUpdate = true;
 }
-const NST = 90, stPts = [], stPos = new Float32Array(NST * 6);
-const stGeo = new THREE.BufferGeometry(); stGeo.setAttribute('position', new THREE.BufferAttribute(stPos, 3));
-const stMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-const streaks = new THREE.LineSegments(stGeo, stMat); streaks.frustumCulled = false; scene.add(streaks);
-const camFwd = new THREE.Vector3();
+// Soft wind: camera-facing ribbons (bright head, fading tapered tail, wider and brighter with speed) plus long cloud wisps drifting by.
+// Shaders give the soft edges and fade by distance, so nothing pops in or out. All cosmetic: reads sim state, never writes it.
+const SOFT_VS = 'attribute vec4 col; uniform float far; varying vec4 vC; varying vec2 vUv;' +
+  'void main(){ vC = col; vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); float d = -mv.z;' +
+  ' vC.a *= smoothstep(150.0, 600.0, d) * (1.0 - smoothstep(far * 0.6, far, d)); gl_Position = projectionMatrix * mv; }';
+const RIBBON_FS = 'varying vec4 vC; varying vec2 vUv; void main(){' +
+  ' float along = vUv.y, across = abs(vUv.x * 2.0 - 1.0);' +
+  ' float body = smoothstep(0.0, 0.8, along) * (1.0 - smoothstep(0.82, 1.0, along));' + // fades in along the tail, rounds off at the head
+  ' float edge = 1.0 - across * across; edge *= edge;' +                                  // soft sides, no hard outline
+  ' float head = smoothstep(0.55, 0.8, along) * (1.0 - smoothstep(0.8, 1.0, along)) * 0.6;' +
+  ' gl_FragColor = vec4(vC.rgb * (1.0 + head), vC.a * body * edge); }';
+const CLOUD_FS = 'varying vec4 vC; varying vec2 vUv; void main(){' +
+  ' float r = length(vUv * 2.0 - 1.0); float a = 1.0 - smoothstep(0.0, 1.0, r); a *= a;' +
+  ' gl_FragColor = vec4(vC.rgb, vC.a * a); }';
+function softQuads(n, fs, blending, far) {
+  const pos = new Float32Array(n * 12), col = new Float32Array(n * 16), uv = new Float32Array(n * 8), idx = [];
+  for (let i = 0; i < n; i++) {
+    uv.set([0, 0, 1, 0, 1, 1, 0, 1], i * 8);
+    idx.push(i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('col', new THREE.BufferAttribute(col, 4));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx);
+  const mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: SOFT_VS, fragmentShader: fs, uniforms: { far: { value: far } },
+    transparent: true, depthWrite: false, depthTest: false, blending, side: THREE.DoubleSide }));
+  mesh.frustumCulled = false; mesh.renderOrder = 5; scene.add(mesh);
+  return { mesh, pos, col, geo: g };
+}
+const camFwd = new THREE.Vector3(), qRt = new THREE.Vector3(), qTc = new THREE.Vector3();
+// one quad: head at p, tail at p + d * len (opposite the streak's motion), tail width = tailK * head width
+function setQuad(q, i, p, d, len, hw, tailK, r, g, b, al) {
+  qTc.set(camera.position.x - p.x, camera.position.y - p.y, camera.position.z - p.z);
+  qRt.set(d.y * qTc.z - d.z * qTc.y, d.z * qTc.x - d.x * qTc.z, d.x * qTc.y - d.y * qTc.x);
+  const l = qRt.length(); if (l < 1e-6) qRt.set(1, 0, 0); else qRt.divideScalar(l);
+  const o = i * 12, tx = p.x + d.x * len, ty = p.y + d.y * len, tz = p.z + d.z * len, tw = hw * tailK;
+  q.pos[o] = tx - qRt.x * tw; q.pos[o + 1] = ty - qRt.y * tw; q.pos[o + 2] = tz - qRt.z * tw;
+  q.pos[o + 3] = tx + qRt.x * tw; q.pos[o + 4] = ty + qRt.y * tw; q.pos[o + 5] = tz + qRt.z * tw;
+  q.pos[o + 6] = p.x + qRt.x * hw; q.pos[o + 7] = p.y + qRt.y * hw; q.pos[o + 8] = p.z + qRt.z * hw;
+  q.pos[o + 9] = p.x - qRt.x * hw; q.pos[o + 10] = p.y - qRt.y * hw; q.pos[o + 11] = p.z - qRt.z * hw;
+  for (let k = 0; k < 4; k++) { const c = i * 16 + k * 4; q.col[c] = r; q.col[c + 1] = g; q.col[c + 2] = b; q.col[c + 3] = al; }
+}
+const NST = 56, NCL = 26, stPts = [], clPts = [];
+const wind = softQuads(NST, RIBBON_FS, THREE.AdditiveBlending, 3400);
+const clouds = softQuads(NCL, CLOUD_FS, THREE.NormalBlending, 9500);
+const sideV = new THREE.Vector3();
+function spawnAround(dir, offMin, offMax, aheadMin, aheadMax) { // random point ahead of the snail, offset sideways from its path
+  sideV.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); sideV.addScaledVector(dir, -sideV.dot(dir)).normalize();
+  const off = offMin + Math.random() * (offMax - offMin), ahead = aheadMin + Math.random() * (aheadMax - aheadMin);
+  return { x: rp.x + dir.x * ahead + sideV.x * off, y: rp.y + dir.y * ahead + sideV.y * off, z: rp.z + dir.z * ahead + sideV.z * off,
+           s1: Math.random(), s2: Math.random() };
+}
 function updateStreaks(speed) {
   vTmp.set(vel.x, vel.y, vel.z); const sp = vTmp.length(); if (sp > 1) vTmp.divideScalar(sp); else vTmp.set(0, 0, -1);
   camera.getWorldDirection(camFwd);
-  const len = Math.min(700, speed * 0.14);
-  for (let i = 0; i < NST; i++) {
-    let p = stPts[i];
-    const behind = p && ((p.x - camera.position.x) * camFwd.x + (p.y - camera.position.y) * camFwd.y + (p.z - camera.position.z) * camFwd.z) < 0;
-    if (!p || behind || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 3000 * 3000) {
-      lat.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); lat.addScaledVector(vTmp, -lat.dot(vTmp)).normalize();
-      const off = 140 + Math.random() * 650, ahead = 300 + Math.random() * 2200;
-      p = stPts[i] = { x: rp.x + vTmp.x * ahead + lat.x * off, y: rp.y + vTmp.y * ahead + lat.y * off, z: rp.z + vTmp.z * ahead + lat.z * off };
+  const behind = p => ((p.x - camera.position.x) * camFwd.x + (p.y - camera.position.y) * camFwd.y + (p.z - camera.position.z) * camFwd.z) < 0;
+  const fl = Math.max(0, Math.min(1, (speed - 700) / 1600)) * fxAmt;
+  wind.mesh.visible = fl > 0.01;
+  if (wind.mesh.visible) {
+    const len = Math.min(800, speed * 0.17), hw0 = 6 + speed * 0.0065, tint = Math.max(0, Math.min(1, (speed - 1200) / 1800));
+    for (let i = 0; i < NST; i++) {
+      let p = stPts[i];
+      if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 3600 * 3600) p = stPts[i] = spawnAround(vTmp, 380, 1100, 300, 2800);
+      qTc.set(p.x - camera.position.x, p.y - camera.position.y, p.z - camera.position.z).normalize();
+      const side = Math.sqrt(Math.max(0, 1 - Math.pow(qTc.dot(vTmp), 2))), vis = Math.max(0, Math.min(1, (side - 0.2) / 0.35)); // end-on ribbons foreshorten into spikes: fade them out
+      setQuad(wind, i, p, vTmp, len * (0.55 + 0.9 * p.s1), hw0 * (0.7 + 0.6 * p.s2), 0.6, 0.85 - 0.25 * tint, 0.95 - 0.05 * tint, 1, 0.42 * fl * vis);
     }
-    const o = i * 6;
-    stPos[o] = p.x; stPos[o + 1] = p.y; stPos[o + 2] = p.z;
-    stPos[o + 3] = p.x - vTmp.x * len; stPos[o + 4] = p.y - vTmp.y * len; stPos[o + 5] = p.z - vTmp.z * len;
+    wind.geo.attributes.position.needsUpdate = wind.geo.attributes.col.needsUpdate = true;
   }
-  stGeo.attributes.position.needsUpdate = true;
-  stMat.opacity = Math.max(0, Math.min(0.75, (speed - 700) / 1600));
+  const cl = Math.max(0, Math.min(1, (speed - 300) / 900)) * fxAmt;
+  clouds.mesh.visible = cl > 0.01;
+  if (clouds.mesh.visible) {
+    const stretch = 1 + Math.min(2.5, speed / 1200);
+    for (let i = 0; i < NCL; i++) {
+      let p = clPts[i];
+      if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 9500 * 9500) p = clPts[i] = spawnAround(vTmp, 1100, 4200, 2500, 9000);
+      const size = 500 + 900 * p.s1;
+      setQuad(clouds, i, p, vTmp, size * stretch * 0.5, size * 0.5, 1, 0.86, 0.9, 1, 0.16 * cl * (0.6 + 0.4 * p.s2));
+      // centre the wisp on the point: shift back by half its length
+      const o = i * 12, h = size * stretch * 0.25;
+      for (let k = 0; k < 4; k++) { clouds.pos[o + k * 3] -= vTmp.x * h; clouds.pos[o + k * 3 + 1] -= vTmp.y * h; clouds.pos[o + k * 3 + 2] -= vTmp.z * h; }
+    }
+    clouds.geo.attributes.position.needsUpdate = clouds.geo.attributes.col.needsUpdate = true;
+  }
 }
 
 // ---------- State ----------
@@ -605,37 +681,40 @@ function syncSettings() {
   $('sens').value = Math.round(P.sens * 1000); $('sv').textContent = Math.round(P.sens * 1000);
   document.querySelectorAll('#cam button').forEach(b => b.classList.toggle('on', +b.dataset.c === camMode));
   $('gspeed').value = Math.round(gameSpeed * 100); $('gsv').textContent = Math.round(gameSpeed * 100) + '%';
+  $('fx').value = Math.round(fxAmt * 100); $('fxv').textContent = Math.round(fxAmt * 100) + '%';
 }
 document.querySelectorAll('#lvl button').forEach(b => { b.classList.toggle('on', +b.dataset.l === LEVEL); b.onclick = () => { if (+b.dataset.l !== LEVEL) { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; location.reload(); } }; });
 document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airaccel = +b.dataset.v; store.set('surf_aa', P.airaccel); syncSettings(); });
 $('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
 document.querySelectorAll('#cam button').forEach(b => b.onclick = () => { camMode = +b.dataset.c; store.set('surf_cam', camMode); syncSettings(); });
+$('fx').oninput = e => { fxAmt = e.target.value / 100; store.set('surf_fx', fxAmt); syncSettings(); };
 $('gspeed').oninput = e => { gameSpeed = e.target.value / 100; store.set('surf_speed', gameSpeed); syncSettings(); };
 syncSettings();
 let baseFov = 70;
-// ---------- Speed blur: zoom blur toward the screen edges, clear in the middle, grows with speed ----------
+// ---------- Speed look: edge heat shimmer + chromatic fringe + light tunnel vignette (centre stays clear), starts ~900 u/s ----------
 const blurRT = renderer.capabilities.isWebGL2 ? new THREE.WebGLMultisampleRenderTarget(1, 1) : new THREE.WebGLRenderTarget(1, 1);
 const blurMat = new THREE.ShaderMaterial({
-  uniforms: { tDiffuse: { value: blurRT.texture }, strength: { value: 0 } },
+  uniforms: { tDiffuse: { value: blurRT.texture }, strength: { value: 0 }, time: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength, time; varying vec2 vUv;
     void main(){
       vec2 d = vUv - 0.5; float r = length(d * vec2(1.0, 0.75));
-      float m = smoothstep(0.12, 0.7, r) * strength;
-      vec4 c = vec4(0.0);
-      for (int i = 0; i < 10; i++) c += texture2D(tDiffuse, vUv - d * m * float(i) / 9.0);
-      c /= 10.0;
-      c.rgb *= 1.0 - 2.5 * strength * smoothstep(0.35, 0.9, r); // soft tunnel vignette
-      gl_FragColor = c;
+      float e = smoothstep(0.22, 0.75, r) * strength;                       // 0 in the middle, 1 at the edges
+      vec2 w = vec2(sin(vUv.y * 34.0 + time * 8.0), cos(vUv.x * 29.0 + time * 6.5)) * 0.0042 * e; // heat shimmer
+      vec2 dir = d / (length(d) + 1e-4), uv = vUv + w;
+      float ca = 0.013 * e;                                                  // chromatic fringe, radial
+      vec3 c = vec3(texture2D(tDiffuse, uv + dir * ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - dir * ca).b);
+      c *= 1.0 - 0.5 * strength * smoothstep(0.4, 0.95, r);                  // light tunnel vignette
+      gl_FragColor = vec4(c, 1.0);
     }`,
   depthTest: false, depthWrite: false
 });
 const blurScene = new THREE.Scene(), blurCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const blurQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurMat); blurQuad.frustumCulled = false; blurScene.add(blurQuad);
 function renderFrame(speed) {
-  const s = 0.07 * Math.max(0, Math.min(1, (speed - 900) / 2100)); // very slight: max 7% smear at the edges
-  if (s < 0.002) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
-  blurMat.uniforms.strength.value = s;
+  const s = Math.max(0, Math.min(1, (speed - 900) / 1800)) * fxAmt;
+  if (s < 0.01) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
+  blurMat.uniforms.strength.value = s; blurMat.uniforms.time.value = performance.now() / 1000;
   renderer.setRenderTarget(blurRT); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(blurScene, blurCam);
 }
@@ -691,7 +770,10 @@ function frame(now) {
     folPos.set(rp.x + (Math.random() - 0.5) * shake, rp.y + FP_EYE + (Math.random() - 0.5) * shake, rp.z);
     folLook.set(rp.x + fx * 600, rp.y + FP_EYE - 100, rp.z + fz * 600);
   } else {
-  folPos.set(rp.x + camOff.x + (Math.random() - 0.5) * shake, rp.y + camOff.y + (Math.random() - 0.5) * shake, rp.z + camOff.z);
+  lagT.set(-vel.x, -vel.y * 0.5, -vel.z).multiplyScalar(0.05 * fxAmt * Math.min(1, speed / 700));
+  if (lagT.length() > 170 * fxAmt) lagT.setLength(170 * fxAmt);
+  camLag.lerp(lagT, 1 - Math.exp(-dt * 2.4)); // slow follow: lags on acceleration, settles when speed holds
+  folPos.set(rp.x + camOff.x + camLag.x + (Math.random() - 0.5) * shake, rp.y + camOff.y + camLag.y + (Math.random() - 0.5) * shake, rp.z + camOff.z + camLag.z);
   folLook.set(rp.x + fx * CAM_AHEAD, rp.y + 30, rp.z + fz * CAM_AHEAD);
   }
   snail.visible = camMode !== 1 || intro.on;
