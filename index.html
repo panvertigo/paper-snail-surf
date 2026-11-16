@@ -49,10 +49,15 @@ canvas{display:block;touch-action:none}
   <input id="gspeed" type="range" min="100" max="115" step="1">
   <label>Speed effects <span id="fxv"></span></label>
   <input id="fx" type="range" min="0" max="150" step="5">
+  <label>Music <span id="musv"></span></label>
+  <input id="mus" type="range" min="0" max="100" step="5">
+  <label>Sound effects <span id="sfxv"></span></label>
+  <input id="sfx" type="range" min="0" max="100" step="5">
 </div>
 <div id="msg"></div>
 <div id="flash"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="music.js"></script>
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
 class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
@@ -133,7 +138,7 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
 }
 const ramps = [], checkpoints = [], rings = [];
 let fin, stageMeta = {};
-const STAGE_META = { 3: { scenery: 'descent' } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
+const STAGE_META = { 3: { scenery: 'descent', music: 'descent' } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
 const STAGES = {};
 {
   // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
@@ -613,6 +618,7 @@ buildScene();
 // ---------- Paper snail ----------
 const CAM_BACK = 700, CAM_UP = 850, CAM_AHEAD = 600, FP_EYE = 120;
 let camMode = +(store.get('surf_cam') || 3), gameSpeed = +(store.get('surf_speed') || 1.07);
+let musicVol = store.get('surf_music') === null ? 0.7 : +store.get('surf_music'), sfxVol = store.get('surf_sfx') === null ? 0.8 : +store.get('surf_sfx');
 let fxAmt = store.get('surf_fx') === null ? 1 : +store.get('surf_fx'); // speed-effects intensity (ribbons, clouds, edge shimmer, camera lag, long stalks); 0 = off
 const camOff = new THREE.Vector3(0, CAM_UP, CAM_BACK), camLag = new THREE.Vector3(), lagT = new THREE.Vector3(); // camLag: camera trails the snail as speed builds, then catches up
 function paperTex(draw, size = 256) {
@@ -696,10 +702,10 @@ function updateSnail(dt, now, speed) {
   tmpM.makeBasis(tmpR, sUp, tmpB); snail.quaternion.setFromRotationMatrix(tmpM);
   snail.position.set(rp.x - sUp.x * P.r, rp.y - sUp.y * P.r, rp.z - sUp.z * P.r);
   // Squash & stretch: two damped springs. Landing kicks a vertical squash, launch kicks a forward stretch; both overshoot and wobble.
-  if (squash > lastSquash + 0.005) sqYv -= squash * 16;            // touchdown (physics sets squash from impact speed)
+  if (squash > lastSquash + 0.005) { sqYv -= squash * 16; Sfx.landing(squash / 0.22); }            // touchdown (physics sets squash from impact speed)
   lastSquash = squash; squash *= Math.exp(-dt * 9);
   const touching = !!contactN;
-  if (wasTouching && !touching && state === 'run') stZv += 1.6 + Math.min(1.6, speed / 1500); // launch
+  if (wasTouching && !touching && state === 'run') { stZv += 1.6 + Math.min(1.6, speed / 1500); Sfx.launch(speed); } // launch
   wasTouching = touching;
   for (let t = dt; t > 0; t -= 1 / 120) { const h = Math.min(t, 1 / 120);
     sqYv += (-SPR_K * sqY - SPR_C * sqYv) * h; sqY += sqYv * h;
@@ -848,8 +854,8 @@ function updateStreaks(speed) {
 const prevPos = new THREE.Vector3();
 function onRing(g, off) {
   const o = ringObjs[rings.indexOf(g)]; if (o) o.fx = 1;
-  if (g.kind === 'portal') { setTheme(g.theme); fovKick += 16; toast('Portal'); }
-  else toast('Hoop  +' + Math.round(g.boost * (1 - off * off)));
+  if (g.kind === 'portal') { setTheme(g.theme); fovKick += 16; toast('Portal'); Sfx.portal(); Music.trigger('portal', g.theme); }
+  else { toast('Hoop  +' + Math.round(g.boost * (1 - off * off))); Sfx.hoop(1 - off * off); }
 }
 let fingerDown = false, falls = 0;
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
@@ -866,19 +872,20 @@ function resetRun() {
   intro.on = false;
   nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
   gates.forEach(g => g.material.color.set(0xffe066));
-  spawnOn(0); prevPos.copy(pos); setTheme(0, true);
+  spawnOn(0); prevPos.copy(pos); setTheme(0, true); Music.at(0);
   showMsg(START_MSG);
   hud();
 }
-function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); toast('Checkpoint ' + nextCp + '/' + checkpoints.length + '  ·  ' + tRun.toFixed(2) + 's'); hud(); }
+function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); Sfx.checkpoint(); Music.trigger('checkpoint', nextCp); toast('Checkpoint ' + nextCp + '/' + checkpoints.length + '  ·  ' + tRun.toFixed(2) + 's'); hud(); }
 function fail() {
   falls++;
   $('flash').style.opacity = .3; setTimeout(() => $('flash').style.opacity = 0, 120);
   spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.turn = 0; setTheme(themeFor(cpRamp), true);
+  Sfx.splat(); Music.at(cpRamp);
   state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
 }
 function finish() {
-  state = 'done';
+  state = 'done'; Sfx.finish(); Music.trigger('finish');
   const pb = !best || tRun < best;
   if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); }
   hud();
@@ -930,11 +937,15 @@ function syncSettings() {
   document.querySelectorAll('#cam button').forEach(b => b.classList.toggle('on', +b.dataset.c === camMode));
   $('gspeed').value = Math.round(gameSpeed * 100); $('gsv').textContent = Math.round(gameSpeed * 100) + '%';
   $('fx').value = Math.round(fxAmt * 100); $('fxv').textContent = Math.round(fxAmt * 100) + '%';
+  $('mus').value = Math.round(musicVol * 100); $('musv').textContent = Math.round(musicVol * 100) + '%';
+  $('sfx').value = Math.round(sfxVol * 100); $('sfxv').textContent = Math.round(sfxVol * 100) + '%';
 }
 document.querySelectorAll('#lvl button').forEach(b => { b.classList.toggle('on', +b.dataset.l === LEVEL); b.onclick = () => { if (+b.dataset.l !== LEVEL) { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; location.reload(); } }; });
 document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airaccel = +b.dataset.v; store.set('surf_aa', P.airaccel); syncSettings(); });
 $('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
 document.querySelectorAll('#cam button').forEach(b => b.onclick = () => { camMode = +b.dataset.c; store.set('surf_cam', camMode); syncSettings(); });
+$('mus').oninput = e => { musicVol = e.target.value / 100; store.set('surf_music', musicVol); Music.setVolume(musicVol); syncSettings(); };
+$('sfx').oninput = e => { sfxVol = e.target.value / 100; store.set('surf_sfx', sfxVol); Music.setSfxVolume(sfxVol); Sfx.checkpoint(); syncSettings(); };
 $('fx').oninput = e => { fxAmt = e.target.value / 100; store.set('surf_fx', fxAmt); syncSettings(); };
 $('gspeed').oninput = e => { gameSpeed = e.target.value / 100; store.set('surf_speed', gameSpeed); syncSettings(); };
 syncSettings();
@@ -1039,7 +1050,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick; camera.updateProjectionMatrix();
-  updateTrail(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now);
+  updateTrail(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now); Music.setSpeed(speed);
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
@@ -1048,11 +1059,16 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 applyScenery(themesOn);
+Music.setVolume(musicVol); Music.setSfxVolume(sfxVol);
+if (stageMeta.music && !/^#edit/.test(location.hash)) { // one trigger event per checkpoint / portal, ordered by piece, so a respawn can find the section in force
+  Music.setEvents([...checkpoints.map((ri, n) => ({ at: ri, ev: 'checkpoint', n: n + 1 })), ...rings.filter(g => g.kind === 'portal').map(g => ({ at: g.ramp, ev: 'portal', theme: g.theme }))].sort((a, b) => a.at - b.at));
+  Music.load(stageMeta.music);
+}
 resetRun();
 startIntro();
 // Start from a recorded mid-stage state (editor "Play from here"): position, velocity and heading come from a bot run
 function startFrom(f) {
-  intro.on = false; spawnOn(0); setTheme(themeFor(f.i), true);
+  intro.on = false; spawnOn(0); setTheme(themeFor(f.i), true); Music.at(f.i);
   pos.set(f.x, f.y, f.z); vel.set(f.vx, f.vy, f.vz); yaw = f.yaw; lastTouched = f.i; nextCp = f.nextCp; cpRamp = f.cpRamp; prevPos.copy(pos);
   gates.forEach((g, i) => g.material.color.set(i < nextCp ? 0x7be495 : 0xffe066));
   showMsg(START_MSG); hud();

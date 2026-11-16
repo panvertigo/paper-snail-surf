@@ -55,3 +55,11 @@ Monetization lean: premium upfront ($3-5) over F2P at friend scale; cosmetics on
 - Prop-ramps that keep current geometry: Toblerone boxes (literally surf ramps), leaning cutting boards, rulers, cereal boxes.
 - Scenery: bowl of oranges, paper towel tubes, dog bed; real-object scans (phone photogrammetry) or CC0 models (Poly Haven, verify), baked lighting, painted backdrop by the illustrator friend, tilt-shift blur to sell the miniature scale.
 - Risks: clutter hurts readability at 2000 u/s (keep ramps high-contrast); photoreal is out of reach solo, aim for stylized real; first dressed stage ~3-5 wk.
+
+## 2026-11-16 (later): built
+- Speed look v17: soft tapered wind ribbons (fade at the head, end-on ones fade out), cloud wisps, edge heat shimmer + chromatic fringe + light vignette (replaces zoom blur and 1px lines), stretching eye stalks with spring whip, camera lag that catches up; one "Speed effects" slider (0-150%).
+- Finish pad can no longer splat (any point over it, above its surface, is safe).
+- Level 3 "Descent" (moon -> Earth): tube pieces (loop-the-loop, corkscrew/swirl via `loop {R, phi, phi2, turns, bank, W, pitch, dir, off}`), rings (hoop boost, portal scene change), four scenes, moon mesa, Earth, stars. Verifier: good bot 98 s, 0 falls.
+- Level editor v1: index.html#edit (see editor.js). Piece palette, inspector, rings, live 3D with the good bot's path (colour = speed), per-piece entry speeds, Full check (300 ms + sloppy bots), Play / Play from selected piece (section practice), undo/redo, JSON import/export, autosave.
+- Adaptive music engine (music.js): bar-quantised section switching on checkpoint/portal triggers, seamless loops with tails, speed layers, generated demo song; synthesised SFX (landing, launch, hoop, portal, checkpoint, splat, finish) quantised to the beat. Your songs: see music/README.md.
+- Still open: real songs, camera roll in loops, mobile editing, Capacitor wrap, ghosts/leaderboards.
