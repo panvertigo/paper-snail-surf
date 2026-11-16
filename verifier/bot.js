@@ -1,7 +1,7 @@
 // The simulated player used by sim.js and the golden-replay recorder. mk() returns a fresh sim (see harness.js).
 module.exports=function(mk){
 const wrap=a=>((a+Math.PI*3)%(Math.PI*2))-Math.PI;
-function trial(aa,{hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false,tmax=300,rec=null}={}){
+function trial(aa,{hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false,tmax=300,rec=null,onTick=null}={}){
   const G=mk(); const {P,ramps,fin,pos,vel,SLOPE,local,ridgeAt,rightOf}=G; P.airaccel=aa; G.spawnOn(0);
   let rnd=seed; const rand=()=>(rnd=(rnd*16807)%2147483647)/2147483647;
   let t=0, plan={s:0}, falls=0, vmax=0, speedSum=0, n=0;
@@ -32,7 +32,7 @@ function trial(aa,{hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false,tmax=300,re
     else if(plan.on){  let dx=-wrap(plan.yd-G.g().yaw)/P.sens; dx=Math.max(-cap,Math.min(cap,dx)); G.cmd.turn-=dx*P.sens; if(Math.abs(dx)>0.5) G.setStrafe(Math.sign(dx)); }
     else if(plan.on===false && plan.s!==0){  const s=plan.s, stf=G.g().touchStrafe; let dx=-wrap(plan.yd-G.g().yaw)/P.sens; dx=Math.max(-cap,Math.min(cap,dx)); if(stf!==s) dx=s; else if(Math.sign(dx)!==s) dx=0; G.cmd.turn-=dx*P.sens; if(Math.abs(dx)>0.5) G.setStrafe(Math.sign(dx)); }
     else {  } // hold, no swipe
-    if(rec) rec.push(G.cmd.turn,G.cmd.touch,G.cmd.key); G.step(); t+=P.dt; const sp=Math.hypot(vel.x,vel.z); vmax=Math.max(vmax,sp); speedSum+=sp; n++;
+    if(onTick) onTick(G,t); if(rec) rec.push(G.cmd.turn,G.cmd.touch,G.cmd.key); G.step(); t+=P.dt; const sp=Math.hypot(vel.x,vel.z); vmax=Math.max(vmax,sp); speedSum+=sp; n++;
   }
   return {res:G.g().state==='done'?'done':'fail', t:+t.toFixed(1), falls, lt:G.g().lastTouched, of:ramps.length, vmax:vmax|0, vavg:(speedSum/n)|0};
 }

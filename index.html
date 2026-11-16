@@ -99,13 +99,17 @@ function makeRamp(sx, oy, sz, h0, L, k, W, H, sec, tex, side, C = 0) {
 // The surface normal is radial, so contact is the same push-out + normal clip as a ramp face. Needs v^2 >= g R at the top of a vertical loop.
 const TAU = Math.PI * 2;
 function makeLoop(x, y, z, h, o, sec, tex, side) {
-  const R = o.R, wd = o.W || 500, phi = o.phi ?? 1.0, phi2 = o.phi2 ?? 0.6, turns = o.turns ?? 1, bank = (o.bank || 0) * Math.PI / 180;
+  const R = o.R, wd = o.W || 600, phi = o.phi ?? 1.0, phi2 = o.phi2 ?? (o.bank ? 0 : 0.3), turns = o.turns ?? 1, bank = (o.bank || 0) * Math.PI / 180;
   const d = dirOf(h), rt = rightOf(h), cb = Math.cos(bank), sb = Math.sin(bank);
   const e1 = d, e2 = [rt[0] * sb, cb, rt[2] * sb], ax = [cb * rt[0], -sb, cb * rt[2]];
   const pitch = (o.pitch ?? 2.5 * wd / TAU) * (o.dir || 1), th0 = -Math.PI / 2 - phi, sweep = TAU * turns + phi + phi2;
   const O = [x - R * (Math.cos(th0) * e1[0] + Math.sin(th0) * e2[0]), y - R * (Math.cos(th0) * e1[1] + Math.sin(th0) * e2[1]), z - R * (Math.cos(th0) * e1[2] + Math.sin(th0) * e2[2])];
-  const T = { ox: O[0], oy: O[1], oz: O[2], e1, e2, ax, R, wd, th0, sweep, pitch, bound: R + wd + Math.abs(pitch * sweep) + 300 };
-  const at = t => { const a = th0 + t, c = Math.cos(a), s = Math.sin(a), p = pitch * t;
+  // axis shift of the band centre: only during the full turns, eased in and out so the rider's sideways speed fades to zero before it leaves
+  const U = TAU * turns, fv = u => Math.max(0, Math.min(1, u / 0.8, (U - u) / 1.2)), N = Math.ceil(U / 0.02) + 1, tab = new Float64Array(N + 1);
+  for (let i = 1; i <= N; i++) tab[i] = tab[i - 1] + pitch * fv((i - 0.5) * 0.02) * 0.02;
+  const shift = t => { const u = Math.max(0, Math.min(t - phi, U)) / 0.02, i = Math.floor(u); return i >= N ? tab[N] : tab[i] + (tab[i + 1] - tab[i]) * (u - i); };
+  const T = { ox: O[0], oy: O[1], oz: O[2], e1, e2, ax, R, wd, th0, sweep, pitch, phi, fv, shift, bound: R + wd + Math.abs(pitch * U) + 300 };
+  const at = t => { const a = th0 + t, c = Math.cos(a), s = Math.sin(a), p = shift(t);
     return [O[0] + R * (c * e1[0] + s * e2[0]) + ax[0] * p, O[1] + R * (c * e1[1] + s * e2[1]) + ax[1] * p, O[2] + R * (c * e1[2] + s * e2[2]) + ax[2] * p]; };
   let ymin = Infinity; for (let t = 0; t <= sweep; t += 0.05) ymin = Math.min(ymin, at(t)[1]);
   const X = at(sweep);
@@ -211,10 +215,51 @@ let fin;
       { turn: 160, R: 4600 },                      // final sweep
       { L: 2000 },                                 // launch ramp
     ],
+    3: [
+      // LEVEL 3 DESCENT: from the moon down to Earth. Four scenes (portals switch them), big drops, a loop-the-loop, a swirl, hoops (speed boost when centred).
+      // 1. MOON
+      { L: 2600, W: 700, hue: 0.62 },
+      { L: 3500, gap: 700, drop: 1700, rings: [{ d: 350, y: 380, kind: 'hoop' }] },
+      { turn: 60, R: 6500 },
+      { L: 5200, gap: 900, drop: 2600, rings: [{ d: 400, y: 380, kind: 'hoop' }] },
+      { L: 4500 },
+      { turn: 45, R: 7000, zig: true },
+      { L: 4200, C: 900 },                           // climb into checkpoint 1
+      { L: 3500, cp: true },
+      // 2. UPPER ATMOSPHERE: the plunge through the portal, then the loop
+      { L: 6500, W: 900, gap: 1000, drop: 3000, hue: 0.7, rings: [{ d: 500, y: 380, R: 280, kind: 'portal', theme: 1 }] },
+      { L: 4500, W: 700 },
+      { L: 6000, W: 900, gap: 900, drop: 2300 },
+      { L: 3000, W: 700 },                           // launch into the loop
+      { loop: { R: 1000, phi: 0.45 }, gap: 600 },    // LOOP-THE-LOOP (needs ~2050 u/s entering)
+      { L: 6000, W: 900, gap: 800 },                 // long landing ramp: the loop's exit launch flies far
+      { turn: 80, R: 6500, zig: true, W: 700 },
+      { L: 4200, C: 1100 },                          // climb into checkpoint 2
+      { L: 3500, cp: true },
+      // 3. SKY: portal, then the swirl
+      { L: 6500, W: 900, gap: 1000, drop: 3000, hue: 0.55, rings: [{ d: 500, y: 380, R: 280, kind: 'portal', theme: 2 }] },
+      { L: 4000, W: 700 },
+      { turn: 50, R: 6500 },
+      { L: 6500, W: 900, gap: 900, drop: 2800, rings: [{ d: 400, y: 380, kind: 'hoop' }] },
+      { L: 3000, W: 700 },                           // launch into the swirl
+      { loop: { R: 1200, phi: 0.45, bank: 65, turns: 2 }, gap: 600 }, // SWIRL: two banked turns (forgiving: ~1500 u/s)
+      { L: 6000, W: 900, gap: 800 },
+      { turn: 70, R: 7000, zig: true, W: 700 },
+      { L: 4500, C: 1000 },                          // climb into checkpoint 3
+      { L: 3500, cp: true },
+      // 4. EARTH: last portal, run to the ground
+      { L: 6500, W: 900, gap: 1000, drop: 3200, hue: 0.33, rings: [{ d: 500, y: 380, R: 280, kind: 'portal', theme: 3 }] },
+      { L: 4500, W: 700 },
+      { turn: 45, R: 6500 },
+      { L: 4000, gap: 900, drop: 2500, rings: [{ d: 400, y: 380, kind: 'hoop' }] },
+      { L: 3500 },
+      { turn: 120, R: 7000, zig: true },             // final sweep
+      { L: 3000 },                                   // launch onto the finish
+    ],
   };
   const STAGE = globalThis.SURF_STAGE || STAGES[globalThis.SURF_LEVEL] || STAGES[1]; // SURF_STAGE: stage data supplied by tools / the editor
   const FIN_DROP = 800, FIN_GAP = 700;           // leap of faith onto a pad far below
-  let x = 0, y = 0, z = 0, h = 0, side = 1, W = 460, tex = 0; // wide early (forgiving), finale slalom narrows to 310 (mastery)
+  let hue = null, x = 0, y = 0, z = 0, h = 0, side = 1, W = 460, tex = 0; // wide early (forgiving), finale slalom narrows to 310 (mastery)
   STAGE.forEach((p, i) => {
     let prevEnd = null;
     if (i > 0) {
@@ -223,21 +268,27 @@ let fin;
       h = prev.h1;
       const dir = dirOf(h), right = rightOf(h), gap = p.gap ?? 480;
       let shift = 0;
+      if (p.loop) shift = prev.side * 0.5 * prev.W + (p.loop.off || 0); // centre the tube where the rider flies in (mid-face), not on the ridge line
+      else if (prev.tube) shift = -side * 0.5 * W;                        // the rider leaves the tube on its centre line: put the next ridge half a face away
       if (p.zig) { shift = side * W * 0.75; side = -side; } // land high on the face that faces you
       x = prev.ex + dir[0] * gap + right[0] * shift; z = prev.ez + dir[2] * gap + right[2] * shift;
-      y = prev.ey - (p.drop ?? 190);
+      // a loop entry defaults to rider height (mid-face of the previous ramp); a ramp after a tube puts its mid-face where the exit launch arrives
+      y = prev.ey - (p.drop ?? (p.loop ? 20 - 0.42 * prev.H : prev.tube ? 0.5 * (p.W ?? W) * 1.25 + 380 : 190));
       tex += gap;
       if (p.cp) checkpoints.push(ramps.length);
     }
     if (p.W) W = p.W;
+    if (p.hue !== undefined) hue = p.hue;
     let L = p.L, k = 0;
     if (p.turn) { L = p.turn * Math.PI / 180 * p.R; k = -side / p.R; } // banked: always turn toward the face you're riding
     if (p.loop) { const lp = makeLoop(x, y, z, h, p.loop, i, tex, side); ramps.push(lp); tex += lp.tube.sweep * p.loop.R; }
     else { ramps.push(makeRamp(x, y, z, h, L, k, W, W * 1.25, i, tex, side, p.C || 0)); tex += L; }
+    ramps[ramps.length - 1].hue = hue;
     // rings sit in the flight just before this piece, placed from the previous piece's end: d ahead, s to the right, y above its end height
     if (p.rings && prevEnd) for (const q of p.rings) {
       const dir = dirOf(prevEnd.h1), right = rightOf(prevEnd.h1), dip = (q.dip || 0) * Math.PI / 180, c = Math.cos(dip);
-      rings.push({ x: prevEnd.ex + dir[0] * q.d + right[0] * (q.s || 0), y: prevEnd.ey + (q.y || 0), z: prevEnd.ez + dir[2] * q.d + right[2] * (q.s || 0),
+      const lane = q.s ?? prevEnd.side * 0.5 * prevEnd.W; // default lane: where the rider flies, mid-face of the previous ramp
+      rings.push({ x: prevEnd.ex + dir[0] * q.d + right[0] * lane, y: prevEnd.ey + (q.y || 0), z: prevEnd.ez + dir[2] * q.d + right[2] * lane,
         nx: dir[0] * c, ny: -Math.sin(dip), nz: dir[2] * c, R: q.R || 260, kind: q.kind || 'hoop', boost: q.boost ?? 120, theme: q.theme ?? 0, ramp: i, hit: false });
     }
   });
@@ -248,7 +299,7 @@ let fin;
 // Sim state. Input arrives only through cmd, consumed once per tick: turn = yaw radians accumulated since the last tick,
 // touch / key = latched strafe signs (-1, 0, 1). A replay is the list of cmd snapshots, one per tick.
 const pos = new V(), vel = new V();
-let contactN = null, contactTube = false, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
+let stuckTicks = 0, contactN = null, contactTube = false, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
 let yaw = 0, touchStrafe = 0, keyStrafe = 0;
 const cmd = { turn: 0, touch: 0, key: 0 };
 function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
@@ -257,6 +308,7 @@ function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
   vel.set(d[0] * 600, 0, d[2] * 600);
   yaw = r.h0 + r.k * u; lastTouched = i; contactN = null; contactTicks = 0;
   for (const g of rings) if (g.ramp >= i) g.hit = false;
+  stuckTicks = 0;
 }
 function tubeContact(T, i) {
   const qx = pos.x - T.ox, qy = pos.y - T.oy, qz = pos.z - T.oz, e1 = T.e1, e2 = T.e2, ax = T.ax;
@@ -264,10 +316,11 @@ function tubeContact(T, i) {
   const rho = Math.hypot(a, b); if (rho < 1e-6) return;
   const d = T.R - rho; if (!(d < P.r && d > -60)) return; // distance to the surface, measured from inside
   let t = Math.atan2(b, a) - T.th0; t -= Math.floor(t / TAU) * TAU;
-  let w = s;
-  if (T.pitch) {
-    let k = Math.round((s - T.pitch * t) / (T.pitch * TAU)); k = Math.max(0, Math.min(Math.floor((T.sweep - t) / TAU), k));
-    if (t + TAU * k > T.sweep) return; w = s - T.pitch * (t + TAU * k);
+  let w = s, tt = t;
+  if (T.pitch) { // which turn are we on? the one whose band is nearest in axis position
+    let best = Infinity;
+    for (let k = 0; t + TAU * k <= T.sweep; k++) { const ww = s - T.shift(t + TAU * k); if (Math.abs(ww) < Math.abs(best)) { best = ww; tt = t + TAU * k; } }
+    if (best === Infinity) return; w = best;
   } else if (t > T.sweep) return;
   if (Math.abs(w) > T.wd) return;
   const nx = -(a * e1[0] + b * e2[0]) / rho, ny = -(a * e1[1] + b * e2[1]) / rho, nz = -(a * e1[2] + b * e2[2]) / rho, push = P.r - d;
@@ -277,7 +330,7 @@ function tubeContact(T, i) {
   if (!contactN && bn < -40) squash = Math.min(0.22, -bn / 1800);
   if (T.pitch) { // follow the helix: the band slides along the axis as the rider goes round, so carry the rider with it and ease towards the centre
     const va = vel.x * e1[0] + vel.y * e1[1] + vel.z * e1[2], vb = vel.x * e2[0] + vel.y * e2[1] + vel.z * e2[2], vAx = vel.x * ax[0] + vel.y * ax[1] + vel.z * ax[2];
-    const dv = (T.pitch * (a * vb - b * va) / (rho * rho) - vAx) * 0.5 - w * 0.01;
+    const dv = (T.pitch * T.fv(tt - T.phi) * (a * vb - b * va) / (rho * rho) - vAx) * 0.5 - w * 0.05;
     vel.x += ax[0] * dv; vel.y += ax[1] * dv; vel.z += ax[2] * dv;
   }
   contactN = [nx, ny, nz]; contactTube = true; contactTicks = 8;
@@ -299,6 +352,7 @@ function step() {
     const into = -(contactN[0] * Math.cos(yaw) - contactN[2] * Math.sin(yaw));
     strafe = into >= 0 ? 1 : -1;
   }
+  if (contactN && contactTube) strafe = 0; // no air control while riding a tube: in a banked tube air-accel against the climb would brake you hard
   if (strafe) { // Source AirAccelerate, wishdir = +/- right vector of view
     const wx = Math.cos(yaw) * strafe, wz = -Math.sin(yaw) * strafe;
     const add = Math.min(P.wishspeed, P.aircap) - (vel.x * wx + vel.z * wz);
@@ -351,6 +405,8 @@ function step() {
     overPad = u > fin.u0 - 60 && u < fin.u1 && Math.abs(v) < fin.half && pos.y > fin.y - 150;
     if (overPad && pos.y - P.r <= fin.y) { pos.y = fin.y + P.r; finish(); return; }
   }
+  // a tube is a closed circle with no friction: too slow to clear it you would roll back and forth in the trough forever, so that counts as a fall
+  if (contactN && contactTube && vel.x * vel.x + vel.y * vel.y + vel.z * vel.z < 250 * 250) { if (++stuckTicks > 200) { stuckTicks = 0; fail(); return; } } else stuckTicks = 0;
   const lr = ramps[lastTouched], nr = ramps[lastTouched + 1]; // next ramp too, so big drops aren't counted as falls
   // The pad is never a fall: anywhere over it (above its surface) you either finish or are still dropping onto it, whichever ramp you touched last.
   if (!overPad && pos.y < Math.min(lr.oy, lr.ey, nr ? nr.oy : Infinity) - 900) fail();
@@ -373,7 +429,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a2240);
 scene.fog = new THREE.Fog(0x1a2240, 6000, 70000); // light haze: whole course (~58k diagonal) stays visible for scale
 const camera = new THREE.PerspectiveCamera(70, 1, 10, 90000);
-scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x302040, 0.75));
+const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x302040, 0.75); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.75);
 sun.position.set(1, 1.4, 0.4); scene.add(sun);
 
@@ -392,7 +448,23 @@ function gridTex(bg, line) {
   const c = new THREE.Color(), capC = new THREE.Color();
   const Pt = (r, u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; };
   for (const r of ramps) {
-    c.setHSL((0.55 + r.sec * 0.037) % 1, 0.45, 0.8); capC.setHSL((0.55 + r.sec * 0.037) % 1, 0.4, 0.45);
+    const hu = r.hue ?? (0.55 + r.sec * 0.037) % 1;
+    c.setHSL(hu, 0.45, 0.8); capC.setHSL(hu, 0.4, 0.45);
+    if (r.tube) { // tube piece: the band you ride the inside of; rims a shade darker
+      const Tb = r.tube, nt = Math.max(12, Math.ceil(Tb.sweep * Tb.R / 120)), nw = 8, rim = new THREE.Color();
+      const Q = (t, w) => { const a = Tb.th0 + t, ca = Math.cos(a), sa = Math.sin(a), q = Tb.shift(t) + w;
+        return [Tb.ox + Tb.R * (ca * Tb.e1[0] + sa * Tb.e2[0]) + Tb.ax[0] * q, Tb.oy + Tb.R * (ca * Tb.e1[1] + sa * Tb.e2[1]) + Tb.ax[1] * q, Tb.oz + Tb.R * (ca * Tb.e1[2] + sa * Tb.e2[2]) + Tb.ax[2] * q]; };
+      for (let j = 0; j < nt; j++) for (let m = 0; m < nw; m++) {
+        const t0 = Tb.sweep * j / nt, t1 = Tb.sweep * (j + 1) / nt, w0 = -Tb.wd + 2 * Tb.wd * m / nw, w1 = -Tb.wd + 2 * Tb.wd * (m + 1) / nw;
+        const A = Q(t0, w0), B = Q(t1, w0), C2 = Q(t1, w1), D = Q(t0, w1);
+        pos.push(...A, ...B, ...C2, ...A, ...C2, ...D);
+        const ua = (r.tex + t0 * Tb.R) / T, ub = (r.tex + t1 * Tb.R) / T, va = (w0 + Tb.wd) / T, vb = (w1 + Tb.wd) / T;
+        uv.push(ua, va, ub, va, ub, vb, ua, va, ub, vb, ua, vb);
+        rim.copy(c); if (m === 0 || m === nw - 1) rim.multiplyScalar(0.6); else if (j % 2) rim.multiplyScalar(0.93); // edge rails + faint banding to read the curve
+        for (let q2 = 0; q2 < 6; q2++) col.push(rim.r, rim.g, rim.b);
+      }
+      continue;
+    }
     const slant = Math.hypot(r.W, r.H) / T, n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 120)) : 1;
     for (let j = 0; j < n; j++) {
       const ua = r.L * j / n, ub = r.L * (j + 1) / n, ta = (r.tex + ua) / T, tb = (r.tex + ub) / T;
@@ -437,8 +509,10 @@ const gates = checkpoints.map(i => { // checkpoint gates
 { // void floor grid for height reference
   let minY = 0, sx = 0, sz = 0;
   for (const r of ramps) { minY = Math.min(minY, r.oy, r.ey); sx += r.sx; sz += r.sz; }
-  const grid = new THREE.GridHelper(400000, 400, 0x4a5a9a, 0x2a3466);
-  grid.position.set(sx / ramps.length, minY - 2500, sz / ramps.length); scene.add(grid);
+  if (LEVEL !== 3) { // Descent has planets for ground instead
+    const grid = new THREE.GridHelper(400000, 400, 0x4a5a9a, 0x2a3466);
+    grid.position.set(sx / ramps.length, minY - 2500, sz / ramps.length); scene.add(grid);
+  }
 }
 
 // ---------- Paper snail ----------

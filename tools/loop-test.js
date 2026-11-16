@@ -19,3 +19,4 @@ function run(R,v,{phi=1.0,phi2=0.6,turns=1,bank=0,W=500}={}){
   return {ride:+(cum/T.sweep).toFixed(2), ok:st.lastTouched>=2||st.state==='done', st:st.state, lt:st.lastTouched, ticks:t, minV:minV|0, contacts, end:[G.pos.x|0,G.pos.y|0,G.pos.z|0], exitPt:X.map(Math.round)};
 }
 for(const R of [900,1200,1500]) for(const v of [2000,2400,2800,3300]){ const r=run(R,v); console.log("R",R,"v",v,"rode",r.ride,"of sweep; minSpeed",r.minV,"state",r.st); }
+if (process.env.SWIRL) { console.log('--- swirl: bank/turns variants'); for (const [bank, turns, R] of [[40,2,1600],[55,2,1600],[70,2,1800],[55,3,1600]]) for (const v of [2200, 2800, 3300]) { const r = run(R, v, { bank, turns, phi: 0.45 }); console.log('bank', bank, 'turns', turns, 'R', R, 'v', v, 'rode', r.ride, 'of sweep; minSpeed', r.minV, r.st); } }

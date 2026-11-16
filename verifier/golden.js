@@ -5,7 +5,7 @@ const fs = require('fs'), path = require('path');
 const mode = process.argv[2], file = process.argv[3] || 'index.html';
 const H = require('./harness.js').load(file), mk = () => H();
 const trial = require('./bot.js')(mk);
-const DIR = path.join(__dirname, 'golden'), LEVELS = [1, 2], AA = 400, EVERY = 100;
+const DIR = path.join(__dirname, 'golden'), LEVELS = [1, 2, 3], AA = 400, EVERY = 100;
 function fnv(h, s) { for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
 function digest(G) { const { pos, vel } = G, y = G.g().yaw; return [pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, y].join(','); }
 function replay(level, cmds) { // returns digests every EVERY ticks and the final state
