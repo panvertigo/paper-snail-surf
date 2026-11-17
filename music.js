@@ -117,7 +117,8 @@
     },
     trigger(ev, arg) {
       if (!cfg) return;
-      if (ev === 'checkpoint' && cfg.journey) { Music.goto(journeySection(arg), { quantize: cfg.transition || 'phrase' }); return; } // song order spread over however many checkpoints the level has const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
+      if (ev === 'checkpoint' && cfg.journey) { Music.goto(journeySection(arg), { quantize: cfg.transition || 'phrase' }); return; } // song order spread over however many checkpoints the level has
+      const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
       if (t) Music.goto(t.section, { quantize: t.quantize });
     },
     at(piece, o) { // the section in force when you are at piece i (used on start and after a respawn)

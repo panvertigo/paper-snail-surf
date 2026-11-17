@@ -42,7 +42,7 @@ canvas{display:block;touch-action:none}
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="4">4<br>bowl</button></div>
+  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="4">4<br>bowl</button><button data-l="5">5<br>grand descent</button></div>
   <label>Air accel (ramp grip)</label>
   <div class="row" id="aa">
     <button data-v="150">150<br>classic</button><button data-v="400">400<br>medium</button><button data-v="800">800<br>easy</button>
@@ -175,6 +175,7 @@ const STAGE_META = {
     { piece: 13, d: 1850, s: -700, y: 40, R: 190, boost: 200 },
     { piece: 13, d: 3390, s: -210, y: -760, R: 190, boost: 200 }
   ] },
+  5: { scenery: 'descent', music: 'chicago', pull: 0.3, fall: 0.1 },
   3: { scenery: 'descent', music: 'chicago', pull: 0.3, fall: 0.1, riskRings: [
     { piece: 1, d: 1030, s: 600, y: 90, R: 190, boost: 200 },
     { piece: 1, d: 1770, s: 70, y: -560, R: 190, boost: 200 },
@@ -326,6 +327,20 @@ const STAGES = {};
       { L: 3000 },                                   // launch onto the finish
     ],
   });
+  // LEVEL 5 GRAND DESCENT: Level 3 stretched to about double so the whole Chicago Meditation fits. Every scene gets a second run (copied from the first, minus its portal) and its own checkpoint.
+  { const s = STAGES[3], keepRings = (a, b) => s.slice(a, b + 1).map(p => Object.assign({}, p));
+    const earthTail = [{ L: 4000, C: 900 }, { L: 3500, cp: true }];
+    STAGES[5] = [].concat(
+      s.slice(0, 8),                       // moon, cp 1
+      keepRings(1, 7).map(p => (delete p.hue, p)),   // moon again (drops, hoop, climb, cp 2)
+      s.slice(8, 17),                      // atmosphere with the loop, cp 3
+      keepRings(9, 16).map(p => (delete p.hue, p)),  // atmosphere again, cp 4
+      s.slice(17, 27),                     // sky with the swirl, cp 5
+      keepRings(18, 26).map(p => (delete p.hue, p)), // sky again, cp 6
+      s.slice(27, 31), earthTail,          // Earth run, cp 7
+      s.slice(31)                          // final sweep and launch
+    );
+  }
 }
 const EDGE = 160, RAMP_CAP = 3000; // extra downhill pull on ramps (stage meta `pull`, fraction of gravity) stops above this speed
 // Skate park profile constants (see parkH below)
@@ -1053,7 +1068,7 @@ function updateSnail(dt, now, speed) {
   tmpM.makeBasis(tmpR, sUp, tmpB); snail.quaternion.setFromRotationMatrix(tmpM);
   snail.position.set(rp.x - sUp.x * P.r, rp.y - sUp.y * P.r, rp.z - sUp.z * P.r);
   // Squash & stretch: two damped springs. Landing kicks a vertical squash, launch kicks a forward stretch; both overshoot and wobble.
-  if (squash > lastSquash + 0.005) { sqYv -= squash * 40; Sfx.landing(squash / 0.22); }            // touchdown (physics sets squash from impact speed)
+  if (squash > lastSquash + 0.005) { sqYv -= squash * 40; /* landing sound removed for now */ }            // touchdown (physics sets squash from impact speed)
   lastSquash = squash; squash *= Math.exp(-dt * 9);
   const touching = !!contactN;
   if (wasTouching && !touching && state === 'run') { stZv += 3.4 + Math.min(3.2, speed / 800); Sfx.launch(speed); } // launch
@@ -1073,7 +1088,7 @@ function updateSnail(dt, now, speed) {
     if (squash > lastSquashEye + 0.005) eyeV -= 6 * squash * 7; lastSquashEye = squash; // landing flicks the stalks forward
     const wig = sp2 * sp2 * sp2; // wiggle like crazy at high speed: fast, out-of-phase whip on both axes, one eye lagging the other
     for (const e of eyeParts) {
-      const ph = e.sx * 1.9, flutter = Math.sin(now / 26 + ph) * (0.1 * sp2 + 0.45 * wig), side = Math.cos(now / 19 + ph * 2.3) * 0.55 * wig;
+      const ph = e.sx * 1.9, flutter = Math.sin(now / 75 + ph) * (0.04 * sp2 + 0.16 * wig), side = Math.cos(now / 62 + ph * 2.3) * 0.22 * wig; // slow and small so it reads as a happy bobble, not jitter
       e.pivot.rotation.set(Math.max(-0.4, eyeA + flutter), 0, -e.sx * (0.25 + 0.35 * sp2) + side);
       e.st.scale.x = e.st.scale.z = 1 + 0.5 * sp2; e.st.scale.y = L; e.st.position.y = 8 * L; e.eye.position.y = e.pupil.position.y = 16 * L;
     }
