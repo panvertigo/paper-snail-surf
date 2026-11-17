@@ -115,14 +115,16 @@
       if (cur.id === id && pending && pending.id !== id) { pending = null; return; }
       pending = { id, quant: o.quantize || cfg.quantize || 'bar', tmin: ctx.currentTime + (o.lead || 0) * cfg.bar }; // lead: bars the old section keeps playing before the swap can happen
     },
-    trigger(ev, arg) {
+    lenFor(ev) { const t = cfg && (cfg.triggers || []).find(x => x.on === ev); const sec = t && cfg.sections[t.section]; return sec && sec.loopLen ? sec.loopLen : 0; }, // seconds the section for an event lasts (0 if none)
+    trigger(ev0, arg) {
       if (!cfg) return;
       try {
-        const lead = ev === 'finish' ? 0 : (cfg.lead ?? 2); // checkpoints and portals: let the old section play on a couple of bars first (finish: the outro should land right away)
+        const early = ev0 === 'approach' || ev0 === 'finishNear', ev = ev0 === 'approach' ? 'checkpoint' : ev0 === 'finishNear' ? 'finish' : ev0; // 'approach' / 'finishNear' fire just before the real event, when the snail is on pace for it
+        const lead = early || ev === 'finish' ? 0 : (cfg.lead ?? 2); // a real checkpoint or portal: let the old section play on a couple of bars first; anticipated ones are already early; finish: the outro lands right away
         if (ev === 'checkpoint' && cfg.journey) { Music.goto(journeySection(arg), { quantize: cfg.transition || 'phrase', lead }); return; } // song order spread over however many checkpoints the level has
         const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
         if (t) Music.goto(t.section, { quantize: t.quantize, lead });
-      } catch (e) { console.warn('music trigger failed', ev, e); } // music must never take the game down
+      } catch (e) { console.warn('music trigger failed', ev0, e); } // music must never take the game down
     },
     at(piece, o) { // the section in force when you are at piece i (used on start and after a respawn)
       if (!cfg || !ready) { deferredAt = piece; return; }

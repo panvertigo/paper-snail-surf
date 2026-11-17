@@ -1339,9 +1339,24 @@ function hud() {
 }
 let pitchVis = 0;
 const START_MSG = '<b>Swipe</b> to turn<br>In the air: <b>hold + swipe</b> to drift<br><b>Drag up / down</b> to lean<br><br>Touch to drop in';
+// Music anticipation: the next song section starts a little BEFORE the checkpoint (when the snail is on pace to reach it), and the outro starts early enough to end as the stage does.
+// Progress along the course is measured in ground distance; the time left is that distance over the current speed.
+const cumD = []; let totalS = 0, aheadCp = -1, aheadFin = false;
+function measureCourse() { let a = 0; cumD.length = 0; ramps.forEach((r, i) => { if (i > 0) { const p = ramps[i - 1]; a += Math.hypot(r.sx - p.ex, r.sz - p.ez); } cumD[i] = a; a += r.L; }); totalS = a + 700; }
+measureCourse();
+function musicAhead(speed) {
+  if (state !== 'run' || !stageMeta.music || stageMeta.park || !Music.ready || speed < 700) return;
+  const r = ramps[lastTouched], s = cumD[lastTouched] + Math.max(0, Math.min(r.L, Math.hypot(pos.x - r.sx, pos.z - r.sz))), v = Math.max(900, speed);
+  if (nextCp < checkpoints.length) {
+    const ci = checkpoints[nextCp];
+    if (aheadCp !== nextCp && lastTouched >= ci - 4 && (cumD[ci] - s) / v < 3.5) { aheadCp = nextCp; Music.trigger('approach', nextCp + 1); } // about 3.5 s out: the phrase-aligned swap then lands within a few seconds of the checkpoint
+  } else if (!aheadFin) {
+    const len = Music.lenFor('finish'); if (len && (totalS - s) / v <= len + 0.8) { aheadFin = true; Music.trigger('finishNear'); } // outro length plus the wait for the next bar line
+  }
+}
 function resetRun() {
   intro.on = false;
-  flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
+  flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => g.material.color.set(0xffe066));
   spawnOn(0); prevPos.copy(pos); setTheme(0, true); Music.at(0);
   showMsg(START_MSG);
@@ -1351,12 +1366,12 @@ function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); Sfx.ch
 function fail() {
   falls++; flow.v = 0; flow.on = false; flow.pend = 0; flow.wasAir = false;
   $('flash').style.opacity = .3; setTimeout(() => $('flash').style.opacity = 0, 120);
-  spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0; setTheme(themeFor(cpRamp), true);
+  aheadCp = -1; aheadFin = false; spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0; setTheme(themeFor(cpRamp), true);
   Sfx.splat(); Music.at(cpRamp, { quantize: 'beat', respawn: true });
   state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
 }
 function finish() {
-  state = 'done'; Sfx.finish(); Music.trigger('finish');
+  state = 'done'; Sfx.finish(); if (!aheadFin) Music.trigger('finish');
   if (flow.score > flow.best) { flow.best = flow.score; flow.newBest = true; store.set('surf_style_L' + LEVEL, String(Math.round(flow.score))); }
   const pb = !best || tRun < best;
   if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); store.set('surf_ghost_L' + LEVEL, JSON.stringify(ghostRec)); }
@@ -1572,7 +1587,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick + warpK * 9; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
-  updateFlow(dt); drawFlow(); updateNpcs(now); updateDrops(speed); updateWarp(speed, now); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  updateFlow(dt); drawFlow(); updateNpcs(now); updateDrops(speed); updateWarp(speed, now); musicAhead(speed); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
