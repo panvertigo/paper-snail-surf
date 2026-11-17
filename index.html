@@ -36,7 +36,7 @@ canvas{display:block;touch-action:none}
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="4">4<br>circuit</button></div>
+  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="4">4<br>bowl</button></div>
   <label>Air accel (ramp grip)</label>
   <div class="row" id="aa">
     <button data-v="150">150<br>classic</button><button data-v="400">400<br>medium</button><button data-v="800">800<br>easy</button>
@@ -249,40 +249,12 @@ const STAGES = {};
       { turn: 160, R: 4600 },                      // final sweep
       { L: 2000 },                                 // launch ramp
     ],
-    4: [
-      // LEVEL 4 CIRCUIT: a ring of four sides that ends beside its own start (below it). Each side: two descents, a climb, a corner, then a climb into a checkpoint.
-      { L: 3500, W: 700 },
-      // side 1
-      { L: 4000 },
-      { L: 4200, gap: 600, drop: 220 },
-      { L: 4200, C: 500 },
-      { turn: 90, R: 6000 },
-      { L: 4200 },
-      { L: 4000, C: 600 },
-      { L: 3800 },
-      // side 2: the plunge
-      { L: 4000 },
-      { L: 5000, W: 800, gap: 1300, drop: 1500, rings: [{ d: 500, y: 380, kind: 'hoop' }] },
-      { L: 4200, C: 500 },
-      { turn: 90, R: 6000 },
-      { L: 4200 },
-      { L: 4000, C: 600 },
-      { L: 3800, cp: true },
-      // side 3
-      { L: 4000 },
-      { L: 4200, gap: 600, drop: 220 },
-      { L: 4200, C: 500 },
-      { turn: 90, R: 6000 },
-      { L: 4200 },
-      { L: 4000, C: 600 },
-      { L: 3800, cp: true },
-      // side 4: home straight, finish pad lies just behind the start line
-      { L: 4000 },
-      { L: 4200, gap: 600, drop: 220 },
-      { L: 4200, C: 500 },
-      { turn: 90, R: 6000 },
-      { L: 3200, W: 700 },
-    ],
+    4: { name: 'Bowl', park: { hoops: [
+        { a: 0, r: 4300, dir: 1 }, { a: 90, r: 4300, dir: 1 }, { a: 180, r: 4300, dir: 1 }, { a: 270, r: 4300, dir: 1 },
+        { a: 45, r: 3700, dir: -1, y: 200 }, { a: 135, r: 3700, dir: -1, y: 200 }, { a: 225, r: 3700, dir: -1, y: 200 }, { a: 315, r: 3700, dir: -1, y: 200 } ] },
+      // LEVEL 4 BOWL: a free-form skate park. Drop in from the deck, then do what you like: carve the wall, ride the rollers, fly off the lip. Hoops re-arm.
+      start: { x: 0, y: 2025, z: 7300 },
+      pieces: [{ L: 1300, W: 500 }] },
     3: [
       // LEVEL 3 DESCENT: from the moon down to Earth. Four scenes (portals switch them), big drops, a loop-the-loop, a swirl, hoops (speed boost when centred).
       // 1. MOON
@@ -326,12 +298,14 @@ const STAGES = {};
     ],
   });
 }
+// Skate park profile constants (see parkH below)
+const PK = { r0: 3000, Rq: 3000, s1: 2898, H1: 2224, deckEnd: 7400, kick: 1500, boost: 0.6, vcap: 2500, dk: 0.15 };
 // buildCourse(S, meta): S = array of pieces, or { name, scenery, theme0, pieces }. Rebuilds ramps / checkpoints / rings / fin (the editor calls it again).
 function buildCourse(S, meta) {
   ramps.length = 0; checkpoints.length = 0; rings.length = 0;
   const STAGE = Array.isArray(S) ? S : S.pieces; stageMeta = Array.isArray(S) ? (meta || {}) : S;
   const FIN_DROP = 800, FIN_GAP = 700;           // leap of faith onto a pad far below
-  let hue = null, x = 0, y = 0, z = 0, h = 0, side = 1, W = 460, tex = 0; // wide early (forgiving), finale slalom narrows to 310 (mastery)
+  const st0 = stageMeta.start || {}; let hue = null, x = st0.x || 0, y = st0.y || 0, z = st0.z || 0, h = 0, side = 1, W = 460, tex = 0; // wide early (forgiving), finale slalom narrows to 310 (mastery)
   STAGE.forEach((p, i) => {
     let prevEnd = null;
     if (i > 0) {
@@ -364,6 +338,13 @@ function buildCourse(S, meta) {
         nx: dir[0] * c, ny: -dsin(dip), nz: dir[2] * c, R: q.R || 260, kind: q.kind || 'hoop', boost: q.boost ?? 120, min: q.min || 0, theme: q.theme ?? 0, ramp: i, hit: false });
     }
   });
+  if (stageMeta.park) { // hoops that re-arm: speed boosts around the wall, tangent to the ride
+    for (const q of stageMeta.park.hoops || []) {
+      const a = q.a * Math.PI / 180, c = dcos(a), sn = dsin(a), px = q.r * c, pz = q.r * sn, tx = -sn * (q.dir || 1), tz = c * (q.dir || 1);
+      rings.push({ x: px, y: parkH(px, pz) + (q.y || 220), z: pz, nx: tx, ny: 0, nz: tz, R: q.R || 320, kind: 'hoop', boost: q.boost ?? 140, min: 0, aim: -1, theme: 0, ramp: 0, hit: false, rearm: true, cool: 0 });
+    }
+    fin = { x: 0, z: 0, h: 0, dir: [0, 0, -1], right: [1, 0, 0], y: -1e7, u0: 1e7, u1: 1e7 + 1, half: 1 }; return;
+  }
   const last = ramps[ramps.length - 1];
   fin = { x: last.ex, z: last.ez, h: last.h1, dir: dirOf(last.h1), right: rightOf(last.h1),
           y: last.ey - FIN_DROP, u0: FIN_GAP, u1: FIN_GAP + 5000, half: 1300 };
@@ -376,6 +357,12 @@ let stuckTicks = 0, contactN = null, contactTube = false, contactTicks = 0, last
 let yaw = 0, touchStrafe = 0, keyStrafe = 0;
 const cmd = { turn: 0, touch: 0, key: 0 };
 function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
+  if (stageMeta.park) { // park: start on the wall just under the lip and slide down it
+    const x = 0, z = 5650, n = parkNormal(x, z);
+    pos.set(x + n[0] * 40, parkH(x, z) + 40, z + n[2] * 40); vel.set(0, 0, -300); yaw = 0; lastTouched = 0; contactN = null; contactTicks = 0; parkTicks = 0;
+    for (const g of rings) { g.hit = false; g.cool = 0; }
+    stuckTicks = 0; return;
+  }
   const r = ramps[i], u = 60, c = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u), v = r.side * 0.04 * r.W, d = dirOf(r.h0 + r.k * u);
   pos.set(c[0] + rt[0] * v, r.oy + zOf(r, u) + r.H * 0.96 + 60, c[1] + rt[2] * v);
   vel.set(d[0] * 600, 0, d[2] * 600);
@@ -420,6 +407,54 @@ function inTube() { // true while inside a nearby tube's bounds; bots hold their
   }
   return false;
 }
+// ---------- Skate park: a heightfield you can ride anywhere (frictionless, so energy is kept; carving steers, a held finger kicks when slow) ----------
+// Radial profile P(r): flat floor, quarter-pipe up to 75 deg, a gently inward-rolling deck, then an outer wall that keeps rising. Smooth bumps are added on the floor.
+function pkBump(x, z, cx, cz, R, h) { const d = ((x - cx) * (x - cx) + (z - cz) * (z - cz)) / (R * R), t = 1 - d; return t > 0 ? h * t * t : 0; }
+function parkH(x, z) {
+  const r = dhypot(x, z); let h;
+  if (r <= PK.r0) h = 0;
+  else if (r <= PK.r0 + PK.s1) { const s = r - PK.r0; h = PK.Rq - Math.sqrt(PK.Rq * PK.Rq - s * s); }
+  else if (r <= PK.deckEnd) h = PK.H1 + PK.dk * (r - PK.r0 - PK.s1);
+  else { const q = r - PK.deckEnd; h = PK.H1 + PK.dk * (PK.deckEnd - PK.r0 - PK.s1) + 0.3 * q + q * q / 1500; }
+  if (r < 3600) { // floor furniture: a hump in the middle, four rollers around it
+    h += pkBump(x, z, 0, 0, 1200, 480);
+    h += pkBump(x, z, 1800, 1800, 700, 300) + pkBump(x, z, -1800, 1800, 700, 300) + pkBump(x, z, 1800, -1800, 700, 300) + pkBump(x, z, -1800, -1800, 700, 300);
+  }
+  return h;
+}
+function parkNormal(x, z) { // central differences: only + - * / sqrt, so identical on every engine
+  const e = 20, gx = (parkH(x + e, z) - parkH(x - e, z)) / (2 * e), gz = (parkH(x, z + e) - parkH(x, z - e)) / (2 * e), il = 1 / Math.sqrt(1 + gx * gx + gz * gz);
+  return [-gx * il, il, -gz * il];
+}
+let parkTicks = 0;
+function parkContact() {
+  const h = parkH(pos.x, pos.z), n = parkNormal(pos.x, pos.z), d = (pos.y - h) * n[1];
+  if (d >= P.r) return;
+  const push = P.r - d; pos.x += n[0] * push; pos.y += n[1] * push; pos.z += n[2] * push;
+  const bn = vel.x * n[0] + vel.y * n[1] + vel.z * n[2];
+  if (bn < 0) {
+    const sp0 = dhypot(vel.x, vel.y, vel.z);
+    vel.x -= n[0] * bn; vel.y -= n[1] * bn; vel.z -= n[2] * bn;
+    if (!contactN) { const sp1 = dhypot(vel.x, vel.y, vel.z); if (sp1 > 1) { const f = Math.min(sp0, 3000) / sp1; if (f > 1) { vel.x *= f; vel.y *= f; vel.z *= f; } } } // landings are lossless (capped)
+    if (!contactN && bn < -40) squash = Math.min(0.22, -bn / 1800);
+  }
+  contactN = n; contactTube = true; contactTicks = 8; parkTicks = 3; // contactTube: no auto-push, no air control, no stuck-in-a-tube check
+}
+function parkCarve() { // on the surface: velocity swings toward where you face (energy kept), sliding downhill is boosted so you build speed as you fall, a held finger kicks you up to PK.kick
+  parkTicks--; const n = contactN; if (!n) return;
+  const vn = vel.x * n[0] + vel.y * n[1] + vel.z * n[2];
+  let tx = vel.x - n[0] * vn, ty = vel.y - n[1] * vn, tz = vel.z - n[2] * vn, sp = dhypot(tx, ty, tz);
+  const gy = -P.g, gn = gy * n[1], gtx = -n[0] * gn, gty = gy - n[1] * gn, gtz = -n[2] * gn; // gravity along the surface
+  if (pos.y < PK.H1 + 150 && tx * gtx + ty * gty + tz * gtz > 0 && sp < PK.vcap) { const f = PK.boost * P.dt; tx += gtx * f; ty += gty * f; tz += gtz * f; sp = dhypot(tx, ty, tz); } // downhill: extra pull
+  const fx = -dsin(yaw), fz = -dcos(yaw), fd = fx * n[0] + fz * n[2];
+  let dx = fx - n[0] * fd, dy = -n[1] * fd, dz = fz - n[2] * fd; const dl = dhypot(dx, dy, dz);
+  if (dl >= 0.2) {
+    dx /= dl; dy /= dl; dz /= dl;
+    if ((touchStrafe || keyStrafe) && sp < PK.kick && n[1] > 0.8) { const a = 700 * P.dt; tx += dx * a; ty += dy * a; tz += dz * a; sp = dhypot(tx, ty, tz); }
+    if (sp > 150) { const k = 0.05 * Math.min(1, sp / 500); let ux = tx / sp * (1 - k) + dx * k, uy = ty / sp * (1 - k) + dy * k, uz = tz / sp * (1 - k) + dz * k; const ul = dhypot(ux, uy, uz) || 1; tx = ux / ul * sp; ty = uy / ul * sp; tz = uz / ul * sp; }
+  }
+  vel.x = n[0] * vn + tx; vel.y = n[1] * vn + ty; vel.z = n[2] * vn + tz;
+}
 // Shortcuts: if you are flying over any of the next dozen pieces (inside its footprint, not yet below its lowest point) you are not falling, you are about to land on it.
 function aboveRampAhead() {
   for (let i = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 12); i <= i1; i++) {
@@ -433,6 +468,7 @@ function aboveRampAhead() {
 function step() {
   yaw += cmd.turn; cmd.turn = 0; touchStrafe = cmd.touch; keyStrafe = cmd.key;
   vel.y -= P.g * P.dt;
+  if (stageMeta.park && parkTicks > 0) parkCarve();
   if (contactTicks > 0 && --contactTicks === 0) contactN = null;
   let strafe = keyStrafe || touchStrafe;
   if (contactN && !keyStrafe && !contactTube) { // on a ramp you always push INTO the ramp (finger or not); lifting only matters in the air
@@ -451,12 +487,12 @@ function step() {
   const ox = pos.x, oy = pos.y, oz = pos.z;
   pos.x += vel.x * P.dt; pos.y += vel.y * P.dt; pos.z += vel.z * P.dt;
   for (const g of rings) { // rings: crossing the plane forward inside the radius. hoop = speed boost (more when centred), portal = scenery trigger
-    if (g.hit) continue;
+    if (g.hit) { if (g.rearm && --g.cool <= 0) g.hit = false; continue; }
     const s0 = (ox - g.x) * g.nx + (oy - g.y) * g.ny + (oz - g.z) * g.nz, s1 = (pos.x - g.x) * g.nx + (pos.y - g.y) * g.ny + (pos.z - g.z) * g.nz;
     if (s0 < 0 && s1 >= 0) {
       const t = s0 / (s0 - s1), dd = dhypot(ox + (pos.x - ox) * t - g.x, oy + (pos.y - oy) * t - g.y, oz + (pos.z - oz) * t - g.z);
       if (dd <= g.R) {
-        g.hit = true;
+        g.hit = true; g.cool = 300;
         if (g.kind === 'hoop') { const sp = dhypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
         if (g.kind === 'boost') { const sp = dhypot(vel.x, vel.y, vel.z) || 1; if (sp < g.min) { const f = g.min / sp; vel.x *= f; vel.y *= f; vel.z *= f; } } // booster: lifts you to a minimum speed, never slows you
         onRing(g, dd / g.R);
@@ -485,6 +521,7 @@ function step() {
       }
     }
   }
+  if (stageMeta.park) parkContact();
   if (nextCp < checkpoints.length && lastTouched >= checkpoints[nextCp]) { cpRamp = checkpoints[nextCp]; nextCp++; onCheckpoint(); }
   let overPad = false;
   { // finish pad
@@ -494,7 +531,8 @@ function step() {
     if (overPad && pos.y - P.r <= fin.y) { pos.y = fin.y + P.r; finish(); return; }
   }
   // a tube is a closed circle with no friction: too slow to clear it you would roll back and forth in the trough forever, so that counts as a fall
-  if (contactN && contactTube && vel.x * vel.x + vel.y * vel.y + vel.z * vel.z < 250 * 250) { if (++stuckTicks > 200) { stuckTicks = 0; fail(); return; } } else stuckTicks = 0;
+  if (!stageMeta.park && contactN && contactTube && vel.x * vel.x + vel.y * vel.y + vel.z * vel.z < 250 * 250) { if (++stuckTicks > 200) { stuckTicks = 0; fail(); return; } } else stuckTicks = 0;
+  if (stageMeta.park) { if (pos.y < -3000) fail(); return; } // the park is one big surface: you only splat by leaving it
   const lr = ramps[lastTouched], nr = ramps[lastTouched + 1], n2 = ramps[lastTouched + 2]; // next ramp too, so big drops aren't counted as falls
   // The fall line also uses the next ramp's far end: it slopes down, so a long flight can sit far below its start and still be over it.
   // The pad is never a fall: anywhere over it (above its surface) you either finish or are still dropping onto it, whichever ramp you touched last.
@@ -566,6 +604,7 @@ function applyScenery(on) {
 }
 
 let courseObjs = [], gates = [], ringObjs = [];
+const _pc = new THREE.Color();
 const addObj = o => { scene.add(o); courseObjs.push(o); return o; };
 function clearCourse() {
   for (const o of courseObjs) { scene.remove(o); o.traverse(n => { if (n.geometry) n.geometry.dispose();
@@ -634,6 +673,24 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     cg.computeVertexNormals();
     addObj(new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
   }
+  if (stageMeta.park) { // the park surface: a vertex-coloured grid following parkH, with a ruled grid texture for speed cues
+    const N = 150, S = 11600, step = 2 * S / N, pos = [], col = [], uv = [], idx = [], c = new THREE.Color();
+    for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+      const x = -S + i * step, z = -S + j * step, h = parkH(x, z), r = Math.hypot(x, z), nn = parkNormal(x, z);
+      pos.push(x, h, z); uv.push(x / 700, z / 700);
+      if (r > PK.r0 + PK.s1 - 60 && r < PK.r0 + PK.s1 + 70) c.setHex(0x2d2a3a);                              // coping
+      else if (r > PK.deckEnd) c.setHex(0x6c78a8).lerp(_pc.setHex(0x3a4170), Math.min(1, (r - PK.deckEnd) / 3000)); // outer wall
+      else if (r > PK.r0 + PK.s1) c.setHex(0xf0c987);                                                          // deck
+      else if (r > PK.r0) c.setHex(0xfbe9d0).lerp(_pc.setHex(0xe8735a), Math.min(1, (1 - nn[1]) * 2.2));          // wall: cream to coral with the slope
+      else c.setHex(0xfbe9d0).lerp(_pc.setHex(0xf2b8a0), Math.min(1, parkH(x, z) / 500));                        // floor, humps warmer
+      col.push(c.r, c.g, c.b);
+    }
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i; idx.push(a, a + N + 1, a + 1, a + 1, a + N + 1, a + N + 2); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    const t = gridTex('#ffffff', '#9aa3c8'); addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: t, vertexColors: true, color: 0xb8b8b8 })));
+  }
   gates = checkpoints.map(i => { // checkpoint gates
     const r = ramps[i];
     const m = new THREE.Mesh(new THREE.PlaneGeometry(r.W * 2.2, r.H * 1.7),
@@ -641,7 +698,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     m.position.set(r.sx, r.oy + r.H * 0.75, r.sz); m.rotation.y = r.h0; addObj(m);
     return m;
   });
-  { // finish pad
+  if (!stageMeta.park) { // finish pad
     const w = fin.half * 2, d = fin.u1 - fin.u0;
     const t = gridTex('#7be495', '#2f8f52'); t.repeat.set(w / 256, d / 256);
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, 60, d), new THREE.MeshLambertMaterial({ map: t }));
@@ -652,7 +709,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
   { // void floor grid for height reference
     let minY = 0, sx = 0, sz = 0;
     for (const r of ramps) { minY = Math.min(minY, r.oy, r.ey); sx += r.sx; sz += r.sz; }
-    if (!themesOn) { // themed scenery has planets for ground instead
+    if (!themesOn && !stageMeta.park) { // themed scenery has planets for ground instead
       const grid = new THREE.GridHelper(400000, 400, 0x4a5a9a, 0x2a3466);
       grid.position.set(sx / ramps.length, minY - 2500, sz / ramps.length); addObj(grid);
     }
@@ -773,7 +830,23 @@ if (typeof LEVEL === 'number' && !/^#edit/.test(location.hash)) {
     const hat = new THREE.Mesh(new THREE.CylinderGeometry(6, 7, 7, 10), new THREE.MeshLambertMaterial({ color: 0x2f2f3a })); hat.position.set(0, 41, -14); o.inner.add(hat);
     o.r = r; o.span = r.L * 0.6; o.off = rnd() * 2 * o.span; o.sp = 70 + rnd() * 60; o.u0 = r.L * 0.2; npcs.commuters.push(o); });
 }
+if (typeof LEVEL === 'number' && stageMeta.park) { // park company: skaters wall-riding in circles at different heights, commuters strolling round the deck
+  const rnd = rng(99);
+  [[3700, 1, 1800, 0xff7ab8], [4200, -1, 2000, 0x6bd36b], [4700, 1, 1700, 0x4aa3ff], [3300, -1, 1600, 0xb07cff], [5000, -1, 1900, 0xffc247], [4400, 1, 2100, 0x2fd0c0]].forEach(([r, dir, v, c], k) => {
+    const o = makeNpc(c, 1.5); o.park = 'skate'; o.pr = r; o.dir = dir; o.v = v; o.phi = k * 1.05 + rnd(); npcs.racers.push(o); });
+  for (let k = 0; k < 5; k++) {
+    const o = makeNpc([0x9aa3b5, 0xc9a27a, 0x8fbf9a, 0xd69aa6, 0xa9a0d8][k], 1.9);
+    const case_ = new THREE.Mesh(new THREE.BoxGeometry(20, 13, 7), new THREE.MeshLambertMaterial({ color: 0x6b4a32 })); case_.position.set(0, 47, 6); o.inner.add(case_);
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(6, 7, 7, 10), new THREE.MeshLambertMaterial({ color: 0x2f2f3a })); hat.position.set(0, 41, -14); o.inner.add(hat);
+    o.park = 'stroll'; o.pr = 6500 + (k % 2) * 400; o.dir = k % 2 ? 1 : -1; o.v = 70 + rnd() * 50; o.phi = k * 1.3 + rnd(); npcs.commuters.push(o);
+  }
+}
 function updateNpcs(now) {
+  if (stageMeta.park) { const ts = now / 1000; for (const o of npcs.racers.concat(npcs.commuters)) {
+    const th = o.phi + o.dir * (o.v / o.pr) * ts, c = Math.cos(th), sn = Math.sin(th), x = o.pr * c, z = o.pr * sn, n = parkNormal(x, z);
+    o.g.visible = true; orientNpc(o, [x, parkH(x, z), z], [-sn * o.dir, 0, c * o.dir], n);
+    if (o.park === 'skate') npcFeel(o, o.v, now, o.phi); else { o.inner.scale.set(1, 1 + 0.06 * Math.sin(ts * 7 + o.phi), 1 + 0.08 * Math.sin(ts * 3.5 + o.phi)); for (const e of o.parts) e.pivot.rotation.set(0.1 * Math.sin(ts * 2 + o.phi), 0, -e.sx * 0.25); }
+  } return; }
   const t = state === 'ready' || state === 'done' && false ? tRun : tRun;
   for (const o of npcs.racers) {
     const f = Math.max(0, Math.min(o.n - 1, t * 10)), i = Math.min(o.n - 2, Math.floor(f)), a = f - i, A = i * 6, B = A + 6, S = o.s;
@@ -809,6 +882,7 @@ function surfaceBelow(p) {
       if (!best || t < best.t) best = { t, n: F.n, d: F.d, y: p.y - t };
     }
   }
+  if (stageMeta.park) { const h = parkH(p.x, p.z), n = parkNormal(p.x, p.z), t = (p.y - h) * n[1]; if (t > -20 && (!best || t < best.t)) best = { t, n, d: t, y: h }; }
   const dx = p.x - fin.x, dz = p.z - fin.z, u = dx * fin.dir[0] + dz * fin.dir[2], v = dx * fin.right[0] + dz * fin.right[2];
   if (u > fin.u0 && u < fin.u1 && Math.abs(v) < fin.half) { const t = p.y - fin.y; if (t > -20 && (!best || t < best.t)) best = { t, n: [0, 1, 0], d: t, y: fin.y }; }
   return best;
@@ -998,7 +1072,7 @@ function showMsg(html) { msg.innerHTML = html; msg.style.display = html ? 'block
 function toast(t) { const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.opacity = 0, 1200); }
 function hud() {
   $('best').textContent = LEVEL_LABEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');
-  $('prog').textContent = 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
+  $('prog').textContent = stageMeta.park ? 'Free skate' : 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
 }
 const START_MSG = '<b>Swipe</b> to turn<br>In the air: <b>hold + swipe</b> to drift<br><br>Touch to drop in';
 function resetRun() {
@@ -1131,6 +1205,7 @@ function startIntro() {
     const c = ridgeAt(r, u), p = [c[0], r.oy + zOf(r, u) + r.H, c[1]]; pts.push(p);
     for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
   }
+  if (stageMeta.park) for (let a = 0; a < 12; a++) { const q = a * Math.PI / 6, p = [8400 * Math.cos(q), 3000, 8400 * Math.sin(q)]; pts.push(p); for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k]); } }
   ovLook.set((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
   let R = 0; for (const p of pts) R = Math.max(R, Math.hypot(p[0] - ovLook.x, p[1] - ovLook.y, p[2] - ovLook.z));
   const pitch = 40 * Math.PI / 180, v = new THREE.Vector3();

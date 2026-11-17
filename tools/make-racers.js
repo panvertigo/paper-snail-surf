@@ -7,7 +7,7 @@ const CAST = [
   { n: 'Pip', c: 0x4aa3ff, hold: 20, lift: 0.12, lat: -170 },
   { n: 'Dot', c: 0xb07cff, hold: 30, lift: 0.25, lat: 320 },
 ];
-for (const L of [1, 2, 3, 4]) {
+for (const L of [1, 2, 3]) {
   globalThis.SURF_LEVEL = L;
   const H = require('../verifier/harness.js').load(path.join(__dirname, '..', 'index.html')), mk = () => H();
   const trial = require('../verifier/bot.js')(mk);

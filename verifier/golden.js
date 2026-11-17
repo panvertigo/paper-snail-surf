@@ -23,8 +23,15 @@ if (mode === 'record') {
   fs.mkdirSync(DIR, { recursive: true });
   for (const L of LEVELS) {
     globalThis.SURF_LEVEL = L; const rec = [];
-    const r = trial(AA, { hold: 10, rec });
-    if (r.res !== 'done') throw new Error('level ' + L + ' bot did not finish');
+    let r;
+    if (L === 4) { // free-skate park: no bot, a scripted carve-and-kick input for 60 s
+      const G0 = mk(); G0.P.airaccel = AA; G0.spawnOn(0);
+      for (let t = 0; t < 6000; t++) { const turn = 0.01 * Math.sin(t / 150), touch = t % 700 < 300 ? 1 : 0; G0.cmd.turn = turn; G0.cmd.touch = touch; G0.cmd.key = 0; rec.push(turn, touch, 0); G0.step(); }
+      r = { res: 'done', t: 60 };
+    } else {
+      r = trial(AA, { hold: 10, rec });
+      if (r.res !== 'done') throw new Error('level ' + L + ' bot did not finish');
+    }
     const out = replay(L, rec);
     fs.writeFileSync(path.join(DIR, 'L' + L + '.json'), JSON.stringify({ level: L, aa: AA, ticks: rec.length / 3, cmds: rec, trace: out.trace, final: out.final, state: out.state }));
     console.log('recorded L' + L, rec.length / 3, 'ticks, final', out.state, 'bot time', r.t);
