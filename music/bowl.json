@@ -1,7 +1,7 @@
 {
  "bpm": 140.0,
  "beatsPerBar": 4,
- "quantize": "bar",
+ "quantize": "phrase",
  "startOffset": 0.0251,
  "sections": {
   "calm": {

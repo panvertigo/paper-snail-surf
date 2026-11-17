@@ -101,6 +101,9 @@
     for (const g of groups) if (!g.dead && g.start < now + 0.5 && g.end > now) g.gains.forEach((n, i) => n.gain.setTargetAtTime(layerTarget(g.sec, i), now, 0.35)); // speed layers
   }
 
+  // journey: the song's sections in order. Checkpoint n of C picks entry round(n * (L - 1) / C), so the last checkpoint always reaches the last entry and a longer level just stretches the song.
+  function journeySection(n) { const C = Math.max(1, events.filter(e => e.ev === 'checkpoint').length), L = cfg.journey.length; return cfg.journey[Math.min(L - 1, Math.round(n * (L - 1) / C))]; }
+
   // ---------- public music API ----------
   const Music = globalThis.Music = {
     load, unlock,
@@ -113,11 +116,13 @@
       pending = { id, quant: o.quantize || cfg.quantize || 'bar' };
     },
     trigger(ev, arg) {
-      if (!cfg) return; const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
+      if (!cfg) return;
+      if (ev === 'checkpoint' && cfg.journey) { Music.goto(journeySection(arg), { quantize: cfg.transition || 'phrase' }); return; } // song order spread over however many checkpoints the level has const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
       if (t) Music.goto(t.section, { quantize: t.quantize });
     },
     at(piece, o) { // the section in force when you are at piece i (used on start and after a respawn)
       if (!cfg || !ready) { deferredAt = piece; return; }
+      if (cfg.journey) { let n = 0; for (const e of events) if (e.ev === 'checkpoint' && e.at <= piece) n++; if (n > 0) { Music.goto(journeySection(n), o || { quantize: 'beat' }); return; } }
       const match = e => (cfg.triggers || []).find(x => x.on === e.ev && (e.ev === 'checkpoint' ? x.n === e.n : x.theme === e.theme));
       let ev = null; for (const e of events) if (e.at <= piece && match(e)) ev = e; // only events this song reacts to (a manifest may ignore portals)
       const t = ev ? match(ev) : (cfg.triggers || []).find(x => x.on === 'start');

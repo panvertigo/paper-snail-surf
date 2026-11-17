@@ -998,7 +998,7 @@ function updateSnail(dt, now, speed) {
   pitchVis += ((contactN ? 0 : cmd.pitch) - pitchVis) * 0.15;
   snailInner.scale.set(1 - sqY * 0.6 - stZ * 0.35, 1 + sqY - stZ * 0.35 - wob, 1 - sqY * 0.6 + stZ + wob + sp * 0.3); // stretches with speed
   { // eye stalks: swept back by speed, stretching comedically long near top speed, with a springy whip on launch and landing
-    const sp2 = sp * Math.min(1, fxAmt), tgt = 1.5 * Math.pow(sp2, 0.9), L = 1 + 54 * Math.pow(sp2, 2.2); // up to ~86 deg: stalks streaming back at the camera, 10x longer than before at full speed (L 55 = a noodle about 900 units long)
+    const sp2 = sp * Math.min(1, fxAmt), tgt = 1.5 * Math.pow(sp2, 0.9), L = 1 + 7 * Math.pow(sp2, 2.2); // up to ~86 deg: stalks streaming back at the camera (max length 8x; it was 5.5x, then 55x, which was too silly)
     for (let t = dt; t > 0; t -= 1 / 120) { const h = Math.min(t, 1 / 120); eyeV += (-120 * (eyeA - tgt) - 7 * eyeV) * h; eyeA += eyeV * h; }
     if (squash > lastSquashEye + 0.005) eyeV -= 6 * squash * 7; lastSquashEye = squash; // landing flicks the stalks forward
     const wig = sp2 * sp2 * sp2; // wiggle like crazy at high speed: fast, out-of-phase whip on both axes, one eye lagging the other
@@ -1148,7 +1148,7 @@ function updateStreaks(speed) {
     for (let i = 0; i < NCL; i++) {
       let p = clPts[i];
       if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 9500 * 9500) p = clPts[i] = spawnAround(vTmp, PAPER ? 1500 : 800, 4800, 1500, 9000);
-      if (PAPER) { setPuff(clouds, i, p, 500 + 800 * p.s1, p.s2, i < 18 ? 0.3 * cl : 0); continue; } // cotton: a few thin puffs, the rest hidden
+      if (PAPER) { setPuff(clouds, i, p, 500 + 800 * p.s1, p.s2, i < 6 ? 0.3 * cl : 0); continue; } // cotton: just a few thin puffs, the rest hidden
       const size = 500 + 900 * p.s1;
       setQuad(clouds, i, p, vTmp, size * stretch * 0.5, size * 0.5, 1, 0.86, 0.9, 1, 0.2 * cl * (0.6 + 0.4 * p.s2));
       // centre the wisp on the point: shift back by half its length

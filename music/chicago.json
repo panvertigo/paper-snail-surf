@@ -1,7 +1,7 @@
 {
  "bpm": 140.0,
  "beatsPerBar": 4,
- "quantize": "bar",
+ "quantize": "phrase",
  "startOffset": 0.0251,
  "sections": {
   "intro": {
@@ -39,24 +39,16 @@
    "respawn": "moon"
   },
   {
-   "on": "checkpoint",
-   "n": 1,
-   "section": "atmos"
-  },
-  {
-   "on": "checkpoint",
-   "n": 2,
-   "section": "sky"
-  },
-  {
-   "on": "checkpoint",
-   "n": 3,
-   "section": "earth"
-  },
-  {
    "on": "finish",
-   "section": "outro"
+   "section": "outro",
+   "quantize": "bar"
   }
  ],
- "fallback": "descent"
+ "fallback": "descent",
+ "journey": [
+  "moon",
+  "atmos",
+  "sky",
+  "earth"
+ ]
 }
