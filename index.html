@@ -163,7 +163,7 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
 }
 const ramps = [], checkpoints = [], rings = [];
 let fin, stageMeta = {};
-const STAGE_META = { 3: { scenery: 'descent', music: 'descent' } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
+const STAGE_META = { 3: { scenery: 'descent', music: 'descent', laps: 2 } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
 const STAGES = {};
 {
   // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
@@ -337,7 +337,7 @@ buildCourse(globalThis.SURF_STAGE || STAGES[globalThis.SURF_LEVEL] || STAGES[1],
 // Sim state. Input arrives only through cmd, consumed once per tick: turn = yaw radians accumulated since the last tick,
 // touch / key = latched strafe signs (-1, 0, 1). A replay is the list of cmd snapshots, one per tick.
 const pos = new V(), vel = new V();
-let stuckTicks = 0, contactN = null, contactTube = false, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
+let lap = 0, stuckTicks = 0, contactN = null, contactTube = false, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
 let yaw = 0, touchStrafe = 0, keyStrafe = 0;
 const cmd = { turn: 0, touch: 0, key: 0 };
 function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
@@ -347,6 +347,11 @@ function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
   yaw = r.h0 + r.k * u; lastTouched = i; contactN = null; contactTicks = 0;
   for (const g of rings) if (g.ramp >= i) g.hit = false;
   stuckTicks = 0;
+}
+function lapLift() { // the lift: back to the top of the course with your speed kept (clamped so the first piece stays ridable); the clock keeps running
+  const sp = Math.max(1200, Math.min(1500, dhypot(vel.x, vel.z)));
+  lap++; spawnOn(0); vel.x *= sp / 600; vel.z *= sp / 600;
+  nextCp = 0; cpRamp = 0; onLap();
 }
 function tubeContact(T, i) {
   const qx = pos.x - T.ox, qy = pos.y - T.oy, qz = pos.z - T.oz, e1 = T.e1, e2 = T.e2, ax = T.ax;
@@ -442,7 +447,7 @@ function step() {
     const dx = pos.x - fin.x, dz = pos.z - fin.z;
     const u = dx * fin.dir[0] + dz * fin.dir[2], v = dx * fin.right[0] + dz * fin.right[2];
     overPad = u > fin.u0 - 60 && u < fin.u1 && Math.abs(v) < fin.half && pos.y > fin.y - 150;
-    if (overPad && pos.y - P.r <= fin.y) { pos.y = fin.y + P.r; finish(); return; }
+    if (overPad && pos.y - P.r <= fin.y) { pos.y = fin.y + P.r; if (lap + 1 < (stageMeta.laps || 1)) { lapLift(); return; } finish(); return; }
   }
   // a tube is a closed circle with no friction: too slow to clear it you would roll back and forth in the trough forever, so that counts as a fall
   if (contactN && contactTube && vel.x * vel.x + vel.y * vel.y + vel.z * vel.z < 250 * 250) { if (++stuckTicks > 200) { stuckTicks = 0; fail(); return; } } else stuckTicks = 0;
@@ -892,16 +897,21 @@ function showMsg(html) { msg.innerHTML = html; msg.style.display = html ? 'block
 function toast(t) { const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.opacity = 0, 1200); }
 function hud() {
   $('best').textContent = LEVEL_LABEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');
-  $('prog').textContent = 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
+  $('prog').textContent = (stageMeta.laps > 1 ? 'Lap ' + (lap + 1) + '/' + stageMeta.laps + '  ·  ' : '') + 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
 }
 const START_MSG = '<b>Paper snail surf</b><br>You stick to ramps on your own. <b>Swipe</b> to turn.<br>In the air, <b>hold</b> and swipe toward where you want to drift; <b>lift</b> to fly straight.<br>Falls send you to the last checkpoint; the clock keeps running.<br><br>Touch to drop in';
 function resetRun() {
   intro.on = false;
-  nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
+  lap = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
   gates.forEach(g => g.material.color.set(0xffe066));
   spawnOn(0); prevPos.copy(pos); setTheme(0, true); Music.at(0);
   showMsg(START_MSG);
   hud();
+}
+function onLap() { // the lift carried you to the top: reset gates, scene, music, trail; camera snaps
+  gates.forEach(g => g.material.color.set(0xffe066)); setTheme(0, true); Music.at(0); trail.length = 0; prevPos.copy(pos);
+  $('flash').style.opacity = .5; setTimeout(() => $('flash').style.opacity = 0, 200);
+  toast('Lift! Lap ' + (lap + 1) + '/' + stageMeta.laps + '  ·  ' + tRun.toFixed(2) + 's'); hud();
 }
 function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); Sfx.checkpoint(); Music.trigger('checkpoint', nextCp); toast('Checkpoint ' + nextCp + '/' + checkpoints.length + '  ·  ' + tRun.toFixed(2) + 's'); hud(); }
 function fail() {
