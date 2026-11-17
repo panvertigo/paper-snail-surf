@@ -164,7 +164,7 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
 }
 const ramps = [], checkpoints = [], rings = [];
 let fin, stageMeta = {};
-const STAGE_META = { 3: { scenery: 'descent', music: 'descent' } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
+const STAGE_META = { 1: { pull: 0.3 }, 3: { scenery: 'descent', music: 'descent', pull: 0.3 } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
 const STAGES = {};
 {
   // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
@@ -298,6 +298,7 @@ const STAGES = {};
     ],
   });
 }
+const RAMP_CAP = 3000; // extra downhill pull on ramps (stage meta `pull`, fraction of gravity) stops above this speed
 // Skate park profile constants (see parkH below)
 const PK = { r0: 3000, Rq: 3000, s1: 2898, H1: 2224, deckEnd: 7400, kick: 1500, boost: 0.6, vcap: 2500, dk: 0.15 };
 // buildCourse(S, meta): S = array of pieces, or { name, scenery, theme0, pieces }. Rebuilds ramps / checkpoints / rings / fin (the editor calls it again).
@@ -469,6 +470,10 @@ function step() {
   yaw += cmd.turn; cmd.turn = 0; touchStrafe = cmd.touch; keyStrafe = cmd.key;
   vel.y -= P.g * P.dt;
   if (stageMeta.park && parkTicks > 0) parkCarve();
+  if (!stageMeta.park && contactN && !contactTube && stageMeta.pull > 0) { // build speed as you fall: sliding down a ramp face gets extra pull along the surface (never when climbing)
+    const n = contactN, gy = -P.g, gn = gy * n[1], gtx = -n[0] * gn, gty = gy - n[1] * gn, gtz = -n[2] * gn;
+    if (vel.x * gtx + vel.y * gty + vel.z * gtz > 0 && dhypot(vel.x, vel.y, vel.z) < RAMP_CAP) { const f = stageMeta.pull * P.dt; vel.x += gtx * f; vel.y += gty * f; vel.z += gtz * f; }
+  }
   if (contactTicks > 0 && --contactTicks === 0) contactN = null;
   let strafe = keyStrafe || touchStrafe;
   if (contactN && !keyStrafe && !contactTube) { // on a ramp you always push INTO the ramp (finger or not); lifting only matters in the air
