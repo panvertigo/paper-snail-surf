@@ -163,7 +163,7 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
 }
 const ramps = [], checkpoints = [], rings = [];
 let fin, stageMeta = {};
-const STAGE_META = { 3: { scenery: 'descent', music: 'descent', laps: 2 } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
+const STAGE_META = { 3: { scenery: 'descent', music: 'descent' } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
 const STAGES = {};
 {
   // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
@@ -330,10 +330,6 @@ function buildCourse(S, meta) {
     }
   });
   const last = ramps[ramps.length - 1];
-  if ((stageMeta.laps || 1) > 1) { // lap lift: a huge ring in the leap to the pad; flying through it (or landing on the pad) starts the next lap
-    const dir = dirOf(last.h1);
-    rings.push({ x: last.ex + dir[0] * 520, y: last.ey - 330, z: last.ez + dir[2] * 520, nx: dir[0], ny: 0, nz: dir[2], R: 900, kind: 'lift', boost: 0, min: 0, theme: 0, ramp: ramps.length, hit: false });
-  }
   fin = { x: last.ex, z: last.ez, h: last.h1, dir: dirOf(last.h1), right: rightOf(last.h1),
           y: last.ey - FIN_DROP, u0: FIN_GAP, u1: FIN_GAP + 5000, half: 1300 };
 }
@@ -341,7 +337,7 @@ buildCourse(globalThis.SURF_STAGE || STAGES[globalThis.SURF_LEVEL] || STAGES[1],
 // Sim state. Input arrives only through cmd, consumed once per tick: turn = yaw radians accumulated since the last tick,
 // touch / key = latched strafe signs (-1, 0, 1). A replay is the list of cmd snapshots, one per tick.
 const pos = new V(), vel = new V();
-let lap = 0, stuckTicks = 0, contactN = null, contactTube = false, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
+let stuckTicks = 0, contactN = null, contactTube = false, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
 let yaw = 0, touchStrafe = 0, keyStrafe = 0;
 const cmd = { turn: 0, touch: 0, key: 0 };
 function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
@@ -351,11 +347,6 @@ function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
   yaw = r.h0 + r.k * u; lastTouched = i; contactN = null; contactTicks = 0;
   for (const g of rings) if (g.ramp >= i) g.hit = false;
   stuckTicks = 0;
-}
-function lapLift() { // the lift: back to the top of the course with your speed kept (clamped so the first piece stays ridable); the clock keeps running
-  const sp = Math.max(1200, Math.min(1500, dhypot(vel.x, vel.z)));
-  lap++; spawnOn(0); vel.x *= sp / 600; vel.z *= sp / 600;
-  nextCp = 0; cpRamp = 0; onLap();
 }
 function tubeContact(T, i) {
   const qx = pos.x - T.ox, qy = pos.y - T.oy, qz = pos.z - T.oz, e1 = T.e1, e2 = T.e2, ax = T.ax;
@@ -373,7 +364,11 @@ function tubeContact(T, i) {
   const nx = -(a * e1[0] + b * e2[0]) / rho, ny = -(a * e1[1] + b * e2[1]) / rho, nz = -(a * e1[2] + b * e2[2]) / rho, push = P.r - d;
   pos.x += nx * push; pos.y += ny * push; pos.z += nz * push;
   const bn = vel.x * nx + vel.y * ny + vel.z * nz;
-  if (bn < 0) { vel.x -= nx * bn; vel.y -= ny * bn; vel.z -= nz * bn; }
+  if (bn < 0) {
+    const sp0 = dhypot(vel.x, vel.y, vel.z);
+    vel.x -= nx * bn; vel.y -= ny * bn; vel.z -= nz * bn;
+    if (!contactN) { const sp1 = dhypot(vel.x, vel.y, vel.z); if (sp1 > 1) { const f = Math.max(sp1, Math.min(sp0, 2500)) / sp1; vel.x *= f; vel.y *= f; vel.z *= f; } } // landing in a tube redirects you without losing speed: the entry window is small, a crooked touchdown must not kill the ride
+  }
   if (!contactN && bn < -40) squash = Math.min(0.22, -bn / 1800);
   if (T.pitch) { // follow the helix: the band slides along the axis as the rider goes round, so carry the rider with it and ease towards the centre
     const va = vel.x * e1[0] + vel.y * e1[1] + vel.z * e1[2], vb = vel.x * e2[0] + vel.y * e2[1] + vel.z * e2[2], vAx = vel.x * ax[0] + vel.y * ax[1] + vel.z * ax[2];
@@ -416,7 +411,6 @@ function step() {
     if (s0 < 0 && s1 >= 0) {
       const t = s0 / (s0 - s1), dd = dhypot(ox + (pos.x - ox) * t - g.x, oy + (pos.y - oy) * t - g.y, oz + (pos.z - oz) * t - g.z);
       if (dd <= g.R) {
-        if (g.kind === 'lift') { if (lap + 1 < (stageMeta.laps || 1)) { lapLift(); return; } continue; } // the lift ring: carries you back to the top mid-flight
         g.hit = true;
         if (g.kind === 'hoop') { const sp = dhypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
         if (g.kind === 'boost') { const sp = dhypot(vel.x, vel.y, vel.z) || 1; if (sp < g.min) { const f = g.min / sp; vel.x *= f; vel.y *= f; vel.z *= f; } } // booster: lifts you to a minimum speed, never slows you
@@ -452,7 +446,7 @@ function step() {
     const dx = pos.x - fin.x, dz = pos.z - fin.z;
     const u = dx * fin.dir[0] + dz * fin.dir[2], v = dx * fin.right[0] + dz * fin.right[2];
     overPad = u > fin.u0 - 60 && u < fin.u1 && Math.abs(v) < fin.half && pos.y > fin.y - 150;
-    if (overPad && pos.y - P.r <= fin.y) { pos.y = fin.y + P.r; if (lap + 1 < (stageMeta.laps || 1)) { lapLift(); return; } finish(); return; }
+    if (overPad && pos.y - P.r <= fin.y) { pos.y = fin.y + P.r; finish(); return; }
   }
   // a tube is a closed circle with no friction: too slow to clear it you would roll back and forth in the trough forever, so that counts as a fall
   if (contactN && contactTube && vel.x * vel.x + vel.y * vel.y + vel.z * vel.z < 250 * 250) { if (++stuckTicks > 200) { stuckTicks = 0; fail(); return; } } else stuckTicks = 0;
@@ -631,7 +625,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
   }
   // ---------- Rings: hoops (speed boost when centred) and portals (scene change) ----------
   ringObjs = rings.map(g => {
-    const portal = g.kind === 'portal' || g.kind === 'lift', base = g.kind === 'lift' ? 0xff7ad9 : portal ? 0xb18cff : 0xffd24a, grp = new THREE.Group();
+    const portal = g.kind === 'portal', base = portal ? 0xb18cff : 0xffd24a, grp = new THREE.Group();
     const torus = new THREE.Mesh(new THREE.TorusGeometry(g.R, g.R * (portal ? 0.08 : 0.1), 14, 64), new THREE.MeshBasicMaterial({ color: base, fog: false }));
     const disc = new THREE.Mesh(new THREE.CircleGeometry(g.R, 48), new THREE.MeshBasicMaterial({ color: portal ? 0xe5d4ff : 0xffe9a0, transparent: true, opacity: portal ? 0.4 : 0.12,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
@@ -647,7 +641,6 @@ function updateRings(dt, now) {
     o.torus.material.color.setHex(g.hit ? 0x7be495 : o.base);
     o.disc.material.opacity = g.hit ? 0.3 * o.fx : (o.portal ? 0.4 : 0.12) + 0.08 * Math.sin(now / 200 + i);
     o.grp.visible = !(g.hit && o.portal) || o.fx > 0.01;
-    if (g.kind === 'lift') o.grp.visible = lap + 1 < (stageMeta.laps || 1);
   }
 }
 
@@ -903,21 +896,16 @@ function showMsg(html) { msg.innerHTML = html; msg.style.display = html ? 'block
 function toast(t) { const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.opacity = 0, 1200); }
 function hud() {
   $('best').textContent = LEVEL_LABEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');
-  $('prog').textContent = (stageMeta.laps > 1 ? 'Lap ' + (lap + 1) + '/' + stageMeta.laps + '  ·  ' : '') + 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
+  $('prog').textContent = 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
 }
-const START_MSG = '<b>Paper snail surf</b><br>You stick to ramps on your own. <b>Swipe</b> to turn.<br>In the air, <b>hold</b> and swipe toward where you want to drift; <b>lift</b> to fly straight.<br>Falls send you to the last checkpoint; the clock keeps running.<br><br>Touch to drop in';
+const START_MSG = '<b>Swipe</b> to turn<br>In the air: <b>hold + swipe</b> to drift<br><br>Touch to drop in';
 function resetRun() {
   intro.on = false;
-  lap = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
+  nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
   gates.forEach(g => g.material.color.set(0xffe066));
   spawnOn(0); prevPos.copy(pos); setTheme(0, true); Music.at(0);
   showMsg(START_MSG);
   hud();
-}
-function onLap() { // the lift carried you to the top: reset gates, scene, music, trail; camera snaps
-  gates.forEach(g => g.material.color.set(0xffe066)); setTheme(0, true); Music.at(0); trail.length = 0; prevPos.copy(pos);
-  $('flash').style.opacity = .5; setTimeout(() => $('flash').style.opacity = 0, 200);
-  toast('Lift! Lap ' + (lap + 1) + '/' + stageMeta.laps + '  ·  ' + tRun.toFixed(2) + 's'); hud();
 }
 function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); Sfx.checkpoint(); Music.trigger('checkpoint', nextCp); toast('Checkpoint ' + nextCp + '/' + checkpoints.length + '  ·  ' + tRun.toFixed(2) + 's'); hud(); }
 function fail() {
