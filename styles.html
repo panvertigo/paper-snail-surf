@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paper Snail Surf: look comparison</title>
+<style>
+:root{--bg:#0e1124;--fg:#eef0ff;--mut:#9aa3c8;--card:#171b36}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:18px 16px 4px;max-width:1200px;margin:0 auto}
+h1{font-size:20px;margin:0 0 4px}
+header p{margin:0;color:var(--mut)}
+main{max-width:1200px;margin:0 auto;padding:12px 16px 40px;display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:760px){main{grid-template-columns:1fr 1fr}}
+.card{background:var(--card);border-radius:14px;overflow:hidden}
+.view{position:relative;aspect-ratio:16/10;background:#000}
+.view canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.view .ov{position:absolute;inset:0;pointer-events:none}
+.info{padding:12px 14px 14px}
+.info h2{font-size:16px;margin:0 0 2px}
+.info .tag{color:#7be495;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.info p{margin:6px 0 0;color:var(--mut);font-size:14px}
+.info b{color:var(--fg);font-weight:600}
+footer{max-width:1200px;margin:0 auto;padding:0 16px 40px;color:var(--mut);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Look comparison</h1>
+  <p>Same scene, four looks. The snail is drawn bigger than in game so you can judge the material. Everything is live and cheap enough for a phone.</p>
+</header>
+<main id="grid"></main>
+<footer>Scene: two ridge pieces, a snail on the right face, clouds and hills. Nothing here touches the game; it is only a comparison page.</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------- shared helpers ----------
+const W = 460, H = 575, L = 4200; // ramp half width, height, length (game units)
+const rnd = (() => { let s = 99; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; })();
+function canvasTex(w, h, draw, repeat) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; } t.anisotropy = 4; return t; }
+function gridTex() { return canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.strokeStyle = '#6a7393'; x.lineWidth = 3; x.strokeRect(0, 0, w, h); x.lineWidth = 1; x.beginPath(); x.moveTo(128, 0); x.lineTo(128, 256); x.moveTo(0, 128); x.lineTo(256, 128); x.stroke(); }, true); }
+function paperTex(tint) { // paper sheet: tooth, blotches, fibres (tileable)
+  return canvasTex(512, 512, (x, N) => {
+    x.fillStyle = tint || '#f7f2e8'; x.fillRect(0, 0, N, N);
+    for (let i = 0; i < 9000; i++) { x.fillStyle = rnd() < 0.5 ? 'rgba(110,90,70,0.05)' : 'rgba(255,255,255,0.45)'; x.fillRect(rnd() * N, rnd() * N, 1 + rnd() * 1.5, 1 + rnd() * 1.5); }
+    for (let i = 0; i < 40; i++) { const px = rnd() * N, py = rnd() * N, r = 50 + rnd() * 100; for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { const g = x.createRadialGradient(px + ox, py + oy, 0, px + ox, py + oy, r); g.addColorStop(0, rnd() < 0.5 ? 'rgba(120,95,70,0.10)' : 'rgba(255,255,255,0.3)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(px + ox - r, py + oy - r, 2 * r, 2 * r); } }
+    for (let i = 0; i < 900; i++) { const px = rnd() * N, py = rnd() * N, a = rnd() * 6.28, l = 14 + rnd() * 60, dk = rnd() < 0.6; x.strokeStyle = dk ? 'rgba(125,100,75,' + (0.1 + rnd() * 0.2) + ')' : 'rgba(255,255,255,0.5)'; x.lineWidth = 0.9 + rnd() * 1.2; for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { x.beginPath(); x.moveTo(px + ox, py + oy); x.lineTo(px + ox + Math.cos(a) * l, py + oy + Math.sin(a) * l); x.stroke(); } }
+  }, true);
+}
+function paintTex(c1, c2) { // watercolour wash: gradient, soft blooms, dry-brush streaks, pooled edge
+  return canvasTex(512, 512, (x, N) => {
+    const g = x.createLinearGradient(0, 0, N, N); g.addColorStop(0, c1); g.addColorStop(1, c2); x.fillStyle = g; x.fillRect(0, 0, N, N);
+    for (let i = 0; i < 160; i++) { const px = rnd() * N, py = rnd() * N, r = 20 + rnd() * 70, gg = x.createRadialGradient(px, py, 0, px, py, r); const k = rnd() < 0.5 ? '255,255,255' : '40,30,90'; gg.addColorStop(0, 'rgba(' + k + ',' + (0.05 + rnd() * 0.09) + ')'); gg.addColorStop(1, 'rgba(' + k + ',0)'); x.fillStyle = gg; x.fillRect(px - r, py - r, 2 * r, 2 * r); }
+    for (let i = 0; i < 70; i++) { const py = rnd() * N, px = rnd() * N, l = 80 + rnd() * 240; x.strokeStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(40,30,90,0.06)'; x.lineWidth = 3 + rnd() * 14; x.beginPath(); x.moveTo(px, py); x.lineTo(px + l, py + (rnd() - 0.5) * 40); x.stroke(); }
+    for (let i = 0; i < 5000; i++) { x.fillStyle = 'rgba(255,255,255,' + rnd() * 0.12 + ')'; x.fillRect(rnd() * N, rnd() * N, 1, 1); }
+    x.strokeStyle = 'rgba(30,20,80,0.28)'; x.lineWidth = 14; x.strokeRect(0, 0, N, N); // pigment pools at the edge
+  }, true);
+}
+function paintedSky() {
+  return canvasTex(1024, 512, (x, w, h) => {
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2b2a6b'); g.addColorStop(0.55, '#9a6fb8'); g.addColorStop(0.85, '#f2b38c'); g.addColorStop(1, '#ffe2b3'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 60; i++) { const px = rnd() * w, py = h * (0.35 + rnd() * 0.5), r = 40 + rnd() * 110, gg = x.createRadialGradient(px, py, 0, px, py, r); gg.addColorStop(0, 'rgba(255,230,230,' + (0.10 + rnd() * 0.14) + ')'); gg.addColorStop(1, 'rgba(255,230,230,0)'); x.save(); x.translate(px, py); x.scale(2.4, 0.7); x.translate(-px, -py); x.fillStyle = gg; x.fillRect(px - r, py - r, 2 * r, 2 * r); x.restore(); }
+    for (let i = 0; i < 90; i++) { const px = rnd() * w, py = rnd() * h, l = 60 + rnd() * 220; x.strokeStyle = 'rgba(255,255,255,' + (0.03 + rnd() * 0.05) + ')'; x.lineWidth = 2 + rnd() * 9; x.beginPath(); x.moveTo(px, py); x.lineTo(px + l, py + (rnd() - 0.5) * 12); x.stroke(); }
+    for (let i = 0; i < 70; i++) { x.fillStyle = 'rgba(255,255,255,' + (0.4 + rnd() * 0.5) + ')'; const px = rnd() * w, py = rnd() * h * 0.45, r = 0.6 + rnd() * 1.6; x.beginPath(); x.arc(px, py, r, 0, 6.3); x.fill(); } // stars
+  });
+}
+const toon = (() => { const d = new Uint8Array([90, 170, 255]); const t = new THREE.DataTexture(d, 3, 1, THREE.LuminanceFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+function ridgeGeo(len) { const s = new THREE.Shape(); s.moveTo(-W, 0); s.lineTo(W, 0); s.lineTo(0, H); s.closePath(); const g = new THREE.ExtrudeGeometry(s, { depth: len, bevelEnabled: false }); g.translate(0, 0, -len); return g; }
+function outline(mesh, k, color) { const o = new THREE.Mesh(mesh.geometry, new THREE.MeshBasicMaterial({ color: color || 0x15123a, side: THREE.BackSide })); o.scale.copy(mesh.scale).multiplyScalar(k); o.position.copy(mesh.position); o.rotation.copy(mesh.rotation); return o; }
+
+// ---------- snail stand-in ----------
+function makeSnail(M, ink) {
+  const g = new THREE.Group(), add = (m, parent) => { (parent || g).add(m); return m; };
+  const body = add(new THREE.Mesh(new THREE.SphereGeometry(28, 24, 16), M.body)); body.scale.set(1, 0.55, 1.9); body.position.set(0, 18, 0);
+  const head = add(new THREE.Mesh(new THREE.SphereGeometry(20, 20, 14), M.body)); head.position.set(0, 30, -42);
+  const shell = add(new THREE.Mesh(new THREE.SphereGeometry(32, 24, 16), M.shell)); shell.position.set(0, 52, 10);
+  const ring = add(new THREE.Mesh(new THREE.TorusGeometry(19, 3.2, 8, 28), M.ring)); ring.position.set(0, 52, 10); ring.rotation.y = Math.PI / 2; ring.position.x = 24;
+  const ring2 = ring.clone(); ring2.position.x = -24; g.add(ring2);
+  for (const sx of [-1, 1]) {
+    const st = add(new THREE.Mesh(new THREE.CylinderGeometry(2, 2.6, 46, 8), M.stalk)); st.position.set(sx * 8, 62, -50); st.rotation.x = -0.35;
+    const ey = add(new THREE.Mesh(new THREE.SphereGeometry(8, 14, 10), M.eye)); ey.position.set(sx * 8, 84, -58);
+    const pu = add(new THREE.Mesh(new THREE.SphereGeometry(3.6, 10, 8), new THREE.MeshBasicMaterial({ color: 0x2b1d17 }))); pu.position.set(sx * 8, 84, -65);
+  }
+  if (ink) for (const m of [body, head, shell]) { const o = outline(m, 1.07); m.parent.add(o); }
+  g.scale.setScalar(2.4); return g;
+}
+
+// ---------- the four looks ----------
+const LOOKS = [
+  { id: 'now', name: 'Now (placeholder)', tag: 'What you play today', blurb: 'Flat vector faces with the engineering grid. <b>Readable, but cold.</b> Nothing about it says paper or snail.', overlay: '' },
+  { id: 'toon', name: 'Option 1: lit and outlined', tag: 'Cheapest big jump', blurb: 'Three-tone toon shading, a thin ink outline, warm colour grade, soft vignette and paper grain on top. <b>Still crisp where you steer.</b> Light on the phone, about an afternoon of work.', overlay: 'grain' },
+  { id: 'cut', name: 'Option 2: papercraft', tag: 'Biggest personality', blurb: 'Ramps built from stacked card layers with real drop shadows, cut-paper hills and clouds. <b>Reads as a handmade diorama.</b> Stepped faces cost a little readability and frame rate.', overlay: '' },
+  { id: 'paint', name: 'Options 3 + 4: painted', tag: 'Richest, needs art', blurb: 'Watercolour-washed ramps with pooled edges, a painted dusk sky with brush clouds. <b>Most beautiful, most dreamy.</b> Final quality depends on real textures; these are procedural stand-ins.', overlay: 'grain' },
+];
+
+function buildLook(look) {
+  const scene = new THREE.Scene(), id = look.id; let sky = null;
+  const cam = new THREE.PerspectiveCamera(62, 1.6, 50, 60000);
+  const items = []; // {obj, fn(t)} animated things
+  const hemi = new THREE.HemisphereLight(0xcfd8ff, 0x302040, id === 'cut' ? 0.55 : 0.8); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xfff0dc, id === 'cut' ? 0.95 : 0.7); sun.position.set(-900, 1800, 900); scene.add(sun);
+  let faceMat, snailM, groundCol;
+  if (id === 'now') {
+    scene.background = new THREE.Color(0x1a2240); scene.fog = new THREE.Fog(0x1a2240, 6000, 40000);
+    const gt = gridTex(); faceMat = new THREE.MeshLambertMaterial({ map: gt, color: 0xaab4ee });
+    snailM = { body: new THREE.MeshLambertMaterial({ color: 0xffe3a3 }), shell: new THREE.MeshLambertMaterial({ color: 0xe8735a }), ring: new THREE.MeshLambertMaterial({ color: 0xfbe9d0 }), stalk: new THREE.MeshLambertMaterial({ color: 0xf2c879 }), eye: new THREE.MeshLambertMaterial({ color: 0xffffff }) };
+  } else if (id === 'toon') {
+    scene.background = null; scene.fog = new THREE.Fog(0x6a5aa8, 9000, 42000);
+    faceMat = new THREE.MeshToonMaterial({ color: 0xa9b6ff, gradientMap: toon });
+    snailM = { body: new THREE.MeshToonMaterial({ color: 0xffe3a3, gradientMap: toon }), shell: new THREE.MeshToonMaterial({ color: 0xff7d63, gradientMap: toon }), ring: new THREE.MeshToonMaterial({ color: 0xfff0d8, gradientMap: toon }), stalk: new THREE.MeshToonMaterial({ color: 0xf2c879, gradientMap: toon }), eye: new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: toon }) };
+  } else if (id === 'cut') {
+    scene.background = null; scene.fog = new THREE.Fog(0xf3d9c4, 12000, 52000);
+    snailM = { body: new THREE.MeshStandardMaterial({ map: paperTex('#ffe9b8'), roughness: 1 }), shell: new THREE.MeshStandardMaterial({ map: paperTex('#f08068'), roughness: 1 }), ring: new THREE.MeshStandardMaterial({ map: paperTex('#fff2dc'), roughness: 1 }), stalk: new THREE.MeshStandardMaterial({ color: 0xf2c879, roughness: 1 }), eye: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }) };
+  } else {
+    scene.background = paintedSky(); scene.fog = new THREE.Fog(0xe7a9a0, 9000, 46000);
+    faceMat = new THREE.MeshLambertMaterial({ map: paintTex('#8f9be8', '#d8a4e0') });
+    snailM = { body: new THREE.MeshLambertMaterial({ map: paintTex('#ffe7b0', '#f6c58a') }), shell: new THREE.MeshLambertMaterial({ map: paintTex('#f4866a', '#d65a74') }), ring: new THREE.MeshLambertMaterial({ map: paintTex('#fff0d6', '#f4d3a8') }), stalk: new THREE.MeshLambertMaterial({ color: 0xf2c879 }), eye: new THREE.MeshLambertMaterial({ color: 0xffffff }) };
+  }
+  // ridge pieces
+  const pieces = [{ x: 0, y: 0, z: 0, len: L, rot: 0 }, { x: 620, y: -1900, z: -L - 1200, len: L, rot: -0.22 }];
+  pieces.forEach((p, pi) => {
+    if (id === 'cut') { // stacked card layers
+      const N = 9, hh = H / N, g = new THREE.Group();
+      for (let k = 0; k < N; k++) {
+        const w = 2 * W * (1 - k / N), tint = ['#b7a9ee', '#c0b2f2', '#aa9be6', '#bdaef0'][k % 4];
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh * 0.96, p.len), new THREE.MeshStandardMaterial({ map: paperTex(tint), roughness: 1 }));
+        m.position.set(0, k * hh + hh / 2, -p.len / 2); m.castShadow = m.receiveShadow = true; g.add(m);
+      }
+      g.position.set(p.x, p.y, p.z); g.rotation.y = p.rot; scene.add(g);
+    } else {
+      const m = new THREE.Mesh(ridgeGeo(p.len), faceMat);
+      if (id === 'now' || id === 'paint') { // uv for the grid / wash on an extrude: planar projection by world position
+        const pos = m.geometry.attributes.position, uv = m.geometry.attributes.uv; for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getZ(i) + pos.getX(i)) / 900, pos.getY(i) / 700);
+      }
+      m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot; scene.add(m);
+      if (id === 'toon') scene.add(outline(m, 1.012));
+      if (id === 'paint') scene.add(outline(m, 1.006, 0x3a2a5a));
+    }
+  });
+  // snail, riding the right face of piece 0
+  const sn = makeSnail(snailM, id === 'toon' || id === 'paint'); sn.position.set(W * 0.5, H * 0.5 + 10, -1500); sn.rotation.z = -0.9; sn.rotation.y = Math.PI; sn.rotation.y = 0; scene.add(sn);
+  sn.rotation.order = 'YXZ'; sn.rotation.set(0.12, 0, -0.9);
+  items.push({ o: sn, f: t => { sn.position.y = H * 0.5 + 10 + Math.sin(t * 2) * 6; sn.rotation.x = 0.12 + Math.sin(t * 1.3) * 0.05; } });
+  // sky dressing
+  if (id === 'cut') { // cut-paper clouds and layered hills
+    const cl = (x, y, z, s, col) => { const g = new THREE.Group(); for (const [dx, dy, r] of [[-1, 0, 1], [0, 0.45, 1.25], [1, 0, 1], [0.1, -0.1, 1.4]]) { const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 150, r * 150, 40, 28), new THREE.MeshStandardMaterial({ map: paperTex(col), roughness: 1 })); m.rotation.x = Math.PI / 2; m.position.set(dx * 170, dy * 170, 0); m.castShadow = true; g.add(m); } g.position.set(x, y, z); g.scale.setScalar(s); scene.add(g); return g; };
+    items.push({ o: cl(-2600, 1700, -4200, 2.2, '#ffffff'), f: (t, o) => { o.position.x = -2600 + Math.sin(t * 0.3) * 120; } });
+    items.push({ o: cl(2800, 2400, -6500, 3.0, '#fff5ec'), f: (t, o) => { o.position.x = 2800 + Math.sin(t * 0.25 + 1) * 160; } });
+    cl(-300, 3600, -9000, 3.4, '#ffffff');
+    [['#e9a8a0', -9000, 3200, 1], ['#c98fb8', -12500, 4500, 1.3], ['#9a7bc0', -17000, 6000, 1.7]].forEach(([c, z, h, s], i) => {
+      const sh = new THREE.Shape(); sh.moveTo(-26000, -4000); for (let x = -26000; x <= 26000; x += 1300) sh.lineTo(x, h * (0.55 + 0.45 * Math.sin(x / 3400 + i * 2.1) * Math.cos(x / 1700 + i))); sh.lineTo(26000, -4000); sh.closePath();
+      const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 90, bevelEnabled: false }), new THREE.MeshStandardMaterial({ map: paperTex(c), roughness: 1 })); m.position.set(0, -3200, z); m.receiveShadow = true; scene.add(m);
+    });
+    sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024); const sc = sun.shadow.camera; sc.left = -5000; sc.right = 5000; sc.top = 5000; sc.bottom = -5000; sc.near = 100; sc.far = 9000; sun.position.set(-1500, 3500, 1800);
+  } else if (id === 'paint') { // soft painted blob clouds
+    for (const [x, y, z, s] of [[-2400, 1500, -4500, 2], [2600, 2200, -6000, 2.6], [-200, 3200, -9000, 3]]) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1500 * s, 520 * s), new THREE.MeshBasicMaterial({ map: canvasTex(256, 96, (cx, w, h) => { for (let i = 0; i < 22; i++) { const px = w * (0.15 + 0.7 * rnd()), py = h * (0.35 + 0.35 * rnd()), r = 18 + rnd() * 26, g = cx.createRadialGradient(px, py, 0, px, py, r); g.addColorStop(0, 'rgba(255,240,235,0.55)'); g.addColorStop(1, 'rgba(255,240,235,0)'); cx.fillStyle = g; cx.fillRect(px - r, py - r, 2 * r, 2 * r); } }), transparent: true, depthWrite: false, fog: false }));
+      m.position.set(x, y, z); scene.add(m); items.push({ o: m, f: (t, o) => { o.position.x = x + Math.sin(t * 0.25 + z) * 140; } });
+    }
+  } else if (id === 'now') { // the placeholder's grey wisps
+    for (const [x, y, z, s] of [[-2400, 1500, -4500, 2], [2600, 2200, -6000, 2.6]]) { const m = new THREE.Mesh(new THREE.CircleGeometry(600 * s, 24), new THREE.MeshBasicMaterial({ color: 0x8c93b8, transparent: true, opacity: 0.18, depthWrite: false })); m.position.set(x, y, z); scene.add(m); }
+  } else { // toon: simple lit puffs
+    for (const [x, y, z, s] of [[-2400, 1500, -4500, 2], [2600, 2200, -6000, 2.6], [-200, 3200, -9000, 3]]) { const g = new THREE.Group(); for (const [dx, dy, r] of [[-1, 0, 1], [0, 0.5, 1.3], [1, 0, 1]]) { const m = new THREE.Mesh(new THREE.SphereGeometry(r * 190, 18, 12), new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: toon })); m.position.set(dx * 230, dy * 200, 0); g.add(m); } g.position.set(x, y, z); g.scale.setScalar(s); scene.add(g); items.push({ o: g, f: (t, o) => { o.position.x = x + Math.sin(t * 0.25 + z) * 140; } }); }
+  }
+  return { scene, cam, items, id };
+}
+
+// ---------- page ----------
+function grainURL() { const c = document.createElement('canvas'); c.width = c.height = 200; const x = c.getContext('2d'), d = x.createImageData(200, 200); for (let i = 0; i < d.data.length; i += 4) { const v = rnd() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); return c.toDataURL(); }
+const grain = grainURL(), grid = document.getElementById('grid'), views = [];
+LOOKS.forEach(look => {
+  const card = document.createElement('div'); card.className = 'card';
+  card.innerHTML = '<div class="view"><canvas></canvas><div class="ov"></div></div><div class="info"><div class="tag">' + look.tag + '</div><h2>' + look.name + '</h2><p>' + look.blurb + '</p></div>';
+  grid.appendChild(card);
+  const cv = card.querySelector('canvas'), ov = card.querySelector('.ov'), view = card.querySelector('.view');
+  const layer = css => { const d = document.createElement('div'); d.style.cssText = 'position:absolute;inset:0;' + css; ov.appendChild(d); };
+  const vign = (c, k) => layer('background:radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 55%, ' + c + ' 100%);');
+  const grn = o => layer('background:url(' + grain + ');mix-blend-mode:overlay;opacity:' + o + ';');
+  if (look.id === 'toon') { // grade + vignette + paper grain
+    view.style.background = 'linear-gradient(#3b2f7a,#8a6bc0 55%,#f0b08c)';
+    layer('background:rgba(255,170,90,0.16);mix-blend-mode:soft-light;'); vign('rgba(20,10,50,0.55)'); grn(0.22);
+  } else if (look.id === 'paint') {
+    vign('rgba(40,20,70,0.45)'); grn(0.3);
+  } else if (look.id === 'cut') {
+    view.style.background = 'linear-gradient(#ffd9c0,#ffeedd 60%,#fff6ea)'; vign('rgba(120,70,40,0.28)'); grn(0.12);
+  }
+  const R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true }); R.setPixelRatio(Math.min(devicePixelRatio, 2));
+  if (look.id === 'cut') { R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFSoftShadowMap; }
+  const b = buildLook(look); views.push({ R, b, view, vis: true });
+  new IntersectionObserver(es => views.find(v => v.view === view).vis = es[0].isIntersecting).observe(view);
+});
+function size(v) { const w = v.view.clientWidth, h = v.view.clientHeight; if (v.w !== w || v.h !== h) { v.w = w; v.h = h; v.R.setSize(w, h, false); v.b.cam.aspect = w / h; v.b.cam.updateProjectionMatrix(); } }
+function frame(ms) {
+  const t = ms / 1000;
+  for (const v of views) {
+    if (!v.vis) continue; size(v); const c = v.b.cam;
+    c.position.set(Math.sin(t * 0.35) * 300 + 150, 2000 + Math.sin(t * 0.5) * 70, 1500); c.lookAt(250, -150, -4600);
+    for (const it of v.b.items) it.f(t, it.o);
+    v.R.render(v.b.scene, c);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
