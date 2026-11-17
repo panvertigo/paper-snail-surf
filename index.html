@@ -1554,7 +1554,7 @@ function startFrom(f) {
   showMsg(START_MSG); hud();
 }
 if (LEVEL === 'custom') { try { const f = JSON.parse(store.get('surf_custom_from') || 'null'); if (f) { store.set('surf_custom_from', ''); startFrom(f); } } catch (e) {} }
-if (/^#edit/.test(location.hash)) { const sc = document.createElement('script'); sc.src = 'editor.js'; document.body.appendChild(sc); } // desktop level editor
+if (/^#edit/.test(location.hash)) { const sc = document.createElement('script'); sc.src = 'editor.js?v=' + Date.now(); document.body.appendChild(sc); } // desktop level editor
 requestAnimationFrame(frame);
 </script>
 </body>

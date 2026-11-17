@@ -55,8 +55,20 @@
   // ---------- 3D overlays ----------
   function disposeObjs(a) { for (const o of a) { scene.remove(o); if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); } a.length = 0; }
   function lineOf(pts, color) { const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0], p[1], p[2]))); const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })); l.renderOrder = 10; l.frustumCulled = false; scene.add(l); return l; }
+  function fillOf(r, color, op) { // translucent wash over a ramp's two faces, so the selected / hovered ramp is obvious
+    if (r.tube) return null;
+    const n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 150)) : Math.max(1, Math.ceil(r.L / 800)), pos = [];
+    const Pt = (u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; };
+    for (let j = 0; j < n; j++) for (const sd of [1, -1]) { const ua = r.L * j / n, ub = r.L * (j + 1) / n, A = Pt(ua, 0, r.H), B = Pt(ua, sd * r.W, 0), A2 = Pt(ub, 0, r.H), B2 = Pt(ub, sd * r.W, 0); pos.push(...A, ...B, ...B2, ...A, ...B2, ...A2); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    m.renderOrder = 8; m.frustumCulled = false; scene.add(m); return m;
+  }
+  let hoverObjs = [], hoverI = -2, lastHover = 0;
+  function setHover(i) { if (i === hoverI) return; hoverI = i; disposeObjs(hoverObjs); if (i >= 0 && i !== sel && ramps[i]) { const f = fillOf(ramps[i], 0xffffff, 0.28); if (f) hoverObjs.push(f); } }
   function drawSelection() {
-    disposeObjs(selObjs); const r = ramps[sel]; if (!r) return;
+    disposeObjs(selObjs); hoverI = -2; disposeObjs(hoverObjs); const r = ramps[sel]; if (!r) return;
+    { const f = fillOf(r, 0xffe14a, 0.32); if (f) selObjs.push(f); }
     const pts = [];
     if (r.tube) { const T = r.tube; for (let t = 0; t <= T.sweep; t += 0.08) { const a = T.th0 + t, c = Math.cos(a), s = Math.sin(a), q = T.shift(t); pts.push([T.ox + T.R * (c * T.e1[0] + s * T.e2[0]) + T.ax[0] * q, T.oy + T.R * (c * T.e1[1] + s * T.e2[1]) + T.ax[1] * q, T.oz + T.R * (c * T.e1[2] + s * T.e2[2]) + T.ax[2] * q]); } }
     else { const n = Math.max(4, Math.ceil(r.L / 300)); for (let i = 0; i <= n; i++) { const u = r.L * i / n, c = ridgeAt(r, u); pts.push([c[0], r.oy + zOf(r, u) + r.H + 40, c[1]]); } }
@@ -356,7 +368,8 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cv.addEventListener('pointermove', e => {
       stop(e);
       if (hDrag) { dragHandle(e); return; }
-      if (!drag) { const k = hitHandle(e); cv.style.cursor = k ? 'grab' : 'default'; setHint(k ? 'drag: ' + HNAME[k] : ''); return; }
+      if (!drag) { const k = hitHandle(e); let h = null; if (!k && performance.now() - lastHover > 50) { lastHover = performance.now(); h = rayRamp(e); setHover(h ? h.i : -1); }
+        cv.style.cursor = k ? 'grab' : (hoverI >= 0 || (h && h.i === sel)) ? 'pointer' : 'default'; setHint(k ? 'drag: ' + HNAME[k] : hoverI >= 0 ? 'click to select this ramp, drag to move it' : ''); return; }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
       if (drag.pan) { const k = cam.dist * 0.0012, cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw); cam.tx += (-dx * cy) * k; cam.tz += (dx * sy) * k; cam.ty += dy * k; }
       else { cam.yaw -= dx * 0.006; cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch + dy * 0.006)); }
