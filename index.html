@@ -676,19 +676,38 @@ const stars = (() => {
 })();
 function applyTheme() { scene.background.copy(theme.bg); scene.fog.color.copy(theme.fog); hemi.color.copy(theme.sky); hemi.groundColor.copy(theme.gnd); starsMat.opacity = theme.stars; }
 function themeFor(i) { let th = 0; for (const g of rings) if (g.kind === 'portal' && g.ramp <= i) th = Math.max(th, g.theme); return th; } // scene in force once you reach piece i
-function setTheme(i, instant) {
+function setThemeOld(i, instant) {
   if (!themesOn) return; themeTarget = i;
   if (instant) { const T = THEMES[i]; theme.bg.set(T.bg); theme.fog.set(T.fog); theme.sky.set(T.sky); theme.gnd.set(T.gnd); theme.stars = T.stars; applyTheme(); }
 }
-function tickTheme(dt) {
+function tickThemeOld(dt) {
   if (!themesOn) return; const T = THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4);
   theme.bg.lerp(_tc.set(T.bg), k); theme.fog.lerp(_tc.set(T.fog), k); theme.sky.lerp(_tc.set(T.sky), k); theme.gnd.lerp(_tc.set(T.gnd), k);
   theme.stars += (T.stars - theme.stars) * k; applyTheme(); stars.position.copy(camera.position);
 }
+// ---------- Time of day: the sky drifts through twilight, sunset, golden hour and morning as you ride (progress along the course), no portal flips ----------
+const DAY = [
+  { t: 0,    top: 0x1d1b52, mid: 0x6a4a9c, bot: 0xd88aa0, gnd: 0x2a1f3c }, // twilight
+  { t: 0.28, top: 0x3b2f7a, mid: 0xd9577a, bot: 0xffa070, gnd: 0x4a2a44 }, // sunset
+  { t: 0.55, top: 0x7a6cc0, mid: 0xf2a65e, bot: 0xffe0a0, gnd: 0x6a4a40 }, // golden hour
+  { t: 0.8,  top: 0x6fa0e0, mid: 0xb5d8f0, bot: 0xfde3c8, gnd: 0x5a7a60 }, // morning
+  { t: 1,    top: 0x8fb4ee, mid: 0xf6c4c0, bot: 0xffe9d0, gnd: 0x6a8a70 }, // pink dawn
+].map(k => ({ t: k.t, top: new THREE.Color(k.top), mid: new THREE.Color(k.mid), bot: new THREE.Color(k.bot), gnd: new THREE.Color(k.gnd) }));
+const dayNow = { top: new THREE.Color(), mid: new THREE.Color(), bot: new THREE.Color(), gnd: new THREE.Color() };
+let dayP = 0, dayTarget = 0;
+function daySample(p) { let i = 0; while (i < DAY.length - 2 && p > DAY[i + 1].t) i++; const a = DAY[i], b = DAY[i + 1], f = Math.max(0, Math.min(1, (p - a.t) / (b.t - a.t))); for (const k of ['top', 'mid', 'bot', 'gnd']) dayNow[k].copy(a[k]).lerp(b[k], f); }
+function dayProgress() { return ramps.length > 1 ? Math.min(1, lastTouched / (ramps.length - 1)) : 0; }
+function setTheme(i, instant) { if (instant) { dayP = dayTarget = dayProgress(); } } // portals no longer pick a scene; this just snaps the sky to the current progress (start, respawn)
+function tickTheme(dt) {
+  if (!FUSION) { tickThemeOld(dt); return; }
+  dayTarget = /^#edit/.test(location.hash) ? 0.3 : (stageMeta.park ? 0.28 : dayProgress()); dayP += (dayTarget - dayP) * (1 - Math.exp(-dt * 0.5)); daySample(dayP);
+  theme.bg.copy(dayNow.bot); theme.fog.copy(dayNow.bot); theme.sky.copy(dayNow.mid).lerp(_tc.set(0xffffff), 0.35); theme.gnd.copy(dayNow.gnd);
+  theme.stars = themesOn ? Math.max(0, 1 - dayP / 0.3) : 0; applyTheme(); stars.position.copy(camera.position);
+}
 function applyScenery(on) {
   themesOn = on; FOG_FAR = on ? 600000 : 70000; CAM_FAR = on ? 4e6 : 90000;
   if (!on) { theme.bg.set(FUSION ? DUSK.bg : 0x1a2240); theme.fog.set(FUSION ? DUSK.fog : 0x1a2240); theme.sky.set(0xbfd8ff); theme.gnd.set(0x302040); theme.stars = 0; applyTheme(); }
-  else setTheme(0, true);
+  else if (FUSION) setTheme(0, true); else setThemeOld(0, true);
 }
 
 let courseObjs = [], gates = [], ringObjs = [];
@@ -764,10 +783,10 @@ function buildClouds() {
 let skyWarm = 4; // the first frames draw the mountains and clouds even in space levels, so their shaders and buffers are uploaded at load, not at the sky portal mid-run
 function updateSky(dt, now) {
   skyDome.position.copy(camera.position);
-  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && (plain || themeTarget >= 2 || skyWarm-- > 0); // in the space levels the mountains and clouds only appear once you reach the sky
-  const T = plain ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
+  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && (plain || dayP > 0.3 || skyWarm-- > 0); // in the space levels the mountains and clouds only appear once you reach the sky
+  const T = (plain || FUSION) ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
   skyDome.visible = FUSION;
-  if (FUSION && plain) { skyU.top.value.setHex(DUSK.top); skyU.mid.value.setHex(DUSK.mid); skyU.bot.value.setHex(DUSK.bot); }
+  if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); }
   else if (T) { const d = T.dome || [T.bg, T.bg, T.bg]; skyU.top.value.lerp(_tc.set(d[0]), k); skyU.mid.value.lerp(_tc.set(d[1]), k); skyU.bot.value.lerp(_tc.set(d[2]), k); }
   mountains.visible = show; mountains.position.set(camera.position.x, camera.position.y - 3800, camera.position.z);
   for (const g of scenicClouds) { g.visible = show; if (show) g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; }
@@ -1283,7 +1302,7 @@ function updateStreaks(speed) {
 const prevPos = new THREE.Vector3();
 function onRing(g, off) {
   const o = ringObjs[rings.indexOf(g)]; if (o) o.fx = 1;
-  if (g.kind === 'portal') { setTheme(g.theme); fovKick += 16; toast('Portal'); Sfx.portal(); Music.trigger('portal', g.theme); }
+  if (g.kind === 'portal') { if (!FUSION) setThemeOld(g.theme); fovKick += 16; toast('Portal'); Sfx.portal(); Music.trigger('portal', g.theme); }
   else { flowGain(off < 0.25 ? 300 : 120, off < 0.25 ? 0.15 : 0.08); toast((off < 0.25 ? 'Perfect hoop  +' : 'Hoop  +') + Math.round(g.boost * (1 - off * off) * (off < 0.25 ? 1.5 : 1))); Sfx.hoop(1 - off * off); }
 }
 let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
