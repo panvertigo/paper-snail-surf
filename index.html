@@ -347,6 +347,7 @@ function buildCourse(S, meta) {
       if (p.loop) shift = prev.side * 0.5 * prev.W + (p.loop.off || 0); // centre the tube where the rider flies in (mid-face), not on the ridge line
       else if (prev.tube) shift = -side * 0.5 * W;                        // the rider leaves the tube on its centre line: put the next ridge half a face away
       if (p.zig) { shift = side * W * 0.75; side = -side; } // land high on the face that faces you
+      shift += p.lat || 0; // lat: sideways offset (editor drag handle); unused by the built-in levels
       x = prev.ex + dir[0] * gap + right[0] * shift; z = prev.ez + dir[2] * gap + right[2] * shift;
       // a loop entry defaults to rider height (mid-face of the previous ramp); a ramp after a tube puts its mid-face where the exit launch arrives
       y = prev.ey - (p.drop ?? (p.loop ? 20 - 0.42 * prev.H : prev.tube ? 0.5 * (p.W ?? W) * 1.25 + 380 : 190));
