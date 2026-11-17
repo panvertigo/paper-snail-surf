@@ -110,7 +110,22 @@
     else if (D.k === 'rise') { p.drop = clampv(snap(D.drop0 - (P[1] - D.P0[1]), 50), -2000, 9000); setStatus('Height: drop ' + p.drop); }
     else if (D.k === 'len') { const a = dx * D.d1[0] + dz * D.d1[2]; if (p.turn) { p.turn = clampv(snap(D.turn0 + a / p.R * 57.2958, 5), 10, 360); setStatus('Turn ' + p.turn + ' deg'); } else { p.L = clampv(snap(D.L0 + a, 100), 500, 12000); setStatus('Length ' + p.L); } }
     else if (D.k === 'wid') { p.W = clampv(snap(Math.abs((P[0] - D.c[0]) * D.rt[0] + (P[2] - D.c[1]) * D.rt[2]), 10), 250, 1300); setStatus('Half-width ' + p.W); }
-    dirty = true;
+    dirty = true; D.moved = true;
+  }
+  const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _hit = new THREE.Vector3();
+  function rayRamp(e) { // click a ramp's surface: ray against the real faces, nearest wins
+    setRay(e); let best = null, bd = 1e18;
+    ramps.forEach((r, i) => {
+      if (r.tube) return;
+      const n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 150)) : Math.max(1, Math.ceil(r.L / 800));
+      const Pt = (u, v, y, t) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return t.set(q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v); };
+      for (let j = 0; j < n; j++) for (const sd of [1, -1]) {
+        const ua = r.L * j / n, ub = r.L * (j + 1) / n;
+        Pt(ua, 0, r.H, _a); Pt(ua, sd * r.W, 0, _b); Pt(ub, sd * r.W, 0, _c); Pt(ub, 0, r.H, _d);
+        for (const h of [ray.ray.intersectTriangle(_a, _b, _c, false, _hit), ray.ray.intersectTriangle(_a, _c, _d, false, _hit)]) { if (h) { const dd = h.distanceTo(ray.ray.origin); if (dd < bd) { bd = dd; best = { i, p: [h.x, h.y, h.z] }; } } }
+      }
+    });
+    return best;
   }
   function pickPiece(e) { // click on a piece in 3D: nearest ridge on screen
     const rc = renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3(); let best = -1, bd = 45;
@@ -294,7 +309,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const ed = $id('ed') || Object.assign(document.createElement('div'), { id: 'ed' }); if (!ed.parentNode) document.body.appendChild(ed);
     ed.innerHTML = '';
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;line-height:1.5';
-    how.innerHTML = '<b>How to build</b><br>1. Press <b>+ Ramp</b> below, or click a ramp in the 3D view.<br>2. Drag the balls on the selected ramp:<br><span style="color:#ffe14a">&#9679;</span> yellow: <b>length</b> (turn angle on a turn) &nbsp;<span style="color:#ff9a3c">&#9679;</span> orange: <b>width</b><br><span style="color:#4be07a">&#9679;</span> green: <b>move</b> along the ground and sideways &nbsp;<span style="color:#4aa8ff">&#9670;</span> blue: <b>raise / lower</b><br>3. The coloured line is the bot riding it; red rows are where it falls. Press <b>Play</b> to try it yourself.';
+    how.innerHTML = '<b>How to build</b><br>1. Press <b>+ Ramp</b> below, then <b>click any ramp</b> in the 3D view to select it; <b>drag the ramp itself</b> to place it.<br>2. Drag the balls on the selected ramp:<br><span style="color:#ffe14a">&#9679;</span> yellow: <b>length</b> (turn angle on a turn) &nbsp;<span style="color:#ff9a3c">&#9679;</span> orange: <b>width</b><br><span style="color:#4be07a">&#9679;</span> green: <b>move</b> along the ground and sideways &nbsp;<span style="color:#4aa8ff">&#9670;</span> blue: <b>raise / lower</b><br>3. The coloured line is the bot riding it; red rows are where it falls. Press <b>Play</b> to try it yourself.';
     ed.appendChild(how);
     const top = document.createElement('div'); top.innerHTML = '<h3 style="margin-top:0">Stage</h3>'; ed.appendChild(top);
     const nm = document.createElement('input'); nm.value = stage.name || ''; nm.style.width = '100%'; nm.placeholder = 'stage name'; nm.oninput = () => { stage.name = nm.value; snapshot(); }; top.appendChild(nm);
@@ -327,6 +342,15 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
       stop(e); e.preventDefault(); moved = 0; cv.setPointerCapture(e.pointerId);
       const k = e.button === 0 && !e.shiftKey ? hitHandle(e) : null, D = k ? startHandle(k, e) : null;
       if (D) { hDrag = D; drag = null; cv.style.cursor = 'grabbing'; return; }
+      if (e.button === 0 && !e.shiftKey) { // press on a ramp: select it, and dragging carries it along the ground (same as the green handle)
+        const hit = rayRamp(e);
+        if (hit) {
+          if (hit.i !== sel) { sel = hit.i; drawSelection(); renderList(); renderInspector(); }
+          const B = handlePoints().find(q => q.k === 'move') && startHandle('move', e);
+          if (B) { B.hp = hit.p; B.P0 = atY(hit.p[1]); B.body = true; if (B.P0) { hDrag = B; drag = null; cv.style.cursor = 'grabbing'; return; } }
+          drag = { x: e.clientX, y: e.clientY, pan: false }; return;
+        }
+      }
       drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey || e.button === 1 };
     }, true);
     cv.addEventListener('pointermove', e => {
@@ -339,7 +363,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     }, true);
     const up = e => {
       stop(e);
-      if (hDrag) { hDrag = null; cv.style.cursor = 'default'; dirty = false; snapshot(); rebuild(); renderList(); renderInspector(); renderStatus(); return; }
+      if (hDrag) { const nomove = hDrag.body && !hDrag.moved; hDrag = null; cv.style.cursor = 'default'; if (nomove) return; dirty = false; snapshot(); rebuild(); renderList(); renderInspector(); renderStatus(); return; }
       if (drag && moved < 6 && e.button === 0) pickPiece(e);
       drag = null;
     }; cv.addEventListener('pointerup', up, true); cv.addEventListener('pointercancel', up, true);
@@ -370,7 +394,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     for (const id of ['timer', 'best', 'prog', 'toast', 'speed', 'gear', 'restart', 'settings', 'msg', 'flash']) { const e = $id(id); if (e) e.style.display = 'none'; }
     snail.visible = false; trailMesh.visible = false; shadow.visible = false; wind.mesh.visible = false; clouds.mesh.visible = false; intro.on = false;
     css(); stage = load(); snapshot(); setupInput();
-    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>drag: orbit · right-drag / shift-drag: pan · wheel: zoom · ↑↓: select · F: focus · D: duplicate · Del: delete · Ctrl+Z: undo · click a ramp: select'; document.body.appendChild(h);
+    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>drag: orbit · right-drag / shift-drag: pan · wheel: zoom · ↑↓: select · F: focus · D: duplicate · Del: delete · Ctrl+Z: undo · click a ramp: select · drag a ramp: move it'; document.body.appendChild(h);
     refresh(true);
   }
   init();
