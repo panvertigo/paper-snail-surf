@@ -1,8 +1,8 @@
 // The simulated player used by sim.js and the golden-replay recorder. mk() returns a fresh sim (see harness.js).
 module.exports=function(mk){
 const wrap=a=>((a+Math.PI*3)%(Math.PI*2))-Math.PI;
-function trial(aa,{hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false,tmax=300,rec=null,onTick=null}={}){
-  const G=mk(); const {P,ramps,fin,pos,vel,SLOPE,local,ridgeAt,rightOf}=G; P.airaccel=aa; G.spawnOn(0);
+function trial(aa,{hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false,tmax=300,rec=null,onTick=null,init=null}={}){
+  const G=mk(); const {P,ramps,fin,pos,vel,SLOPE,local,ridgeAt,rightOf}=G; P.airaccel=aa; G.spawnOn(0); if(init) init(G);
   let rnd=seed; const rand=()=>(rnd=(rnd*16807)%2147483647)/2147483647;
   let t=0, plan={s:0}, falls=0, vmax=0, speedSum=0, n=0;
   while(t<tmax){

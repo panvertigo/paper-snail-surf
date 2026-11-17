@@ -36,7 +36,7 @@ canvas{display:block;touch-action:none}
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button></div>
+  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="4">4<br>circuit</button></div>
   <label>Air accel (ramp grip)</label>
   <div class="row" id="aa">
     <button data-v="150">150<br>classic</button><button data-v="400">400<br>medium</button><button data-v="800">800<br>easy</button>
@@ -58,6 +58,7 @@ canvas{display:block;touch-action:none}
 <div id="flash"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="music.js"></script>
+<script src="racers.js"></script>
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
 class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
@@ -248,6 +249,40 @@ const STAGES = {};
       { turn: 160, R: 4600 },                      // final sweep
       { L: 2000 },                                 // launch ramp
     ],
+    4: [
+      // LEVEL 4 CIRCUIT: a ring of four sides that ends beside its own start (below it). Each side: two descents, a climb, a corner, then a climb into a checkpoint.
+      { L: 3500, W: 700 },
+      // side 1
+      { L: 4000 },
+      { L: 4200, gap: 600, drop: 220 },
+      { L: 4200, C: 500 },
+      { turn: 90, R: 6000 },
+      { L: 4200 },
+      { L: 4000, C: 600 },
+      { L: 3800 },
+      // side 2: the plunge
+      { L: 4000 },
+      { L: 5000, W: 800, gap: 1300, drop: 1500, rings: [{ d: 500, y: 380, kind: 'hoop' }] },
+      { L: 4200, C: 500 },
+      { turn: 90, R: 6000 },
+      { L: 4200 },
+      { L: 4000, C: 600 },
+      { L: 3800, cp: true },
+      // side 3
+      { L: 4000 },
+      { L: 4200, gap: 600, drop: 220 },
+      { L: 4200, C: 500 },
+      { turn: 90, R: 6000 },
+      { L: 4200 },
+      { L: 4000, C: 600 },
+      { L: 3800, cp: true },
+      // side 4: home straight, finish pad lies just behind the start line
+      { L: 4000 },
+      { L: 4200, gap: 600, drop: 220 },
+      { L: 4200, C: 500 },
+      { turn: 90, R: 6000 },
+      { L: 3200, W: 700 },
+    ],
     3: [
       // LEVEL 3 DESCENT: from the moon down to Earth. Four scenes (portals switch them), big drops, a loop-the-loop, a swirl, hoops (speed boost when centred).
       // 1. MOON
@@ -385,6 +420,16 @@ function inTube() { // true while inside a nearby tube's bounds; bots hold their
   }
   return false;
 }
+// Shortcuts: if you are flying over any of the next dozen pieces (inside its footprint, not yet below its lowest point) you are not falling, you are about to land on it.
+function aboveRampAhead() {
+  for (let i = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 12); i <= i1; i++) {
+    const r = ramps[i];
+    if (r.tube) { const T = r.tube; if (dhypot(pos.x - T.ox, pos.y - T.oy, pos.z - T.oz) < T.bound && pos.y > r.oy - 900) return true; continue; }
+    const L = local(r, pos.x, pos.z);
+    if (L.u >= -200 && L.u <= r.L + 200 && Math.abs(L.v) < r.W + 300 && pos.y > Math.min(r.oy, r.ey) - 900) return true;
+  }
+  return false;
+}
 function step() {
   yaw += cmd.turn; cmd.turn = 0; touchStrafe = cmd.touch; keyStrafe = cmd.key;
   vel.y -= P.g * P.dt;
@@ -453,7 +498,7 @@ function step() {
   const lr = ramps[lastTouched], nr = ramps[lastTouched + 1], n2 = ramps[lastTouched + 2]; // next ramp too, so big drops aren't counted as falls
   // The fall line also uses the next ramp's far end: it slopes down, so a long flight can sit far below its start and still be over it.
   // The pad is never a fall: anywhere over it (above its surface) you either finish or are still dropping onto it, whichever ramp you touched last.
-  if (!overPad && pos.y < Math.min(lr.oy, lr.ey, nr ? nr.oy : Infinity, nr ? nr.ey : Infinity, n2 ? n2.oy : Infinity) - 900) fail();
+  if (!overPad && pos.y < Math.min(lr.oy, lr.ey, nr ? nr.oy : Infinity, nr ? nr.ey : Infinity, n2 ? n2.oy : Infinity) - 900 && !aboveRampAhead()) fail();
 }
 // ==PHYSICS END==
 
@@ -658,19 +703,20 @@ function paperTex(draw, size = 256) {
   for (let i = 0; i < 1400; i++) { x.fillStyle = `rgba(0,0,0,${Math.random() * 0.05})`; x.fillRect(Math.random() * size, Math.random() * size, 2, 2); }
   return new THREE.CanvasTexture(c);
 }
-const shellTex = paperTex((x, s) => {
+const shellTexFor = css => paperTex((x, s) => {
   x.fillStyle = '#fbe9d0'; x.fillRect(0, 0, s, s);
-  x.strokeStyle = '#e8735a'; x.lineWidth = 14; x.lineCap = 'round'; x.beginPath();
+  x.strokeStyle = css; x.lineWidth = 14; x.lineCap = 'round'; x.beginPath();
   for (let t = 0; t < 6 * Math.PI; t += 0.05) { const r = 6 + t * 6.2; const px = s / 2 + Math.cos(t) * r, py = s / 2 + Math.sin(t) * r; t === 0 ? x.moveTo(px, py) : x.lineTo(px, py); }
   x.stroke();
 });
+const shellTex = shellTexFor('#e8735a');
 const bodyTex = paperTex((x, s) => { x.fillStyle = '#ffe3a3'; x.fillRect(0, 0, s, s); });
 const ink = new THREE.LineBasicMaterial({ color: 0x5a3b2e });
 const snail = new THREE.Group(), snailInner = new THREE.Group(), eyes = new THREE.Group(), eyeParts = [];
 let eyeA = 0, eyeV = 0; // stalk sweep-back angle spring (overshoots on launch and landing)
 snail.add(snailInner); scene.add(snail);
 function addInk(mesh) { mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), ink)); return mesh; }
-{
+function buildSnail(snailInner, eyes, eyeParts, shellColor, shellMap) {
   const sh = new THREE.Shape();
   sh.moveTo(-30, 0); sh.lineTo(24, 0); sh.quadraticCurveTo(32, 0, 32, 10);
   sh.quadraticCurveTo(32, 28, 24, 30); sh.quadraticCurveTo(16, 30, 16, 20);
@@ -679,7 +725,7 @@ function addInk(mesh) { mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(
   g.rotateY(Math.PI / 2); g.translate(-8, 0, 0);
   snailInner.add(addInk(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: bodyTex, flatShading: true }))));
   const sg = new THREE.CylinderGeometry(19, 19, 8, 20); sg.rotateZ(Math.PI / 2);
-  const side = new THREE.MeshLambertMaterial({ color: 0xe8735a, flatShading: true }), face = new THREE.MeshLambertMaterial({ map: shellTex });
+  const side = new THREE.MeshLambertMaterial({ color: shellColor, flatShading: true }), face = new THREE.MeshLambertMaterial({ map: shellMap });
   const shell = addInk(new THREE.Mesh(sg, [side, face, face])); shell.position.set(0, 27, 6); snailInner.add(shell);
   const white = new THREE.MeshLambertMaterial({ color: 0xffffff }), black = new THREE.MeshBasicMaterial({ color: 0x2b1d17 });
   const stalkM = new THREE.MeshLambertMaterial({ color: 0xf2c879 }), pink = new THREE.MeshBasicMaterial({ color: 0xff9aa8 });
@@ -692,6 +738,62 @@ function addInk(mesh) { mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(
     eyeParts.push({ sx, pivot, st, eye, pupil });
     const blush = new THREE.Mesh(new THREE.CircleGeometry(2.6, 10), pink);
     blush.position.set(sx * 8.2, 18, -26); blush.rotation.y = sx * Math.PI / 2; snailInner.add(blush);
+  }
+}
+buildSnail(snailInner, eyes, eyeParts, 0xe8735a, shellTex);
+
+// ---------- Company: racer snails (recorded bots, see tools/make-racers.js) and commuter snails crawling along ridges. Cosmetic only, never touch the sim. ----------
+const npcs = { racers: [], commuters: [] };
+function makeNpc(shellColor, scale) {
+  const g = new THREE.Group(), inner = new THREE.Group(), eyesG = new THREE.Group(), parts = [];
+  inner.add(eyesG); g.add(inner);
+  buildSnail(inner, eyesG, parts, shellColor, shellTexFor('#' + new THREE.Color(shellColor).multiplyScalar(0.85).getHexString()));
+  g.scale.setScalar(scale); g.visible = false; scene.add(g);
+  return { g, inner, parts };
+}
+function orientNpc(o, p, f, up) { // position = surface point, f = forward (any), up = surface normal
+  o.g.position.set(p[0], p[1], p[2]);
+  let d = f[0] * up[0] + f[1] * up[1] + f[2] * up[2];
+  tmpF.set(f[0] - up[0] * d, f[1] - up[1] * d, f[2] - up[2] * d); if (tmpF.lengthSq() < 1e-9) return; tmpF.normalize();
+  tmpB.copy(tmpF).negate(); tmpU.set(up[0], up[1], up[2]); tmpR.crossVectors(tmpU, tmpB);
+  tmpM.makeBasis(tmpR, tmpU, tmpB); o.g.quaternion.setFromRotationMatrix(tmpM);
+}
+function npcFeel(o, speed, now, k) { // stretch and eye sweep like the player, minus the springs
+  const sp = Math.min(1, speed / 3000), L = 1 + 3 * Math.pow(sp, 2.2);
+  o.inner.scale.set(1, 1, 1 + sp * 0.3 + 0.04 * Math.sin(now / 90 + k));
+  for (const e of o.parts) { e.pivot.rotation.set(1.3 * Math.pow(sp, 0.9) + 0.06 * Math.sin(now / 50 + k), 0, -e.sx * (0.25 + 0.3 * sp)); e.st.scale.y = L; e.st.position.y = 8 * L; e.eye.position.y = e.pupil.position.y = 16 * L; }
+}
+const tmpU = new THREE.Vector3();
+if (typeof LEVEL === 'number' && !/^#edit/.test(location.hash)) {
+  for (const r of (globalThis.RACERS && RACERS[LEVEL]) || []) { const o = makeNpc(r.c, 1.25); o.s = r.s; o.n = r.s.length / 6; npcs.racers.push(o); }
+  const rnd = rng(LEVEL * 77 + 5); let cnt = 0;
+  ramps.forEach((r, i) => { if (r.tube || r.L < 3000 || i < 2 || i % 3 !== 1 || cnt >= 10) return; cnt++;
+    const o = makeNpc([0x9aa3b5, 0xc9a27a, 0x8fbf9a, 0xd69aa6][cnt % 4], 1.9);
+    const case_ = new THREE.Mesh(new THREE.BoxGeometry(20, 13, 7), new THREE.MeshLambertMaterial({ color: 0x6b4a32 })); case_.position.set(0, 47, 6); o.inner.add(case_);
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(6, 7, 7, 10), new THREE.MeshLambertMaterial({ color: 0x2f2f3a })); hat.position.set(0, 41, -14); o.inner.add(hat);
+    o.r = r; o.span = r.L * 0.6; o.off = rnd() * 2 * o.span; o.sp = 70 + rnd() * 60; o.u0 = r.L * 0.2; npcs.commuters.push(o); });
+}
+function updateNpcs(now) {
+  const t = state === 'ready' || state === 'done' && false ? tRun : tRun;
+  for (const o of npcs.racers) {
+    const f = Math.max(0, Math.min(o.n - 1, t * 10)), i = Math.min(o.n - 2, Math.floor(f)), a = f - i, A = i * 6, B = A + 6, S = o.s;
+    const L = k => S[A + k] + (S[B + k] - S[A + k]) * a, n = [L(3) / 100, L(4) / 100, L(5) / 100], nl = Math.hypot(n[0], n[1], n[2]) || 1;
+    const up = [n[0] / nl, n[1] / nl, n[2] / nl], dx = S[B] - S[A], dy = S[B + 1] - S[A + 1], dz = S[B + 2] - S[A + 2], sp = Math.hypot(dx, dy, dz) * 10;
+    o.g.visible = true;
+    orientNpc(o, [L(0) - up[0] * P.r, L(1) - up[1] * P.r, L(2) - up[2] * P.r], sp > 80 ? [dx, dy, dz] : [o.fx || 0, 0, o.fz || -1], up);
+    if (sp > 80) { o.fx = dx; o.fz = dz; }
+    npcFeel(o, sp, now, o.n);
+  }
+  const ts = now / 1000;
+  for (const o of npcs.commuters) {
+    const r = o.r, ph = (ts * o.sp + o.off) % (2 * o.span), fwd = ph < o.span, u = o.u0 + (fwd ? ph : 2 * o.span - ph);
+    const c = ridgeAt(r, u), h = r.h0 + r.k * u, d = dirOf(h), z = zD(r, u), sg = fwd ? 1 : -1;
+    const dxp = c[0] - pos.x, dzp = c[1] - pos.z; o.g.visible = dxp * dxp + dzp * dzp < 16000 * 16000;
+    if (!o.g.visible) continue;
+    const f = [d[0] * sg, z * sg, d[2] * sg], uu = [0, 1, 0];
+    orientNpc(o, [c[0], r.oy + zOf(r, u) + r.H, c[1]], f, uu);
+    o.inner.scale.set(1, 1 + 0.06 * Math.sin(ts * 7 + o.off), 1 + 0.08 * Math.sin(ts * 3.5 + o.off));
+    for (const e of o.parts) { e.pivot.rotation.set(0.1 * Math.sin(ts * 2 + o.off), 0, -e.sx * 0.25); }
   }
 }
 function surfaceBelow(p) {
@@ -1081,7 +1183,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick; camera.updateProjectionMatrix();
-  updateTrail(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now); Music.setSpeed(speed);
+  updateNpcs(now); updateTrail(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now); Music.setSpeed(speed);
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
