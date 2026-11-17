@@ -54,21 +54,6 @@
    "section": "earth"
   },
   {
-   "on": "portal",
-   "theme": 1,
-   "section": "atmos"
-  },
-  {
-   "on": "portal",
-   "theme": 2,
-   "section": "sky"
-  },
-  {
-   "on": "portal",
-   "theme": 3,
-   "section": "earth"
-  },
-  {
    "on": "finish",
    "section": "outro"
   }

@@ -7,8 +7,8 @@ SONGS = {
   # name: source, time of the beat grid, bar number that starts on a downbeat, sections {id: (first bar, bars, extra)}
   'chicago': dict(fallback='descent', src='5 Chicago Meditation (radio edit).mp3', grid=0.085 + 60 / BPM, sections={
       'intro': (1, 4, {'once': True, 'next': 'moon'}), 'moon':  (5, 16, {}), 'atmos': (21, 16, {}), 'sky': (69, 16, {}), 'earth': (85, 16, {}), 'outro': (101, 12, {'once': True})},
-      triggers=[{'on': 'start', 'section': 'intro', 'respawn': 'moon'}, {'on': 'checkpoint', 'n': 1, 'section': 'atmos'}, {'on': 'checkpoint', 'n': 2, 'section': 'sky'}, {'on': 'checkpoint', 'n': 3, 'section': 'earth'}, {'on': 'portal', 'theme': 1, 'section': 'atmos'}, {'on': 'portal', 'theme': 2, 'section': 'sky'},
-                {'on': 'portal', 'theme': 3, 'section': 'earth'}, {'on': 'finish', 'section': 'outro'}]),
+      triggers=[{'on': 'start', 'section': 'intro', 'respawn': 'moon'}, {'on': 'checkpoint', 'n': 1, 'section': 'atmos'}, {'on': 'checkpoint', 'n': 2, 'section': 'sky'}, {'on': 'checkpoint', 'n': 3, 'section': 'earth'}, 
+                {'on': 'finish', 'section': 'outro'}]),
   'bowl': dict(src='6 Fleetwood Mac_electro.wav', grid=0.138 + 60 / BPM, sections={
       'calm': (49, 16, {}), 'groove': (25, 16, {}), 'peak': (105, 16, {})},
       triggers=[{'on': 'start', 'section': 'calm'}]),

@@ -118,8 +118,9 @@
     },
     at(piece, o) { // the section in force when you are at piece i (used on start and after a respawn)
       if (!cfg || !ready) { deferredAt = piece; return; }
-      let ev = null; for (const e of events) if (e.at <= piece) ev = e;
-      const t = ev ? (cfg.triggers || []).find(x => x.on === ev.ev && (ev.ev === 'checkpoint' ? x.n === ev.n : x.theme === ev.theme)) : (cfg.triggers || []).find(x => x.on === 'start');
+      const match = e => (cfg.triggers || []).find(x => x.on === e.ev && (e.ev === 'checkpoint' ? x.n === e.n : x.theme === e.theme));
+      let ev = null; for (const e of events) if (e.at <= piece && match(e)) ev = e; // only events this song reacts to (a manifest may ignore portals)
+      const t = ev ? match(ev) : (cfg.triggers || []).find(x => x.on === 'start');
       if (t) Music.goto((t.on === 'start' && o && o.respawn && t.respawn) || t.section, o || { quantize: 'beat' }); // respawn: don't replay the intro after a splat
     },
     setSpeed(v) { speed = v; },
