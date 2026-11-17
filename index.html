@@ -666,7 +666,7 @@ const THEMES = [
   { bg: 0x8fd0ff, fog: 0xc7e6ff, sky: 0xffffff, gnd: 0x4a9a52, stars: 0, dome: [0x4a9be8, 0xa6d4f7, 0xf6e4d4] },     // 3 Earth
 ];
 const theme = { bg: new THREE.Color(), fog: new THREE.Color(), sky: new THREE.Color(), gnd: new THREE.Color(), stars: 1 }, _tc = new THREE.Color();
-let themeTarget = 0, themesOn = stageMeta.scenery === 'descent';
+let themeTarget = 0, themesOn = !FUSION && stageMeta.scenery === 'descent'; // the fusion look drops the moon and planet: every level is an earth view
 const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false });
 const stars = (() => {
   const n = 1800, p = new Float32Array(n * 3);
@@ -705,7 +705,7 @@ function tickTheme(dt) {
   theme.stars = themesOn ? Math.max(0, 1 - dayP / 0.3) : 0; applyTheme(); stars.position.copy(camera.position);
 }
 function applyScenery(on) {
-  themesOn = on; FOG_FAR = on ? 600000 : 70000; CAM_FAR = on ? 4e6 : 90000;
+  on = on && !FUSION; themesOn = on; FOG_FAR = on ? 600000 : 70000; CAM_FAR = on ? 4e6 : 90000;
   if (!on) { theme.bg.set(FUSION ? DUSK.bg : 0x1a2240); theme.fog.set(FUSION ? DUSK.fog : 0x1a2240); theme.sky.set(0xbfd8ff); theme.gnd.set(0x302040); theme.stars = 0; applyTheme(); }
   else if (FUSION) setTheme(0, true); else setThemeOld(0, true);
 }
@@ -754,30 +754,28 @@ const skyDome = new THREE.Mesh(new THREE.SphereGeometry(1000, 24, 14), new THREE
   fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bot; uniform float op; varying float h; void main(){ vec3 c = mix(bot, mid, smoothstep(0.0, 0.35, h)); c = mix(c, top, smoothstep(0.3, 0.9, h)); gl_FragColor = vec4(c, 1.0); }' }));
 skyDome.renderOrder = -30; skyDome.frustumCulled = false; scene.add(skyDome);
 const DUSK = { top: 0x3b2f7a, mid: 0x8a6bc0, bot: 0xf0b08c, fog: 0xe6a98f, bg: 0xe6a98f };
-const mountains = new THREE.Group(); // three paper-cut ridgelines wrapped round the camera, far to near (lighter = farther)
-(() => {
-  let sd = 4242; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
-  [[36000, 9000, 0xe9a8a0, 0xf6d2c0], [29000, 6800, 0xc98fb8, 0xe0b4cc], [23000, 4600, 0x9a7bc0, 0xb79ad8]].forEach(([R, Hm, cb, ct], li) => {
-    const N = 90, pos = [], col = [], ph = [rn() * 6, rn() * 6, rn() * 6], cB = new THREE.Color(cb), cT = new THREE.Color(ct);
-    for (let i = 0; i < N; i++) {
-      const hs = [], as = [i / N * 6.2832, (i + 1) / N * 6.2832];
-      for (const a of as) { const k = Math.round(a / 6.2832 * N), jag = ((k * 2654435761 >>> 0) % 1000) / 1000; hs.push(Hm * (0.5 + 0.22 * Math.sin(3 * a + ph[0]) + 0.14 * Math.sin(7 * a + ph[1]) + 0.08 * Math.sin(13 * a + ph[2]) + 0.14 * jag)); }
-      const q = [[as[0], 1400, cB], [as[1], 1400, cB], [as[1], hs[1], cT], [as[0], hs[0], cT]]; // the strips start a little below the horizon, so there is no gap between them and the sky
-      for (const k of [0, 1, 2, 0, 2, 3]) { const [a, y, c] = q[k]; pos.push(R * Math.cos(a), y, R * Math.sin(a)); col.push(c.r, c.g, c.b); }
-    }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: false, depthWrite: false })); m.renderOrder = -25 + li; m.frustumCulled = false; mountains.add(m);
-  });
-  scene.add(mountains);
-})();
-let scenicClouds = []; // toon puffs scattered along the course, so they stream past
+const mountains = new THREE.Group(); // painted paper ridgelines (art/web) wrapped round the camera, far to near; tinted each frame by the time of day
+const artTex = {}, artLoader = new THREE.TextureLoader();
+function art(name, wrap) { if (!artTex[name]) { const t = artLoader.load('art/web/' + name); t.anisotropy = 4; if (wrap) t.wrapS = THREE.MirroredRepeatWrapping; artTex[name] = t; } return artTex[name]; }
+const mtnLayers = [];
+[['mtn_far.png', 36000, 4, -400, 0.5, 0.85, 1024 / 120], ['mtn_mid.png', 29000, 4, -800, 0.35, 0.92, 1024 / 110], ['mtn_near.png', 23000, 4, -1400, 0.2, 1, 1024 / 98]].forEach(([f, R, n, y0, tint, op, asp], li) => {
+  const wt = 2 * Math.PI * R / n, H = wt / asp, tex = art(f, true); tex.repeat.set(n, 1);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 72, 1, true), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, side: THREE.DoubleSide, fog: false, depthWrite: false }));
+  m.position.y = y0 + H / 2; m.renderOrder = -25 + li; m.frustumCulled = false; m.userData.tint = tint; mountains.add(m); mtnLayers.push(m);
+});
+{ const sk = new THREE.Mesh(new THREE.CylinderGeometry(23000, 23000, 6000, 48, 1, true), new THREE.MeshBasicMaterial({ color: 0x9bbad2, side: THREE.DoubleSide, fog: false, depthWrite: false })); sk.position.y = -1400 - 3000 + 40; sk.renderOrder = -26; sk.frustumCulled = false; sk.userData.tint = 0.2; mountains.add(sk); mtnLayers.push(sk); } // solid skirt under the near hills so they meet the ground
+scene.add(mountains);
+let scenicClouds = []; // painted cloud and floating-island sprites scattered along the course, so they stream past
 function buildClouds() {
-  for (const g of scenicClouds) { scene.remove(g); g.traverse(n => { if (n.geometry) n.geometry.dispose(); }); } scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park) return;
-  let sd = 777; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, mat = new THREE.MeshToonMaterial({ color: 0xffffff, emissive: 0x8c86b0, gradientMap: TOON }), sg = new THREE.SphereGeometry(1, 14, 10), step = Math.max(1, Math.floor(ramps.length / 14));
-  for (let i = 0; i < ramps.length; i += step) {
-    const r = ramps[i], rt = rightOf(r.h0), side = rn() < 0.5 ? -1 : 1, off = 3400 + rn() * 5200, grp = new THREE.Group(), s = 200 + rn() * 260;
-    for (const [dx, dy, k] of [[-1, 0, 1], [0, 0.5, 1.3], [1, 0, 1], [0.2, -0.1, 1.2]]) { const m = new THREE.Mesh(sg, mat); m.position.set(dx * s * 1.1, dy * s, 0); m.scale.set(s * k, s * k * 0.85, s * k); grp.add(m); }
-    grp.position.set(r.sx + rt[0] * side * off, (r.oy || 0) + 1400 + rn() * 3200, r.sz + rt[2] * side * off); grp.rotation.y = rn() * 6; grp.userData.sp = 0.1 + rn() * 0.2; scene.add(grp); scenicClouds.push(grp);
+  for (const g of scenicClouds) scene.remove(g); scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park) return;
+  let sd = 777; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, step = Math.max(1, Math.floor(ramps.length / 14)), kinds = [['cloud1.png', 245 / 512], ['cloud2.png', 231 / 512]];
+  const mk = (file, asp, w) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: art(file), fog: false, transparent: true, depthWrite: false })); sp.scale.set(w, w * asp, 1); return sp; };
+  let n = 0;
+  for (let i = 0; i < ramps.length; i += step, n++) {
+    const r = ramps[i], rt = rightOf(r.h0), side = rn() < 0.5 ? -1 : 1, grp = new THREE.Group();
+    const island = n % 5 === 2, off = island ? 6500 + rn() * 4000 : 3400 + rn() * 5200, w = island ? 3200 + rn() * 1400 : 2400 + rn() * 2600, [f, asp] = island ? ['island.png', 470 / 512] : kinds[Math.floor(rn() * 2)];
+    grp.add(mk(f, asp, w));
+    grp.position.set(r.sx + rt[0] * side * off, (r.oy || 0) + (island ? 2200 : 1400) + rn() * 3200, r.sz + rt[2] * side * off); grp.userData.sp = 0.1 + rn() * 0.2; grp.userData.bob = island; scene.add(grp); scenicClouds.push(grp);
   }
 }
 let skyWarm = 4; // the first frames draw the mountains and clouds even in space levels, so their shaders and buffers are uploaded at load, not at the sky portal mid-run
@@ -789,7 +787,8 @@ function updateSky(dt, now) {
   if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); }
   else if (T) { const d = T.dome || [T.bg, T.bg, T.bg]; skyU.top.value.lerp(_tc.set(d[0]), k); skyU.mid.value.lerp(_tc.set(d[1]), k); skyU.bot.value.lerp(_tc.set(d[2]), k); }
   mountains.visible = show; mountains.position.set(camera.position.x, camera.position.y - 3800, camera.position.z);
-  for (const g of scenicClouds) { g.visible = show; if (show) g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; }
+  if (show) for (const m of mtnLayers) m.material.color.setRGB(1, 1, 1).lerp(dayNow.mid, m.userData.tint);
+  for (const g of scenicClouds) { g.visible = show; if (show) { g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; if (g.userData.bob) g.position.y += Math.sin(now / 1500 + g.userData.sp * 20) * dt * 40; } }
 }
 { // vignette + paper grain over the canvas (plain alpha layers: cheap, no blend modes)
   const c = document.createElement('canvas'); c.width = c.height = 160; const x = c.getContext('2d'), d = x.createImageData(160, 160);
