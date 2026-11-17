@@ -929,28 +929,30 @@ const snail = new THREE.Group(), snailInner = new THREE.Group(), eyes = new THRE
 let eyeA = 0, eyeV = 0; // stalk sweep-back angle spring (overshoots on launch and landing)
 snail.add(snailInner); scene.add(snail);
 function addInk(mesh) { mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), ink)); return mesh; }
-function buildSnail(snailInner, eyes, eyeParts, shellColor, shellMap) {
-  const sh = new THREE.Shape();
-  sh.moveTo(-30, 0); sh.lineTo(24, 0); sh.quadraticCurveTo(32, 0, 32, 10);
-  sh.quadraticCurveTo(32, 28, 24, 30); sh.quadraticCurveTo(16, 30, 16, 20);
-  sh.lineTo(16, 11); sh.lineTo(-18, 9); sh.quadraticCurveTo(-30, 6, -30, 0);
-  const g = new THREE.ExtrudeGeometry(sh, { depth: 16, bevelEnabled: false, curveSegments: 6 });
-  g.rotateY(Math.PI / 2); g.translate(-8, 0, 0);
-  snailInner.add(addInk(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: bodyTex, flatShading: true }))));
-  const sg = new THREE.CylinderGeometry(19, 19, 8, 20); sg.rotateZ(Math.PI / 2);
-  const side = new THREE.MeshLambertMaterial({ color: shellColor, flatShading: true }), face = new THREE.MeshLambertMaterial({ map: shellMap });
-  const shell = addInk(new THREE.Mesh(sg, [side, face, face])); shell.position.set(0, 27, 6); snailInner.add(shell);
-  const white = new THREE.MeshLambertMaterial({ color: 0xffffff }), black = new THREE.MeshBasicMaterial({ color: 0x2b1d17 });
-  const stalkM = new THREE.MeshLambertMaterial({ color: 0xf2c879 }), pink = new THREE.MeshBasicMaterial({ color: 0xff9aa8 });
-  eyes.position.set(0, 28, -24); snailInner.add(eyes); // pivot: eyes blow back with speed
+function buildSnail(snailInner, eyes, eyeParts, shellColor, shellMap) { // round and chubby: squashed-sphere body, big head, a ball shell with cream spiral rings, ink hulls
+  const T = c => new THREE.MeshToonMaterial({ color: c, gradientMap: TOON });
+  const hullM = new THREE.MeshBasicMaterial({ color: 0x5a3b2e, side: THREE.BackSide });
+  const part = (geo, mat, x, y, z, sx, sy, sz, hull) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); snailInner.add(m); if (hull) { const h = new THREE.Mesh(geo, hullM); h.position.copy(m.position); h.scale.set(sx * hull, sy * hull, sz * hull); snailInner.add(h); } return m; };
+  const bodyM = T(0xffe3a3), ringM = T(0xfff0d8);
+  part(new THREE.SphereGeometry(15, 20, 14), bodyM, 0, 8.5, 2, 1, 0.52, 1.85, 1.08);     // foot / body
+  part(new THREE.SphereGeometry(11, 18, 14), bodyM, 0, 15, -23, 1, 1, 1.05, 1.1);         // big round head
+  const shell = new THREE.Group(); shell.position.set(0, 30, 6); snailInner.add(shell);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(18, 22, 16), T(shellColor)); shell.add(ball);
+  const hull = new THREE.Mesh(new THREE.SphereGeometry(18, 22, 16), hullM); hull.scale.setScalar(1.07); shell.add(hull);
+  for (const sx of [-1, 1]) for (const [R, t, x] of [[11.5, 1.9, 15.2], [6, 1.5, 17.4]]) { // spiral rings on both flanks
+    const r = new THREE.Mesh(new THREE.TorusGeometry(R, t, 8, 26), ringM); r.rotation.y = Math.PI / 2; r.position.x = sx * x; shell.add(r);
+  }
+  const white = new THREE.MeshBasicMaterial({ color: 0xffffff }), black = new THREE.MeshBasicMaterial({ color: 0x2b1d17 });
+  const stalkM = T(0xf2c879), pink = new THREE.MeshBasicMaterial({ color: 0xff9aa8 });
+  eyes.position.set(0, 24, -24); snailInner.add(eyes); // pivot: eyes blow back with speed
   for (const sx of [-1, 1]) {
     const pivot = new THREE.Group(); pivot.position.set(sx * 4.5, 0, 0); eyes.add(pivot); // stalk base; rotates back and stretches with speed
-    const st = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 16, 6), stalkM); st.position.y = 8; pivot.add(st);
-    const eye = addInk(new THREE.Mesh(new THREE.SphereGeometry(4.2, 10, 8), white)); eye.position.set(sx * 2, 16, 0); pivot.add(eye);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), black); pupil.position.set(sx * 2, 16, -3.6); pivot.add(pupil);
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.9, 16, 8), stalkM); st.position.y = 8; pivot.add(st);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(5, 12, 10), white); eye.position.set(sx * 2, 16, 0); pivot.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(2.4, 8, 6), black); pupil.position.set(sx * 2, 16, -4.3); pivot.add(pupil);
     eyeParts.push({ sx, pivot, st, eye, pupil });
-    const blush = new THREE.Mesh(new THREE.CircleGeometry(2.6, 10), pink);
-    blush.position.set(sx * 8.2, 18, -26); blush.rotation.y = sx * Math.PI / 2; snailInner.add(blush);
+    const blush = new THREE.Mesh(new THREE.CircleGeometry(2.8, 12), pink);
+    blush.position.set(sx * 10.6, 13, -27); blush.rotation.y = sx * Math.PI / 2; snailInner.add(blush);
   }
 }
 buildSnail(snailInner, eyes, eyeParts, 0xe8735a, shellTex);
