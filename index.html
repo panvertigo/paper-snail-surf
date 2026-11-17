@@ -264,7 +264,7 @@ const STAGES = {};
       { L: 4500, W: 700 },
       { L: 6000, W: 900, gap: 900, drop: 2300 },
       { L: 3000, W: 700 },                           // launch into the loop
-      { loop: { R: 1000, phi: 0.45 }, gap: 600, rings: [{ d: 300, y: 380, kind: 'boost', min: 2500, R: 420 }] },    // LOOP-THE-LOOP (needs ~2050 u/s entering)
+      { loop: { R: 1000, phi: 0.45 }, gap: 600, rings: [{ d: 300, y: 380, kind: 'boost', min: 2500, R: 700 }] },    // LOOP-THE-LOOP (needs ~2050 u/s entering)
       { L: 6000, W: 900, gap: 800 },                 // long landing ramp: the loop's exit launch flies far
       { turn: 80, R: 6500, zig: true, W: 700 },
       { L: 4200, C: 1100 },                          // climb into checkpoint 2
@@ -275,7 +275,7 @@ const STAGES = {};
       { turn: 50, R: 6500 },
       { L: 6500, W: 900, gap: 900, drop: 2800, rings: [{ d: 400, y: 380, kind: 'hoop' }] },
       { L: 3000, W: 700 },                           // launch into the swirl
-      { loop: { R: 1200, phi: 0.45, bank: 65, turns: 2 }, gap: 600, rings: [{ d: 300, y: 380, kind: 'boost', min: 2000, R: 420 }] }, // SWIRL: two banked turns (forgiving: ~1500 u/s)
+      { loop: { R: 1200, phi: 0.45, bank: 65, turns: 2 }, gap: 600, rings: [{ d: 300, y: 380, kind: 'boost', min: 2000, R: 700 }] }, // SWIRL: two banked turns (forgiving: ~1500 u/s)
       { L: 6000, W: 900, gap: 800 },
       { turn: 70, R: 7000, zig: true, W: 700 },
       { L: 4500, C: 1000 },                          // climb into checkpoint 3
@@ -330,6 +330,10 @@ function buildCourse(S, meta) {
     }
   });
   const last = ramps[ramps.length - 1];
+  if ((stageMeta.laps || 1) > 1) { // lap lift: a huge ring in the leap to the pad; flying through it (or landing on the pad) starts the next lap
+    const dir = dirOf(last.h1);
+    rings.push({ x: last.ex + dir[0] * 520, y: last.ey - 330, z: last.ez + dir[2] * 520, nx: dir[0], ny: 0, nz: dir[2], R: 900, kind: 'lift', boost: 0, min: 0, theme: 0, ramp: ramps.length, hit: false });
+  }
   fin = { x: last.ex, z: last.ez, h: last.h1, dir: dirOf(last.h1), right: rightOf(last.h1),
           y: last.ey - FIN_DROP, u0: FIN_GAP, u1: FIN_GAP + 5000, half: 1300 };
 }
@@ -412,6 +416,7 @@ function step() {
     if (s0 < 0 && s1 >= 0) {
       const t = s0 / (s0 - s1), dd = dhypot(ox + (pos.x - ox) * t - g.x, oy + (pos.y - oy) * t - g.y, oz + (pos.z - oz) * t - g.z);
       if (dd <= g.R) {
+        if (g.kind === 'lift') { if (lap + 1 < (stageMeta.laps || 1)) { lapLift(); return; } continue; } // the lift ring: carries you back to the top mid-flight
         g.hit = true;
         if (g.kind === 'hoop') { const sp = dhypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
         if (g.kind === 'boost') { const sp = dhypot(vel.x, vel.y, vel.z) || 1; if (sp < g.min) { const f = g.min / sp; vel.x *= f; vel.y *= f; vel.z *= f; } } // booster: lifts you to a minimum speed, never slows you
@@ -473,7 +478,7 @@ document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a2240);
 scene.fog = new THREE.Fog(0x1a2240, 6000, 70000); // light haze: whole course (~58k diagonal) stays visible for scale
-const camera = new THREE.PerspectiveCamera(70, 1, 10, 90000);
+const camera = new THREE.PerspectiveCamera(70, 1, 120, 90000);
 const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x302040, 0.75); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.75);
 sun.position.set(1, 1.4, 0.4); scene.add(sun);
@@ -626,7 +631,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
   }
   // ---------- Rings: hoops (speed boost when centred) and portals (scene change) ----------
   ringObjs = rings.map(g => {
-    const portal = g.kind === 'portal', base = portal ? 0xb18cff : 0xffd24a, grp = new THREE.Group();
+    const portal = g.kind === 'portal' || g.kind === 'lift', base = g.kind === 'lift' ? 0xff7ad9 : portal ? 0xb18cff : 0xffd24a, grp = new THREE.Group();
     const torus = new THREE.Mesh(new THREE.TorusGeometry(g.R, g.R * (portal ? 0.08 : 0.1), 14, 64), new THREE.MeshBasicMaterial({ color: base, fog: false }));
     const disc = new THREE.Mesh(new THREE.CircleGeometry(g.R, 48), new THREE.MeshBasicMaterial({ color: portal ? 0xe5d4ff : 0xffe9a0, transparent: true, opacity: portal ? 0.4 : 0.12,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
@@ -642,6 +647,7 @@ function updateRings(dt, now) {
     o.torus.material.color.setHex(g.hit ? 0x7be495 : o.base);
     o.disc.material.opacity = g.hit ? 0.3 * o.fx : (o.portal ? 0.4 : 0.12) + 0.08 * Math.sin(now / 200 + i);
     o.grp.visible = !(g.hit && o.portal) || o.fx > 0.01;
+    if (g.kind === 'lift') o.grp.visible = lap + 1 < (stageMeta.laps || 1);
   }
 }
 
@@ -734,23 +740,23 @@ function updateSnail(dt, now, speed) {
   tmpM.makeBasis(tmpR, sUp, tmpB); snail.quaternion.setFromRotationMatrix(tmpM);
   snail.position.set(rp.x - sUp.x * P.r, rp.y - sUp.y * P.r, rp.z - sUp.z * P.r);
   // Squash & stretch: two damped springs. Landing kicks a vertical squash, launch kicks a forward stretch; both overshoot and wobble.
-  if (squash > lastSquash + 0.005) { sqYv -= squash * 16; Sfx.landing(squash / 0.22); }            // touchdown (physics sets squash from impact speed)
+  if (squash > lastSquash + 0.005) { sqYv -= squash * 40; Sfx.landing(squash / 0.22); }            // touchdown (physics sets squash from impact speed)
   lastSquash = squash; squash *= Math.exp(-dt * 9);
   const touching = !!contactN;
-  if (wasTouching && !touching && state === 'run') { stZv += 1.6 + Math.min(1.6, speed / 1500); Sfx.launch(speed); } // launch
+  if (wasTouching && !touching && state === 'run') { stZv += 3.4 + Math.min(3.2, speed / 800); Sfx.launch(speed); } // launch
   wasTouching = touching;
   for (let t = dt; t > 0; t -= 1 / 120) { const h = Math.min(t, 1 / 120);
     sqYv += (-SPR_K * sqY - SPR_C * sqYv) * h; sqY += sqYv * h;
     stZv += (-SPR_K * stZ - SPR_C * stZv) * h; stZ += stZv * h; }
-  sqY = Math.max(-0.45, Math.min(0.4, sqY)); stZ = Math.max(-0.3, Math.min(0.45, stZ));
+  sqY = Math.max(-0.75, Math.min(0.7, sqY)); stZ = Math.max(-0.5, Math.min(0.9, stZ));
   const sp = Math.min(1, speed / 3000);
   const wob = contactN && state === 'run' ? 0.03 * Math.sin(now / 70) : 0;
-  snailInner.scale.set(1 - sqY * 0.6 - stZ * 0.35, 1 + sqY - stZ * 0.35 - wob, 1 - sqY * 0.6 + stZ + wob + sp * 0.18); // stretches with speed
+  snailInner.scale.set(1 - sqY * 0.6 - stZ * 0.35, 1 + sqY - stZ * 0.35 - wob, 1 - sqY * 0.6 + stZ + wob + sp * 0.3); // stretches with speed
   { // eye stalks: swept back by speed, stretching comedically long near top speed, with a springy whip on launch and landing
-    const sp2 = sp * Math.min(1, fxAmt), tgt = 0.9 * Math.pow(sp2, 0.8), L = 1 + 3.6 * Math.pow(sp2, 2.5);
+    const sp2 = sp * Math.min(1, fxAmt), tgt = 1.5 * Math.pow(sp2, 0.9), L = 1 + 4.5 * Math.pow(sp2, 2.2); // up to ~86 deg: stalks streaming back almost at the camera
     for (let t = dt; t > 0; t -= 1 / 120) { const h = Math.min(t, 1 / 120); eyeV += (-120 * (eyeA - tgt) - 7 * eyeV) * h; eyeA += eyeV * h; }
-    if (squash > lastSquashEye + 0.005) eyeV -= 6 * squash * 4; lastSquashEye = squash; // landing flicks the stalks forward
-    const flutter = Math.sin(now / 45) * 0.07 * sp2;
+    if (squash > lastSquashEye + 0.005) eyeV -= 6 * squash * 7; lastSquashEye = squash; // landing flicks the stalks forward
+    const flutter = Math.sin(now / 45) * 0.12 * sp2;
     for (const e of eyeParts) {
       e.pivot.rotation.set(Math.max(-0.4, eyeA + flutter), 0, -e.sx * (0.25 + 0.35 * sp2));
       e.st.scale.y = L; e.st.position.y = 8 * L; e.eye.position.y = e.pupil.position.y = 16 * L;
@@ -838,7 +844,7 @@ function setQuad(q, i, p, d, len, hw, tailK, r, g, b, al) {
   q.pos[o + 9] = p.x - qRt.x * hw; q.pos[o + 10] = p.y - qRt.y * hw; q.pos[o + 11] = p.z - qRt.z * hw;
   for (let k = 0; k < 4; k++) { const c = i * 16 + k * 4; q.col[c] = r; q.col[c + 1] = g; q.col[c + 2] = b; q.col[c + 3] = al; }
 }
-const NST = 56, NCL = 26, stPts = [], clPts = [];
+const NST = 16, NCL = 64, stPts = [], clPts = [];
 const wind = softQuads(NST, RIBBON_FS, THREE.AdditiveBlending, 3400);
 const clouds = softQuads(NCL, CLOUD_FS, THREE.NormalBlending, 9500);
 const sideV = new THREE.Vector3();
@@ -861,7 +867,7 @@ function updateStreaks(speed) {
       if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 3600 * 3600) p = stPts[i] = spawnAround(vTmp, 380, 1100, 300, 2800);
       qTc.set(p.x - camera.position.x, p.y - camera.position.y, p.z - camera.position.z).normalize();
       const side = Math.sqrt(Math.max(0, 1 - Math.pow(qTc.dot(vTmp), 2))), vis = Math.max(0, Math.min(1, (side - 0.2) / 0.35)); // end-on ribbons foreshorten into spikes: fade them out
-      setQuad(wind, i, p, vTmp, len * (0.55 + 0.9 * p.s1), hw0 * (0.7 + 0.6 * p.s2), 0.6, 0.85 - 0.25 * tint, 0.95 - 0.05 * tint, 1, 0.42 * fl * vis);
+      setQuad(wind, i, p, vTmp, len * (0.55 + 0.9 * p.s1), hw0 * (0.7 + 0.6 * p.s2), 0.6, 0.85 - 0.25 * tint, 0.95 - 0.05 * tint, 1, 0.3 * fl * vis);
     }
     wind.geo.attributes.position.needsUpdate = wind.geo.attributes.col.needsUpdate = true;
   }
@@ -871,9 +877,9 @@ function updateStreaks(speed) {
     const stretch = 1 + Math.min(2.5, speed / 1200);
     for (let i = 0; i < NCL; i++) {
       let p = clPts[i];
-      if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 9500 * 9500) p = clPts[i] = spawnAround(vTmp, 1100, 4200, 2500, 9000);
+      if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 9500 * 9500) p = clPts[i] = spawnAround(vTmp, 800, 4200, 1500, 9000);
       const size = 500 + 900 * p.s1;
-      setQuad(clouds, i, p, vTmp, size * stretch * 0.5, size * 0.5, 1, 0.86, 0.9, 1, 0.16 * cl * (0.6 + 0.4 * p.s2));
+      setQuad(clouds, i, p, vTmp, size * stretch * 0.5, size * 0.5, 1, 0.86, 0.9, 1, 0.2 * cl * (0.6 + 0.4 * p.s2));
       // centre the wisp on the point: shift back by half its length
       const o = i * 12, h = size * stretch * 0.25;
       for (let k = 0; k < 4; k++) { clouds.pos[o + k * 3] -= vTmp.x * h; clouds.pos[o + k * 3 + 1] -= vTmp.y * h; clouds.pos[o + k * 3 + 2] -= vTmp.z * h; }
@@ -996,7 +1002,7 @@ const blurMat = new THREE.ShaderMaterial({
     void main(){
       vec2 d = vUv - 0.5; float r = length(d * vec2(1.0, 0.75));
       float e = smoothstep(0.22, 0.75, r) * strength;                       // 0 in the middle, 1 at the edges
-      vec2 w = vec2(sin(vUv.y * 34.0 + time * 8.0), cos(vUv.x * 29.0 + time * 6.5)) * 0.0042 * e; // heat shimmer
+      vec2 w = vec2(sin(vUv.y * 34.0 + time * 8.0), cos(vUv.x * 29.0 + time * 6.5)) * 0.0016 * e; // heat shimmer
       vec2 dir = d / (length(d) + 1e-4), uv = vUv + w;
       float ca = 0.013 * e;                                                  // chromatic fringe, radial
       vec3 c = vec3(texture2D(tDiffuse, uv + dir * ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - dir * ca).b);
