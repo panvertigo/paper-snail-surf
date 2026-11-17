@@ -616,6 +616,31 @@ function gridTex(bg, line) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
   return t;
 }
+// ---------- Paper-and-cotton look (prototype, Level 3; ?paper=0 turns it off, ?paper=1 forces it on any level): ramps are paper with fibres, clouds are cotton ----------
+const PAPER = /paper=1/.test(location.search) || (LEVEL === 3 && !/paper=0/.test(location.search));
+function paperSheetTex() {
+  const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'); let sd = 12345; const rnd = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296; // seeded: same sheet every load
+  x.fillStyle = '#f7f2e8'; x.fillRect(0, 0, N, N);
+  for (let i = 0; i < 9000; i++) { const px = rnd() * N, py = rnd() * N, d = rnd() < 0.5; x.fillStyle = d ? 'rgba(110,90,70,0.05)' : 'rgba(255,255,255,0.5)'; x.fillRect(px, py, 1 + rnd() * 1.5, 1 + rnd() * 1.5); } // tooth
+  for (let i = 0; i < 46; i++) { // mottling: big soft blotches so the sheet reads as handmade even from far away
+    const px = rnd() * N, py = rnd() * N, r = 50 + rnd() * 110, dk = rnd() < 0.55;
+    for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { const g = x.createRadialGradient(px + ox, py + oy, 0, px + ox, py + oy, r); g.addColorStop(0, dk ? 'rgba(120,95,70,0.11)' : 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(px + ox - r, py + oy - r, 2 * r, 2 * r); }
+  }
+  for (let i = 0; i < 5; i++) { // faint creases: long soft folds
+    const px = rnd() * N, py = rnd() * N, a = rnd() * 3.14, l = 160 + rnd() * 200; x.lineWidth = 1.4; x.strokeStyle = 'rgba(95,80,65,0.16)';
+    for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { x.beginPath(); x.moveTo(px + ox, py + oy); x.lineTo(px + ox + Math.cos(a) * l, py + oy + Math.sin(a) * l); x.stroke(); }
+    x.lineWidth = 1.4; x.strokeStyle = 'rgba(255,255,255,0.5)'; for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { x.beginPath(); x.moveTo(px + ox + 2, py + oy + 2); x.lineTo(px + ox + 2 + Math.cos(a) * l, py + oy + 2 + Math.sin(a) * l); x.stroke(); }
+  }
+  for (let i = 0; i < 1100; i++) { // fibres: short curved hairs, wrapped so the tile repeats seamlessly
+    const px = rnd() * N, py = rnd() * N, a = rnd() * 6.283, l = 14 + rnd() * 70, bend = (rnd() - 0.5) * 1.6, dark = rnd() < 0.6;
+    x.strokeStyle = dark ? 'rgba(125,100,75,' + (0.12 + rnd() * 0.2) + ')' : 'rgba(255,255,255,' + (0.35 + rnd() * 0.3) + ')'; x.lineWidth = 0.9 + rnd() * 1.3;
+    for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { x.beginPath(); x.moveTo(px + ox, py + oy); x.quadraticCurveTo(px + ox + Math.cos(a + bend) * l * 0.6, py + oy + Math.sin(a + bend) * l * 0.6, px + ox + Math.cos(a) * l, py + oy + Math.sin(a) * l); x.stroke(); }
+  }
+  x.strokeStyle = 'rgba(80,90,135,0.7)'; x.lineWidth = 3.2; x.lineJoin = 'round'; // hand-ruled pencil frame: the wobble is zero at the tile edge so it joins up
+  const line = (x0, y0, x1, y1) => { x.beginPath(); x.moveTo(x0, y0); for (let k = 1; k <= 16; k++) { const f = k / 16, w = k === 16 ? 0 : (rnd() - 0.5) * 1.8; x.lineTo(x0 + (x1 - x0) * f + (y1 === y0 ? 0 : w), y0 + (y1 - y0) * f + (y1 === y0 ? w : 0)); } x.stroke(); };
+  line(1, 1, N - 1, 1); line(1, 1, 1, N - 1); x.lineWidth = 1.2; x.strokeStyle = 'rgba(90,100,140,0.28)'; line(N / 2, 0, N / 2, N); line(0, N / 2, N, N / 2);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
+}
 // ---------- Level 3 scenery: themes (switched by portals), moon mesa, Earth, stars ----------
 const THEMES = [
   { bg: 0x03040b, fog: 0x03040b, sky: 0x9fb0e0, gnd: 0x161a2c, stars: 1 },     // 0 moon
@@ -712,7 +737,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.computeVertexNormals();
-    addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
+    addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: PAPER ? paperSheetTex() : gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
     const cg = new THREE.BufferGeometry();
     cg.setAttribute('position', new THREE.Float32BufferAttribute(cpos, 3));
     cg.setAttribute('color', new THREE.Float32BufferAttribute(ccol, 3));
@@ -1038,6 +1063,20 @@ const RIBBON_FS = 'varying vec4 vC; varying vec2 vUv; void main(){' +
 const CLOUD_FS = 'varying vec4 vC; varying vec2 vUv; void main(){' +
   ' float r = length(vUv * 2.0 - 1.0); float a = 1.0 - smoothstep(0.0, 1.0, r); a *= a;' +
   ' gl_FragColor = vec4(vC.rgb, vC.a * a); }';
+// cotton: a clump of lobes with a fibrous, noisy edge; lit from above-left so each puff has a soft shadowed belly
+const COTTON_FS = 'varying vec4 vC; varying vec2 vUv;' +
+  ' float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }' +
+  ' float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y); }' +
+  ' float fbm(vec2 p){ return vn(p) * 0.5 + vn(p * 2.1 + 7.0) * 0.3 + vn(p * 4.3 + 3.0) * 0.2; }' +
+  ' void main(){ vec2 q = vUv * 2.0 - 1.0; float d = 0.0; vec2 c1 = vec2(0.0, 0.0);' +
+  '  d = max(d, 1.0 - length((q - vec2(0.0, -0.05)) * vec2(1.0, 0.8)) / 0.75);' +
+  '  d = max(d, 1.0 - length((q - vec2(-0.35, 0.3)) * vec2(1.0, 1.0)) / 0.5);' +
+  '  d = max(d, 1.0 - length((q - vec2(0.35, 0.25)) * vec2(1.0, 1.0)) / 0.45);' +
+  '  d = max(d, 1.0 - length((q - vec2(0.05, 0.55)) * vec2(1.0, 1.0)) / 0.4);' +
+  '  float n = fbm(q * 3.5 + vC.r * 9.0); float a = smoothstep(0.02, 0.22, d + (n - 0.5) * 0.42);' +
+  '  float lit = clamp(0.8 + 0.45 * (q.y * 0.6 - q.x * 0.25) + (n - 0.5) * 0.35, 0.0, 1.0);' +
+  '  vec3 col = mix(vec3(0.76, 0.8, 0.95), vec3(1.0, 0.99, 0.96), lit);' +
+  '  gl_FragColor = vec4(col, vC.a * a); }';
 function softQuads(n, fs, blending, far) {
   const pos = new Float32Array(n * 12), col = new Float32Array(n * 16), uv = new Float32Array(n * 8), idx = [];
   for (let i = 0; i < n; i++) {
@@ -1066,9 +1105,17 @@ function setQuad(q, i, p, d, len, hw, tailK, r, g, b, al) {
   q.pos[o + 9] = p.x - qRt.x * hw; q.pos[o + 10] = p.y - qRt.y * hw; q.pos[o + 11] = p.z - qRt.z * hw;
   for (let k = 0; k < 4; k++) { const c = i * 16 + k * 4; q.col[c] = r; q.col[c + 1] = g; q.col[c + 2] = b; q.col[c + 3] = al; }
 }
+// cotton puffs are plain camera-facing billboards (the streak quads above are built along the velocity, which squashes a puff into a feather)
+const _cr = new THREE.Vector3(), _cu = new THREE.Vector3();
+function setPuff(q, i, p, size, seed, al) {
+  camera.matrixWorld.extractBasis(_cr, _cu, qTc); const o = i * 12, hw = size * 0.5, hh = size * 0.36;
+  const c = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  for (let k = 0; k < 4; k++) { q.pos[o + k * 3] = p.x + _cr.x * hw * c[k][0] + _cu.x * hh * c[k][1]; q.pos[o + k * 3 + 1] = p.y + _cr.y * hw * c[k][0] + _cu.y * hh * c[k][1]; q.pos[o + k * 3 + 2] = p.z + _cr.z * hw * c[k][0] + _cu.z * hh * c[k][1];
+    const cc = i * 16 + k * 4; q.col[cc] = seed; q.col[cc + 1] = 1; q.col[cc + 2] = 1; q.col[cc + 3] = al; }
+}
 const NST = 16, NCL = 64, stPts = [], clPts = [];
 const wind = softQuads(NST, RIBBON_FS, THREE.AdditiveBlending, 3400);
-const clouds = softQuads(NCL, CLOUD_FS, THREE.NormalBlending, 9500);
+const clouds = softQuads(NCL, PAPER ? COTTON_FS : CLOUD_FS, THREE.NormalBlending, 9500);
 const sideV = new THREE.Vector3();
 function spawnAround(dir, offMin, offMax, aheadMin, aheadMax) { // random point ahead of the snail, offset sideways from its path
   sideV.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); sideV.addScaledVector(dir, -sideV.dot(dir)).normalize();
@@ -1099,7 +1146,8 @@ function updateStreaks(speed) {
     const stretch = 1 + Math.min(2.5, speed / 1200);
     for (let i = 0; i < NCL; i++) {
       let p = clPts[i];
-      if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 9500 * 9500) p = clPts[i] = spawnAround(vTmp, 800, 4200, 1500, 9000);
+      if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 9500 * 9500) p = clPts[i] = spawnAround(vTmp, PAPER ? 1500 : 800, 4800, 1500, 9000);
+      if (PAPER) { setPuff(clouds, i, p, 700 + 1100 * p.s1, p.s2, 0.5 * cl); continue; } // cotton
       const size = 500 + 900 * p.s1;
       setQuad(clouds, i, p, vTmp, size * stretch * 0.5, size * 0.5, 1, 0.86, 0.9, 1, 0.2 * cl * (0.6 + 0.4 * p.s2));
       // centre the wisp on the point: shift back by half its length
