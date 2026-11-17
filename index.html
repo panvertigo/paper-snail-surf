@@ -164,7 +164,7 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
 }
 const ramps = [], checkpoints = [], rings = [];
 let fin, stageMeta = {};
-const STAGE_META = { 1: { pull: 0.3 }, 3: { scenery: 'descent', music: 'descent', pull: 0.3 } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
+const STAGE_META = { 1: { pull: 0.3, fall: 0.5 }, 3: { scenery: 'descent', music: 'descent', pull: 0.3, fall: 0.1 } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
 const STAGES = {};
 {
   // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
@@ -249,7 +249,7 @@ const STAGES = {};
       { turn: 160, R: 4600 },                      // final sweep
       { L: 2000 },                                 // launch ramp
     ],
-    4: { name: 'Bowl', park: { hoops: [
+    4: { name: 'Bowl', fall: 0.3, park: { hoops: [
         { a: 0, r: 4300, dir: 1 }, { a: 90, r: 4300, dir: 1 }, { a: 180, r: 4300, dir: 1 }, { a: 270, r: 4300, dir: 1 },
         { a: 45, r: 3700, dir: -1, y: 200 }, { a: 135, r: 3700, dir: -1, y: 200 }, { a: 225, r: 3700, dir: -1, y: 200 }, { a: 315, r: 3700, dir: -1, y: 200 } ] },
       // LEVEL 4 BOWL: a free-form skate park. Drop in from the deck, then do what you like: carve the wall, ride the rollers, fly off the lip. Hoops re-arm.
@@ -469,6 +469,7 @@ function aboveRampAhead() {
 function step() {
   yaw += cmd.turn; cmd.turn = 0; touchStrafe = cmd.touch; keyStrafe = cmd.key;
   vel.y -= P.g * P.dt;
+  if (stageMeta.fall > 0 && !contactN && vel.y < 0 && vel.y > -3000) vel.y -= P.g * stageMeta.fall * P.dt; // build speed as you fall: extra pull while dropping through the air
   if (stageMeta.park && parkTicks > 0) parkCarve();
   if (!stageMeta.park && contactN && !contactTube && stageMeta.pull > 0) { // build speed as you fall: sliding down a ramp face gets extra pull along the surface (never when climbing)
     const n = contactN, gy = -P.g, gn = gy * n[1], gtx = -n[0] * gn, gty = gy - n[1] * gn, gtz = -n[2] * gn;
