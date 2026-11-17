@@ -1029,26 +1029,58 @@ const trailMesh = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ vertexC
 trailMesh.frustumCulled = false; scene.add(trailMesh);
 const vTmp = new THREE.Vector3(), lat = new THREE.Vector3();
 const _fc = new THREE.Color();
+let trJ = 1, trGap = 0;
 function updateTrail(speed) {
   const cx = snail.position.x + sUp.x * 1.5, cy = snail.position.y + sUp.y * 1.5, cz = snail.position.z + sUp.z * 1.5;
   const l = trail[0];
   if (state === 'run' && (!l || (cx - l.x) ** 2 + (cy - l.y) ** 2 + (cz - l.z) ** 2 > 400)) {
     vTmp.set(vel.x, vel.y, vel.z); lat.crossVectors(vTmp, sUp); if (lat.lengthSq() < 1e-6) lat.set(1, 0, 0); lat.normalize();
     const on = !!contactN, w = on ? 9 + Math.min(8, speed / 300) : 3;
-    trail.unshift({ x: cx, y: cy, z: cz, lx: lat.x * w, ly: lat.y * w, lz: lat.z * w, b: on ? 1 : 0.45 });
+    trJ = trJ * 0.6 + (0.35 + Math.random() * 0.95) * 0.4; // slime is never an even line: width wanders, drifts sideways a little, and breaks into beads now and then
+    if (trGap > 0) trGap--; else if (Math.random() < 0.05) trGap = 2 + (Math.random() * 4 | 0);
+    trail.unshift({ x: cx, y: cy, z: cz, lx: lat.x * w, ly: lat.y * w, lz: lat.z * w, b: on ? 1 : 0.45, j: trGap > 0 ? trJ * 0.18 : trJ, off: (Math.random() - 0.5) * 0.9, a: trGap > 0 ? 0.5 : 0.75 + Math.random() * 0.25 });
     if (trail.length > TRAIL_N) trail.pop();
   }
   const n = trail.length;
   for (let i = 0; i < n; i++) {
-    const s = trail[i], w = 1 - i / TRAIL_N, o = i * 6; // slime ribbon tapers with age
-    trailPos[o] = s.x - s.lx * w; trailPos[o + 1] = s.y - s.ly * w; trailPos[o + 2] = s.z - s.lz * w;
-    trailPos[o + 3] = s.x + s.lx * w; trailPos[o + 4] = s.y + s.ly * w; trailPos[o + 5] = s.z + s.lz * w;
-    let f = 0.55 + 0.45 * s.b, r = 0.3 * f, g = 0.95 * f, b = 0.6 * f; // slime green
+    const s = trail[i], w = (1 - i / TRAIL_N) * s.j, o = i * 6, cxo = s.x + s.lx * s.off, cyo = s.y + s.ly * s.off, czo = s.z + s.lz * s.off; // slime ribbon tapers with age
+    trailPos[o] = cxo - s.lx * w; trailPos[o + 1] = cyo - s.ly * w; trailPos[o + 2] = czo - s.lz * w;
+    trailPos[o + 3] = cxo + s.lx * w; trailPos[o + 4] = cyo + s.ly * w; trailPos[o + 5] = czo + s.lz * w;
+    let f = (0.55 + 0.45 * s.b) * s.a, r = 0.3 * f, g = 0.95 * f, b = 0.6 * f; // slime green
     if (flow.on) { _fc.setHSL(((i * 6 + performance.now() / 8) % 360) / 360, 0.85, 0.6); r = _fc.r * f; g = _fc.g * f; b = _fc.b * f; } // in flow: rainbow
     trailCol[o] = trailCol[o + 3] = r; trailCol[o + 1] = trailCol[o + 4] = g; trailCol[o + 2] = trailCol[o + 5] = b;
   }
   trailGeo.setDrawRange(0, Math.max(0, n - 1) * 6);
   trailGeo.attributes.position.needsUpdate = trailGeo.attributes.color.needsUpdate = true;
+}
+// Slime droplets: glinting beads thrown off behind you. More of them the faster you go; they arc, twinkle and fade (rainbow in flow). Cosmetic only.
+const ND = 160, dPos = new Float32Array(ND * 3), dCol = new Float32Array(ND * 3), dVel = new Float32Array(ND * 3), dLife = new Float32Array(ND), dMax = new Float32Array(ND), dHue = new Float32Array(ND);
+const dGeo = new THREE.BufferGeometry(); dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3)); dGeo.setAttribute('color', new THREE.BufferAttribute(dCol, 3));
+const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, '#fff'); g.addColorStop(0.35, 'rgba(255,255,255,0.8)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const dMesh = new THREE.Points(dGeo, new THREE.PointsMaterial({ size: 26, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: false }));
+dMesh.frustumCulled = false; scene.add(dMesh); for (let i = 0; i < ND; i++) dPos[i * 3 + 1] = -1e6;
+let dNext = 0, dAcc = 0, dLast = performance.now();
+function updateDrops(speed) {
+  const now = performance.now(), dt = Math.min(0.05, (now - dLast) / 1000); dLast = now;
+  if (state === 'run' && speed > 250) { // spawn: roughly one bead per 60 units travelled, in bursts
+    dAcc += speed * dt / 60 * (0.4 + Math.random() * 1.2) * fxAmt;
+    while (dAcc >= 1) {
+      dAcc -= 1; const i = dNext = (dNext + 1) % ND, big = Math.random() < 0.15;
+      dPos[i * 3] = snail.position.x + (Math.random() - 0.5) * 30; dPos[i * 3 + 1] = snail.position.y + 6 + Math.random() * 14; dPos[i * 3 + 2] = snail.position.z + (Math.random() - 0.5) * 30;
+      dVel[i * 3] = vel.x * 0.05 + (Math.random() - 0.5) * 260; dVel[i * 3 + 1] = 60 + Math.random() * 380 + (big ? 200 : 0); dVel[i * 3 + 2] = vel.z * 0.05 + (Math.random() - 0.5) * 260;
+      dMax[i] = dLife[i] = (big ? 1.1 : 0.45) + Math.random() * 0.7; dHue[i] = Math.random();
+    }
+  }
+  for (let i = 0; i < ND; i++) {
+    const o = i * 3;
+    if (dLife[i] <= 0) { dCol[o] = dCol[o + 1] = dCol[o + 2] = 0; continue; }
+    dLife[i] -= dt; dVel[o + 1] -= 700 * dt;
+    dPos[o] += dVel[o] * dt; dPos[o + 1] += dVel[o + 1] * dt; dPos[o + 2] += dVel[o + 2] * dt;
+    const k = Math.max(0, dLife[i] / dMax[i]), tw = 0.55 + 0.45 * Math.sin(now / 38 + i * 7.3), a = k * tw; // twinkle as they fade
+    if (flow.on) { _fc.setHSL((dHue[i] + now / 700) % 1, 0.85, 0.65); dCol[o] = _fc.r * a; dCol[o + 1] = _fc.g * a; dCol[o + 2] = _fc.b * a; }
+    else { dCol[o] = (0.45 + 0.4 * dHue[i]) * a; dCol[o + 1] = a; dCol[o + 2] = (0.7 + 0.3 * dHue[i]) * a; }
+  }
+  dGeo.attributes.position.needsUpdate = dGeo.attributes.color.needsUpdate = true;
 }
 // Soft wind: camera-facing ribbons (bright head, fading tapered tail, wider and brighter with speed) plus long cloud wisps drifting by.
 // Shaders give the soft edges and fade by distance, so nothing pops in or out. All cosmetic: reads sim state, never writes it.
@@ -1411,7 +1443,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick; camera.updateProjectionMatrix();
-  updateFlow(dt); drawFlow(); updateNpcs(now); updateTrail(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  updateFlow(dt); drawFlow(); updateNpcs(now); updateTrail(speed); updateDrops(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
