@@ -264,7 +264,7 @@ const STAGES = {};
       { L: 4500, W: 700 },
       { L: 6000, W: 900, gap: 900, drop: 2300 },
       { L: 3000, W: 700 },                           // launch into the loop
-      { loop: { R: 1000, phi: 0.45 }, gap: 600 },    // LOOP-THE-LOOP (needs ~2050 u/s entering)
+      { loop: { R: 1000, phi: 0.45 }, gap: 600, rings: [{ d: 300, y: 380, kind: 'boost', min: 2500, R: 420 }] },    // LOOP-THE-LOOP (needs ~2050 u/s entering)
       { L: 6000, W: 900, gap: 800 },                 // long landing ramp: the loop's exit launch flies far
       { turn: 80, R: 6500, zig: true, W: 700 },
       { L: 4200, C: 1100 },                          // climb into checkpoint 2
@@ -275,7 +275,7 @@ const STAGES = {};
       { turn: 50, R: 6500 },
       { L: 6500, W: 900, gap: 900, drop: 2800, rings: [{ d: 400, y: 380, kind: 'hoop' }] },
       { L: 3000, W: 700 },                           // launch into the swirl
-      { loop: { R: 1200, phi: 0.45, bank: 65, turns: 2 }, gap: 600 }, // SWIRL: two banked turns (forgiving: ~1500 u/s)
+      { loop: { R: 1200, phi: 0.45, bank: 65, turns: 2 }, gap: 600, rings: [{ d: 300, y: 380, kind: 'boost', min: 2000, R: 420 }] }, // SWIRL: two banked turns (forgiving: ~1500 u/s)
       { L: 6000, W: 900, gap: 800 },
       { turn: 70, R: 7000, zig: true, W: 700 },
       { L: 4500, C: 1000 },                          // climb into checkpoint 3
@@ -326,7 +326,7 @@ function buildCourse(S, meta) {
       const dir = dirOf(prevEnd.h1), right = rightOf(prevEnd.h1), dip = (q.dip || 0) * Math.PI / 180, c = dcos(dip);
       const lane = q.s ?? prevEnd.side * 0.5 * prevEnd.W; // default lane: where the rider flies, mid-face of the previous ramp
       rings.push({ x: prevEnd.ex + dir[0] * q.d + right[0] * lane, y: prevEnd.ey + (q.y || 0), z: prevEnd.ez + dir[2] * q.d + right[2] * lane,
-        nx: dir[0] * c, ny: -dsin(dip), nz: dir[2] * c, R: q.R || 260, kind: q.kind || 'hoop', boost: q.boost ?? 120, theme: q.theme ?? 0, ramp: i, hit: false });
+        nx: dir[0] * c, ny: -dsin(dip), nz: dir[2] * c, R: q.R || 260, kind: q.kind || 'hoop', boost: q.boost ?? 120, min: q.min || 0, theme: q.theme ?? 0, ramp: i, hit: false });
     }
   });
   const last = ramps[ramps.length - 1];
@@ -409,6 +409,7 @@ function step() {
       if (dd <= g.R) {
         g.hit = true;
         if (g.kind === 'hoop') { const sp = dhypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
+        if (g.kind === 'boost') { const sp = dhypot(vel.x, vel.y, vel.z) || 1; if (sp < g.min) { const f = g.min / sp; vel.x *= f; vel.y *= f; vel.z *= f; } } // booster: lifts you to a minimum speed, never slows you
         onRing(g, dd / g.R);
       }
     }
@@ -445,9 +446,10 @@ function step() {
   }
   // a tube is a closed circle with no friction: too slow to clear it you would roll back and forth in the trough forever, so that counts as a fall
   if (contactN && contactTube && vel.x * vel.x + vel.y * vel.y + vel.z * vel.z < 250 * 250) { if (++stuckTicks > 200) { stuckTicks = 0; fail(); return; } } else stuckTicks = 0;
-  const lr = ramps[lastTouched], nr = ramps[lastTouched + 1]; // next ramp too, so big drops aren't counted as falls
+  const lr = ramps[lastTouched], nr = ramps[lastTouched + 1], n2 = ramps[lastTouched + 2]; // next ramp too, so big drops aren't counted as falls
+  // The fall line also uses the next ramp's far end: it slopes down, so a long flight can sit far below its start and still be over it.
   // The pad is never a fall: anywhere over it (above its surface) you either finish or are still dropping onto it, whichever ramp you touched last.
-  if (!overPad && pos.y < Math.min(lr.oy, lr.ey, nr ? nr.oy : Infinity) - 900) fail();
+  if (!overPad && pos.y < Math.min(lr.oy, lr.ey, nr ? nr.oy : Infinity, nr ? nr.ey : Infinity, n2 ? n2.oy : Infinity) - 900) fail();
 }
 // ==PHYSICS END==
 
