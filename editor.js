@@ -360,7 +360,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     if (dirty && now - lastRb > 90) { dirty = false; lastRb = now; rebuild(); renderList(); }
     placeHandles();
     camera.lookAt(cam.tx, cam.ty, cam.tz); camera.fov = 50; camera.near = Math.max(10, cam.dist / 3000); camera.far = 4e6; camera.updateProjectionMatrix();
-    scene.fog.far = FOG_FAR * 3; tickTheme(dt); updateRings(dt, now); stars.position.copy(camera.position);
+    scene.fog.far = FOG_FAR * 3; tickTheme(dt); updateSky(dt, now); updateRings(dt, now); stars.position.copy(camera.position);
     renderer.setRenderTarget(null); renderer.render(scene, camera);
     const w = innerWidth - 360; if (w > 100) camera.aspect = innerWidth / innerHeight;
   }

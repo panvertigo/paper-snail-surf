@@ -618,7 +618,8 @@ function gridTex(bg, line) {
   return t;
 }
 // ---------- Paper-and-cotton look (prototype, Level 3; ?paper=0 turns it off, ?paper=1 forces it on any level): ramps are paper with fibres, clouds are cotton ----------
-const PAPER = /paper=1/.test(location.search) || (LEVEL === 3 && !/paper=0/.test(location.search));
+const PAPER = /paper=1/.test(location.search); // the old paper-sheet + cotton prototype, opt-in
+const FUSION = !/look=old/.test(location.search); // default look: toon-lit ramps with ink edges, haze sky, paper-cut mountains, toon clouds, vignette + grain
 function paperSheetTex() {
   const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'); let sd = 12345; const rnd = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296; // seeded: same sheet every load
   x.fillStyle = '#f7f2e8'; x.fillRect(0, 0, N, N);
@@ -646,8 +647,8 @@ function paperSheetTex() {
 const THEMES = [
   { bg: 0x03040b, fog: 0x03040b, sky: 0x9fb0e0, gnd: 0x161a2c, stars: 1 },     // 0 moon
   { bg: 0x0a1f52, fog: 0x0a1f52, sky: 0xb5ccff, gnd: 0x1f2c55, stars: 0.55 },  // 1 upper atmosphere
-  { bg: 0x5fa8f0, fog: 0x9cc8f5, sky: 0xffffff, gnd: 0x6f8fb8, stars: 0 },     // 2 sky
-  { bg: 0x8fd0ff, fog: 0xc7e6ff, sky: 0xffffff, gnd: 0x4a9a52, stars: 0 },     // 3 Earth
+  { bg: 0x5fa8f0, fog: 0x9cc8f5, sky: 0xffffff, gnd: 0x6f8fb8, stars: 0, dome: [0x3a78d6, 0x8cc0f4, 0xf0d7c4] },     // 2 sky
+  { bg: 0x8fd0ff, fog: 0xc7e6ff, sky: 0xffffff, gnd: 0x4a9a52, stars: 0, dome: [0x4a9be8, 0xa6d4f7, 0xf6e4d4] },     // 3 Earth
 ];
 const theme = { bg: new THREE.Color(), fog: new THREE.Color(), sky: new THREE.Color(), gnd: new THREE.Color(), stars: 1 }, _tc = new THREE.Color();
 let themeTarget = 0, themesOn = stageMeta.scenery === 'descent';
@@ -671,7 +672,7 @@ function tickTheme(dt) {
 }
 function applyScenery(on) {
   themesOn = on; FOG_FAR = on ? 600000 : 70000; CAM_FAR = on ? 4e6 : 90000;
-  if (!on) { theme.bg.set(0x1a2240); theme.fog.set(0x1a2240); theme.sky.set(0xbfd8ff); theme.gnd.set(0x302040); theme.stars = 0; applyTheme(); }
+  if (!on) { theme.bg.set(FUSION ? DUSK.bg : 0x1a2240); theme.fog.set(FUSION ? DUSK.fog : 0x1a2240); theme.sky.set(0xbfd8ff); theme.gnd.set(0x302040); theme.stars = 0; applyTheme(); }
   else setTheme(0, true);
 }
 
@@ -695,8 +696,75 @@ function sceneryTex() {
     blotch(x, w, h, 70, ['#3f8f4a', '#6b9a4f', '#b6a46a', '#2f7a45'], 20, 120, 0.95); blotch(x, w, h, 110, ['#ffffff'], 10, 90, 0.35); });
 }
 
+// ---------- Fusion look: toon ramps with ink edges, haze gradient sky, paper-cut mountain layers, toon clouds, vignette + grain (all cosmetic) ----------
+const TOON = (() => { const t = new THREE.DataTexture(new Uint8Array([140, 200, 255]), 3, 1, THREE.LuminanceFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+function inkEdges(g, r) { // the hard edges of a mesh as thin square tubes: reads as an ink outline, thick up close and hairline far away
+  const eg = new THREE.EdgesGeometry(g, 28), p = eg.attributes.position, n = p.count / 2, out = new Float32Array(n * 72 * 3 / 3 * 3); let o = 0;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), d = new THREE.Vector3(), u = new THREE.Vector3(), w = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), ex = new THREE.Vector3(1, 0, 0), cr = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+  const put = (x, y, z) => { out[o++] = x; out[o++] = y; out[o++] = z; };
+  for (let i = 0; i < n; i++) {
+    a.fromBufferAttribute(p, 2 * i); b.fromBufferAttribute(p, 2 * i + 1); d.subVectors(b, a); if (d.lengthSq() < 1) continue; d.normalize();
+    u.crossVectors(d, Math.abs(d.y) > 0.95 ? ex : up).normalize().multiplyScalar(r); w.crossVectors(d, u).normalize().multiplyScalar(r);
+    for (let k = 0; k < 4; k++) {
+      const s0 = cr[k], s1 = cr[(k + 1) % 4], c0x = u.x * s0[0] + w.x * s0[1], c0y = u.y * s0[0] + w.y * s0[1], c0z = u.z * s0[0] + w.z * s0[1], c1x = u.x * s1[0] + w.x * s1[1], c1y = u.y * s1[0] + w.y * s1[1], c1z = u.z * s1[0] + w.z * s1[1];
+      put(a.x + c0x, a.y + c0y, a.z + c0z); put(a.x + c1x, a.y + c1y, a.z + c1z); put(b.x + c1x, b.y + c1y, b.z + c1z);
+      put(a.x + c0x, a.y + c0y, a.z + c0z); put(b.x + c1x, b.y + c1y, b.z + c1z); put(b.x + c0x, b.y + c0y, b.z + c0z);
+    }
+  }
+  eg.dispose(); const og = new THREE.BufferGeometry(); og.setAttribute('position', new THREE.BufferAttribute(out.slice(0, o), 3));
+  const m = new THREE.Mesh(og, new THREE.MeshBasicMaterial({ color: 0x1b1740, side: THREE.DoubleSide })); m.frustumCulled = false; return m;
+}
+const skyU = { top: { value: new THREE.Color(0x3b2f7a) }, mid: { value: new THREE.Color(0x8a6bc0) }, bot: { value: new THREE.Color(0xf0b08c) }, op: { value: FUSION ? 1 : 0 } };
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(1000, 24, 14), new THREE.ShaderMaterial({ uniforms: skyU, side: THREE.BackSide, depthWrite: false, depthTest: false, transparent: false, fog: false,
+  vertexShader: 'varying float h; void main(){ h = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bot; uniform float op; varying float h; void main(){ vec3 c = mix(bot, mid, smoothstep(0.0, 0.35, h)); c = mix(c, top, smoothstep(0.3, 0.9, h)); gl_FragColor = vec4(c, 1.0); }' }));
+skyDome.renderOrder = -30; skyDome.frustumCulled = false; scene.add(skyDome);
+const DUSK = { top: 0x3b2f7a, mid: 0x8a6bc0, bot: 0xf0b08c, fog: 0xe6a98f, bg: 0xe6a98f };
+const mountains = new THREE.Group(); // three paper-cut ridgelines wrapped round the camera, far to near (lighter = farther)
+(() => {
+  let sd = 4242; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+  [[36000, 9000, 0xe9a8a0, 0xf6d2c0], [29000, 6800, 0xc98fb8, 0xe0b4cc], [23000, 4600, 0x9a7bc0, 0xb79ad8]].forEach(([R, Hm, cb, ct], li) => {
+    const N = 90, pos = [], col = [], ph = [rn() * 6, rn() * 6, rn() * 6], cB = new THREE.Color(cb), cT = new THREE.Color(ct);
+    for (let i = 0; i < N; i++) {
+      const hs = [], as = [i / N * 6.2832, (i + 1) / N * 6.2832];
+      for (const a of as) { const k = Math.round(a / 6.2832 * N), jag = ((k * 2654435761 >>> 0) % 1000) / 1000; hs.push(Hm * (0.5 + 0.22 * Math.sin(3 * a + ph[0]) + 0.14 * Math.sin(7 * a + ph[1]) + 0.08 * Math.sin(13 * a + ph[2]) + 0.14 * jag)); }
+      const q = [[as[0], 1400, cB], [as[1], 1400, cB], [as[1], hs[1], cT], [as[0], hs[0], cT]]; // the strips start a little below the horizon, so there is no gap between them and the sky
+      for (const k of [0, 1, 2, 0, 2, 3]) { const [a, y, c] = q[k]; pos.push(R * Math.cos(a), y, R * Math.sin(a)); col.push(c.r, c.g, c.b); }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: false, depthWrite: false })); m.renderOrder = -25 + li; m.frustumCulled = false; mountains.add(m);
+  });
+  scene.add(mountains);
+})();
+let scenicClouds = []; // toon puffs scattered along the course, so they stream past
+function buildClouds() {
+  for (const g of scenicClouds) { scene.remove(g); g.traverse(n => { if (n.geometry) n.geometry.dispose(); }); } scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park) return;
+  let sd = 777; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, mat = new THREE.MeshToonMaterial({ color: 0xffffff, emissive: 0x8c86b0, gradientMap: TOON }), sg = new THREE.SphereGeometry(1, 14, 10), step = Math.max(1, Math.floor(ramps.length / 14));
+  for (let i = 0; i < ramps.length; i += step) {
+    const r = ramps[i], rt = rightOf(r.h0), side = rn() < 0.5 ? -1 : 1, off = 3400 + rn() * 5200, grp = new THREE.Group(), s = 200 + rn() * 260;
+    for (const [dx, dy, k] of [[-1, 0, 1], [0, 0.5, 1.3], [1, 0, 1], [0.2, -0.1, 1.2]]) { const m = new THREE.Mesh(sg, mat); m.position.set(dx * s * 1.1, dy * s, 0); m.scale.set(s * k, s * k * 0.85, s * k); grp.add(m); }
+    grp.position.set(r.sx + rt[0] * side * off, (r.oy || 0) + 1400 + rn() * 3200, r.sz + rt[2] * side * off); grp.rotation.y = rn() * 6; grp.userData.sp = 0.1 + rn() * 0.2; scene.add(grp); scenicClouds.push(grp);
+  }
+}
+function updateSky(dt, now) {
+  skyDome.position.copy(camera.position);
+  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && (plain || themeTarget >= 2); // in the space levels the mountains and clouds only appear once you reach the sky
+  const T = plain ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
+  skyDome.visible = FUSION;
+  if (FUSION && plain) { skyU.top.value.setHex(DUSK.top); skyU.mid.value.setHex(DUSK.mid); skyU.bot.value.setHex(DUSK.bot); }
+  else if (T) { const d = T.dome || [T.bg, T.bg, T.bg]; skyU.top.value.lerp(_tc.set(d[0]), k); skyU.mid.value.lerp(_tc.set(d[1]), k); skyU.bot.value.lerp(_tc.set(d[2]), k); }
+  mountains.visible = show; mountains.position.set(camera.position.x, camera.position.y - 3800, camera.position.z);
+  for (const g of scenicClouds) { g.visible = show; if (show) g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; }
+}
+{ // vignette + paper grain over the canvas (plain alpha layers: cheap, no blend modes)
+  const c = document.createElement('canvas'); c.width = c.height = 160; const x = c.getContext('2d'), d = x.createImageData(160, 160);
+  for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() < 0.5 ? 0 : 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = Math.random() * 16; }
+  x.putImageData(d, 0, 0);
+  const fx = document.createElement('div'); fx.id = 'lookfx'; fx.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 58%, rgba(20,10,50,0.5) 100%), url(' + c.toDataURL() + ');';
+  if (FUSION) document.body.insertBefore(fx, renderer.domElement.nextSibling);
+}
 function buildScene() { // (re)builds every course-dependent mesh from ramps / rings / fin; the editor calls this after each edit
-  clearCourse();
+  clearCourse(); buildClouds();
   { // all ramps in one mesh; color shifts by section so progress reads at a glance
     const T = 256, pos = [], uv = [], col = [], cpos = [], ccol = [];
     const c = new THREE.Color(), capC = new THREE.Color();
@@ -738,7 +806,8 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.computeVertexNormals();
-    addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: PAPER ? paperSheetTex() : gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
+    if (FUSION) { addObj(new THREE.Mesh(g, new THREE.MeshToonMaterial({ map: gridTex('#ffffff', '#b4bce4'), vertexColors: true, gradientMap: TOON, side: THREE.DoubleSide }))); addObj(inkEdges(g, 4.5)); }
+    else addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: PAPER ? paperSheetTex() : gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
     const cg = new THREE.BufferGeometry();
     cg.setAttribute('position', new THREE.Float32BufferAttribute(cpos, 3));
     cg.setAttribute('color', new THREE.Float32BufferAttribute(ccol, 3));
@@ -761,7 +830,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setIndex(idx); g.computeVertexNormals();
-    const t = gridTex('#ffffff', '#9aa3c8'); addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: t, vertexColors: true, color: 0xb8b8b8 })));
+    const t = gridTex('#ffffff', '#9aa3c8'); addObj(new THREE.Mesh(g, FUSION ? new THREE.MeshToonMaterial({ map: t, vertexColors: true, color: 0xc8c8c8, gradientMap: TOON }) : new THREE.MeshLambertMaterial({ map: t, vertexColors: true, color: 0xb8b8b8 })));
   }
   gates = checkpoints.map(i => { // checkpoint gates
     const r = ramps[i];
@@ -782,7 +851,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     let minY = 0, sx = 0, sz = 0;
     for (const r of ramps) { minY = Math.min(minY, r.oy, r.ey); sx += r.sx; sz += r.sz; }
     if (!themesOn && !stageMeta.park) { // themed scenery has planets for ground instead
-      const grid = new THREE.GridHelper(400000, 400, 0x4a5a9a, 0x2a3466);
+      const grid = new THREE.GridHelper(400000, 400, FUSION ? 0xd98a8c : 0x4a5a9a, FUSION ? 0xcf8088 : 0x2a3466);
       grid.position.set(sx / ramps.length, minY - 2500, sz / ramps.length); addObj(grid);
     }
   }
@@ -1175,7 +1244,7 @@ function updateStreaks(speed) {
     wind.geo.attributes.position.needsUpdate = wind.geo.attributes.col.needsUpdate = true;
   }
   const cl = Math.max(0, Math.min(1, (speed - 300) / 900)) * fxAmt;
-  clouds.mesh.visible = cl > 0.01;
+  clouds.mesh.visible = cl > 0.01 && !FUSION;
   if (clouds.mesh.visible) {
     const stretch = 1 + Math.min(2.5, speed / 1200);
     for (let i = 0; i < NCL; i++) {
@@ -1444,7 +1513,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick; camera.updateProjectionMatrix();
-  updateFlow(dt); drawFlow(); updateNpcs(now); updateTrail(speed); updateDrops(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  updateFlow(dt); drawFlow(); updateNpcs(now); updateTrail(speed); updateDrops(speed); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
