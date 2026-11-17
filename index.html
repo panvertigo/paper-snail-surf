@@ -1132,7 +1132,7 @@ trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
 trailGeo.setAttribute('color', new THREE.BufferAttribute(trailCol, 3));
 { const idx = []; for (let i = 0; i < TRAIL_N - 1; i++) { const a = 2 * i; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } trailGeo.setIndex(idx); }
 const trailMesh = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-trailMesh.frustumCulled = false; scene.add(trailMesh);
+trailMesh.frustumCulled = false; trailMesh.visible = false; scene.add(trailMesh); // the slime ribbon is retired; speed sparkles replace it
 const vTmp = new THREE.Vector3(), lat = new THREE.Vector3();
 const _fc = new THREE.Color();
 let trJ = 1, trGap = 0;
@@ -1159,34 +1159,57 @@ function updateTrail(speed) {
   trailGeo.setDrawRange(0, Math.max(0, n - 1) * 6);
   trailGeo.attributes.position.needsUpdate = trailGeo.attributes.color.needsUpdate = true;
 }
-// Slime droplets: glinting beads thrown off behind you. More of them the faster you go; they arc, twinkle and fade (rainbow in flow). Cosmetic only.
-const ND = 160, dPos = new Float32Array(ND * 3), dCol = new Float32Array(ND * 3), dVel = new Float32Array(ND * 3), dLife = new Float32Array(ND), dMax = new Float32Array(ND), dHue = new Float32Array(ND);
+// Speed sparkles: what the snail leaves behind. Slow: a few cream motes. Faster: cool aqua glints. Faster still: two spiralling strands plus bursts of big stars, icy white at the top end.
+// Cool aqua / mint on purpose: it contrasts the warm peach and violet sky instead of blending in. Cosmetic only.
+const ND = 300, dPos = new Float32Array(ND * 3), dCol = new Float32Array(ND * 3), dVel = new Float32Array(ND * 3), dLife = new Float32Array(ND), dMax = new Float32Array(ND), dHue = new Float32Array(ND);
 const dGeo = new THREE.BufferGeometry(); dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3)); dGeo.setAttribute('color', new THREE.BufferAttribute(dCol, 3));
 const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, '#fff'); g.addColorStop(0.35, 'rgba(255,255,255,0.8)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
-const dMesh = new THREE.Points(dGeo, new THREE.PointsMaterial({ size: 26, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: false }));
+const dMesh = new THREE.Points(dGeo, new THREE.PointsMaterial({ size: 30, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: false }));
 dMesh.frustumCulled = false; scene.add(dMesh); for (let i = 0; i < ND; i++) dPos[i * 3 + 1] = -1e6;
-let dNext = 0, dAcc = 0, dLast = performance.now();
+const SP_CREAM = new THREE.Color(1, 0.93, 0.8), SP_AQUA = new THREE.Color(0.25, 0.92, 1), SP_MINT = new THREE.Color(0.45, 1, 0.8), SP_ICE = new THREE.Color(0.85, 1, 1), spC = new THREE.Color();
+let dNext = 0, dAcc = 0, dLast = performance.now(), dPhase = 0;
+const dLat = new THREE.Vector3(), dV = new THREE.Vector3();
 function updateDrops(speed) {
   const now = performance.now(), dt = Math.min(0.05, (now - dLast) / 1000); dLast = now;
-  if (state === 'run' && speed > 250) { // spawn: roughly one bead per 60 units travelled, in bursts
-    dAcc += speed * dt / 60 * (0.4 + Math.random() * 1.2) * fxAmt;
+  const t = Math.max(0, Math.min(1, (speed - 500) / 2600)); // 0 at a crawl, 1 around 3100 u/s
+  if (state === 'run' && speed > 250) {
+    dV.set(vel.x, vel.y, vel.z); dLat.crossVectors(dV, sUp); if (dLat.lengthSq() < 1e-6) dLat.set(1, 0, 0); dLat.normalize();
+    dAcc += speed * dt / 60 * (0.3 + t * 1.1 + Math.random() * 0.5) * fxAmt;
     while (dAcc >= 1) {
-      dAcc -= 1; const i = dNext = (dNext + 1) % ND, big = Math.random() < 0.15;
-      dPos[i * 3] = snail.position.x + (Math.random() - 0.5) * 30; dPos[i * 3 + 1] = snail.position.y + 6 + Math.random() * 14; dPos[i * 3 + 2] = snail.position.z + (Math.random() - 0.5) * 30;
-      dVel[i * 3] = vel.x * 0.05 + (Math.random() - 0.5) * 260; dVel[i * 3 + 1] = 60 + Math.random() * 380 + (big ? 200 : 0); dVel[i * 3 + 2] = vel.z * 0.05 + (Math.random() - 0.5) * 260;
-      dMax[i] = dLife[i] = (big ? 1.1 : 0.45) + Math.random() * 0.7; dHue[i] = Math.random();
+      dAcc -= 1; const i = dNext = (dNext + 1) % ND, o = i * 3, helix = t > 0.3 && Math.random() < 0.3 + t * 0.4, star = t > 0.55 && Math.random() < 0.08;
+      if (helix) { // two strands wound round the path: each bead sits on a circle round the line of travel, so the trail reads as a spiral
+        dPhase += 0.55; const r = 26 + 46 * t, ph = dPhase + (i & 1) * Math.PI, c = Math.cos(ph) * r, sn = Math.sin(ph) * r;
+        dPos[o] = snail.position.x + dLat.x * c + sUp.x * (sn + 14); dPos[o + 1] = snail.position.y + dLat.y * c + sUp.y * (sn + 14); dPos[o + 2] = snail.position.z + dLat.z * c + sUp.z * (sn + 14);
+        dVel[o] = vel.x * 0.04; dVel[o + 1] = 20; dVel[o + 2] = vel.z * 0.04; dMax[i] = dLife[i] = 0.7 + t * 0.8; dHue[i] = 0.3 + Math.random() * 0.2;
+      } else {
+        dPos[o] = snail.position.x + (Math.random() - 0.5) * 30; dPos[o + 1] = snail.position.y + 6 + Math.random() * 14; dPos[o + 2] = snail.position.z + (Math.random() - 0.5) * 30;
+        dVel[o] = vel.x * 0.05 + (Math.random() - 0.5) * 260; dVel[o + 1] = 60 + Math.random() * 380 + (star ? 260 : 0); dVel[o + 2] = vel.z * 0.05 + (Math.random() - 0.5) * 260;
+        dMax[i] = dLife[i] = (star ? 1.5 : 0.45) + Math.random() * 0.7; dHue[i] = Math.random() * 0.5;
+      }
     }
   }
+  spC.copy(SP_CREAM).lerp(SP_AQUA, Math.min(1, t * 2.2)); if (t > 0.5) spC.lerp(SP_MINT, (t - 0.5) * 1.2); if (t > 0.85) spC.lerp(SP_ICE, (t - 0.85) * 5); // the whole sparkle palette warms-to-cool with speed
+  dMesh.material.size = 28 + 18 * t;
   for (let i = 0; i < ND; i++) {
     const o = i * 3;
     if (dLife[i] <= 0) { dCol[o] = dCol[o + 1] = dCol[o + 2] = 0; continue; }
-    dLife[i] -= dt; dVel[o + 1] -= 700 * dt;
+    dLife[i] -= dt; if (dVel[o + 1] > -200) dVel[o + 1] -= 500 * dt;
     dPos[o] += dVel[o] * dt; dPos[o + 1] += dVel[o + 1] * dt; dPos[o + 2] += dVel[o + 2] * dt;
-    const k = Math.max(0, dLife[i] / dMax[i]), tw = 0.55 + 0.45 * Math.sin(now / 38 + i * 7.3), a = k * tw; // twinkle as they fade
-    if (flow.on) { _fc.setHSL((dHue[i] + now / 700) % 1, 0.85, 0.65); dCol[o] = _fc.r * a; dCol[o + 1] = _fc.g * a; dCol[o + 2] = _fc.b * a; }
-    else { dCol[o] = (0.45 + 0.4 * dHue[i]) * a; dCol[o + 1] = a; dCol[o + 2] = (0.7 + 0.3 * dHue[i]) * a; }
+    const k = Math.max(0, dLife[i] / dMax[i]), a = k * (0.55 + 0.45 * Math.sin(now / 38 + i * 7.3)), j = dHue[i] * 0.25; // twinkle as they fade; a little variation per bead
+    dCol[o] = Math.min(1, spC.r + j * 0.2) * a; dCol[o + 1] = Math.min(1, spC.g) * a; dCol[o + 2] = Math.min(1, spC.b + j * 0.2) * a;
   }
   dGeo.attributes.position.needsUpdate = dGeo.attributes.color.needsUpdate = true;
+}
+// Warp: past about 3000 u/s the edges of the screen blur and streak outward and the view stretches wider, so top speed feels like it bends the world.
+const warpEl = (() => { const d = document.createElement('div'); d.id = 'warp'; const m = 'radial-gradient(ellipse at 50% 60%, transparent 34%, #000 88%)';
+  d.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:0;display:none;opacity:0;-webkit-backdrop-filter:blur(4px) saturate(1.25);backdrop-filter:blur(4px) saturate(1.25);-webkit-mask-image:' + m + ';mask-image:' + m + ';' +
+    'background:repeating-conic-gradient(from 0deg at 50% 60%, rgba(255,255,255,0) 0deg 2.4deg, rgba(190,245,255,0.16) 2.6deg 3deg);';
+  document.body.insertBefore(d, renderer.domElement.nextSibling); return d; })(); // behind the HUD, above the canvas
+let warpK = 0;
+function updateWarp(speed, now) {
+  const w = Math.max(0, Math.min(1, (speed - 2800) / 1000)), s = w * w * (3 - 2 * w); warpK += (s - warpK) * 0.08;
+  if (warpK < 0.01) { if (warpEl.style.display !== 'none') warpEl.style.display = 'none'; return; }
+  warpEl.style.display = 'block'; warpEl.style.opacity = (warpK * (0.85 + 0.15 * Math.sin(now / 140))).toFixed(3);
 }
 // Soft wind: camera-facing ribbons (bright head, fading tapered tail, wider and brighter with speed) plus long cloud wisps drifting by.
 // Shaders give the soft edges and fade by distance, so nothing pops in or out. All cosmetic: reads sim state, never writes it.
@@ -1505,7 +1528,7 @@ function updateFlow(dt) {
 }
 const flowEl = $('flow'), flowBar = $('flowbar').firstElementChild, flowTxt = $('flowtxt');
 function drawFlow() {
-  flowEl.classList.toggle('on', state === 'run' || state === 'done');
+  flowEl.classList.toggle('on', !!stageMeta.park && (state === 'run' || state === 'done')); // the style bar only means something in the bowl now that tricks are gone
   flowBar.style.width = (flow.v * 100).toFixed(0) + '%'; flowBar.style.background = flow.on ? 'hsl(' + ((performance.now() / 6) % 360 | 0) + ',85%,60%)' : '#7be495';
   flowTxt.textContent = 'x' + flowMult() + '   ' + Math.round(flow.score).toLocaleString() + (flow.best ? '   best ' + Math.round(flow.best).toLocaleString() : '');
 }
@@ -1548,8 +1571,8 @@ function frame(now) {
     scene.fog.far = FOG_FAR; camera.far = CAM_FAR;
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
-  camera.fov = baseFov + fovKick; camera.updateProjectionMatrix();
-  updateFlow(dt); drawFlow(); updateNpcs(now); updateTrail(speed); updateDrops(speed); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  camera.fov = baseFov + fovKick + warpK * 9; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
+  updateFlow(dt); drawFlow(); updateNpcs(now); updateDrops(speed); updateWarp(speed, now); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
