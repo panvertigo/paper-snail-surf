@@ -4,6 +4,12 @@
  "quantize": "bar",
  "startOffset": 0.0251,
  "sections": {
+  "intro": {
+   "file": "chicago_intro.mp3",
+   "bars": 4,
+   "once": true,
+   "next": "moon"
+  },
   "moon": {
    "file": "chicago_moon.mp3",
    "bars": 16
@@ -29,7 +35,23 @@
  "triggers": [
   {
    "on": "start",
-   "section": "moon"
+   "section": "intro",
+   "respawn": "moon"
+  },
+  {
+   "on": "checkpoint",
+   "n": 1,
+   "section": "atmos"
+  },
+  {
+   "on": "checkpoint",
+   "n": 2,
+   "section": "sky"
+  },
+  {
+   "on": "checkpoint",
+   "n": 3,
+   "section": "earth"
   },
   {
    "on": "portal",

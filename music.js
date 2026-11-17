@@ -77,7 +77,7 @@
     });
     groups.push(g);
   }
-  function startSection(id, t) { const s = cfg.sections[id]; cur = { id, origin: t, nextStart: t, loopLen: s.loopLen, once: !!s.once, iters: 0 }; }
+  function startSection(id, t) { const s = cfg.sections[id]; cur = { id, origin: t, nextStart: t, loopLen: s.loopLen, once: !!s.once, next: s.next || null, iters: 0 }; }
   function boundary(q, tmin) {
     const o = cur.origin, unit = q === 'beat' ? cfg.beat : q === 'phrase' ? 4 * cfg.bar : q === 'section' ? cur.loopLen : cfg.bar;
     return o + Math.max(0, Math.ceil((tmin - o) / unit - 1e-9)) * unit;
@@ -96,6 +96,7 @@
     const now = ctx.currentTime; groups = groups.filter(g => !g.dead && g.end + 6 > now);
     if (!cur) { if (wanted && cfg.sections[wanted]) startSection(wanted, now + 0.1); else return; }
     if (pending) { const tb = boundary(pending.quant, now + 0.12); if (tb < now + 0.5) commit(tb); }
+    if (cur && cur.once && cur.iters >= 1 && cur.next && cfg.sections[cur.next] && cur.nextStart < now + 0.5) startSection(cur.next, cur.nextStart); // an intro hands over to its loop with no gap
     while (cur && cur.nextStart < now + 0.5 && !(cur.once && cur.iters >= 1)) { scheduleIter(cur.id, cur.nextStart); cur.nextStart += cur.loopLen; cur.iters++; } // once: play the section a single time (an outro), then silence
     for (const g of groups) if (!g.dead && g.start < now + 0.5 && g.end > now) g.gains.forEach((n, i) => n.gain.setTargetAtTime(layerTarget(g.sec, i), now, 0.35)); // speed layers
   }
@@ -119,7 +120,7 @@
       if (!cfg || !ready) { deferredAt = piece; return; }
       let ev = null; for (const e of events) if (e.at <= piece) ev = e;
       const t = ev ? (cfg.triggers || []).find(x => x.on === ev.ev && (ev.ev === 'checkpoint' ? x.n === ev.n : x.theme === ev.theme)) : (cfg.triggers || []).find(x => x.on === 'start');
-      if (t) Music.goto(t.section, o || { quantize: 'beat' });
+      if (t) Music.goto((t.on === 'start' && o && o.respawn && t.respawn) || t.section, o || { quantize: 'beat' }); // respawn: don't replay the intro after a splat
     },
     setSpeed(v) { speed = v; },
     setVolume(v) { musicVol = v; if (master) master.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },

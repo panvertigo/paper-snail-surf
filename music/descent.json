@@ -1,16 +1,96 @@
 {
-  "bpm": 120, "beatsPerBar": 4, "quantize": "bar",
-  "synth": "demo",
-  "sections": {
-    "moon":   { "bars": 8, "layers": [ { "from": 900, "to": 1800 }, { "from": 1800, "to": 2600 } ] },
-    "atmos":  { "bars": 8, "layers": [ { "from": 900, "to": 1800 }, { "from": 1800, "to": 2600 } ] },
-    "sky":    { "bars": 8, "layers": [ { "from": 900, "to": 1800 }, { "from": 1800, "to": 2600 } ] },
-    "earth":  { "bars": 8, "layers": [ { "from": 900, "to": 1800 }, { "from": 1800, "to": 2600 } ] }
+ "bpm": 120,
+ "beatsPerBar": 4,
+ "quantize": "bar",
+ "synth": "demo",
+ "sections": {
+  "moon": {
+   "bars": 8,
+   "layers": [
+    {
+     "from": 900,
+     "to": 1800
+    },
+    {
+     "from": 1800,
+     "to": 2600
+    }
+   ]
   },
-  "triggers": [
-    { "on": "start", "section": "moon" },
-    { "on": "portal", "theme": 1, "section": "atmos" },
-    { "on": "portal", "theme": 2, "section": "sky" },
-    { "on": "portal", "theme": 3, "section": "earth" }
-  ]
+  "atmos": {
+   "bars": 8,
+   "layers": [
+    {
+     "from": 900,
+     "to": 1800
+    },
+    {
+     "from": 1800,
+     "to": 2600
+    }
+   ]
+  },
+  "sky": {
+   "bars": 8,
+   "layers": [
+    {
+     "from": 900,
+     "to": 1800
+    },
+    {
+     "from": 1800,
+     "to": 2600
+    }
+   ]
+  },
+  "earth": {
+   "bars": 8,
+   "layers": [
+    {
+     "from": 900,
+     "to": 1800
+    },
+    {
+     "from": 1800,
+     "to": 2600
+    }
+   ]
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "moon"
+  },
+  {
+   "on": "portal",
+   "theme": 1,
+   "section": "atmos"
+  },
+  {
+   "on": "portal",
+   "theme": 2,
+   "section": "sky"
+  },
+  {
+   "on": "portal",
+   "theme": 3,
+   "section": "earth"
+  },
+  {
+   "on": "checkpoint",
+   "n": 1,
+   "section": "atmos"
+  },
+  {
+   "on": "checkpoint",
+   "n": 2,
+   "section": "sky"
+  },
+  {
+   "on": "checkpoint",
+   "n": 3,
+   "section": "earth"
+  }
+ ]
 }
