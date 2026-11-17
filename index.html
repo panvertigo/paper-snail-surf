@@ -761,9 +761,10 @@ function buildClouds() {
     grp.position.set(r.sx + rt[0] * side * off, (r.oy || 0) + 1400 + rn() * 3200, r.sz + rt[2] * side * off); grp.rotation.y = rn() * 6; grp.userData.sp = 0.1 + rn() * 0.2; scene.add(grp); scenicClouds.push(grp);
   }
 }
+let skyWarm = 4; // the first frames draw the mountains and clouds even in space levels, so their shaders and buffers are uploaded at load, not at the sky portal mid-run
 function updateSky(dt, now) {
   skyDome.position.copy(camera.position);
-  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && (plain || themeTarget >= 2); // in the space levels the mountains and clouds only appear once you reach the sky
+  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && (plain || themeTarget >= 2 || skyWarm-- > 0); // in the space levels the mountains and clouds only appear once you reach the sky
   const T = plain ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
   skyDome.visible = FUSION;
   if (FUSION && plain) { skyU.top.value.setHex(DUSK.top); skyU.mid.value.setHex(DUSK.mid); skyU.bot.value.setHex(DUSK.bot); }
