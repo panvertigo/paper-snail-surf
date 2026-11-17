@@ -57,7 +57,7 @@
     loading = (async () => {
       let fb = null;
       try {
-        const r = await fetch('music/' + name + '.json'); if (!r.ok) return false;
+        const r = await fetch('music/' + name + '.json?v=40'); if (!r.ok) return false;
         cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; fb = cfg.fallback; ensureCtx(); bufs = {};
         await prepare(cfg); if (deferredAt !== null) { const p = deferredAt; deferredAt = null; Music.at(p); }
         return true;
@@ -95,7 +95,7 @@
     if (!ctx || !cfg || !ready) return;
     const now = ctx.currentTime; groups = groups.filter(g => !g.dead && g.end + 6 > now);
     if (!cur) { if (wanted && cfg.sections[wanted]) startSection(wanted, now + 0.1); else return; }
-    if (pending) { const tb = boundary(pending.quant, now + 0.12); if (tb < now + 0.5) commit(tb); }
+    if (pending) { const tb = boundary(pending.quant, Math.max(now + 0.12, pending.tmin || 0)); if (tb < now + 0.5) commit(tb); }
     if (cur && cur.once && cur.iters >= 1 && cur.next && cfg.sections[cur.next] && cur.nextStart < now + 0.5) startSection(cur.next, cur.nextStart); // an intro hands over to its loop with no gap
     while (cur && cur.nextStart < now + 0.5 && !(cur.once && cur.iters >= 1)) { scheduleIter(cur.id, cur.nextStart); cur.nextStart += cur.loopLen; cur.iters++; } // once: play the section a single time (an outro), then silence
     for (const g of groups) if (!g.dead && g.start < now + 0.5 && g.end > now) g.gains.forEach((n, i) => n.gain.setTargetAtTime(layerTarget(g.sec, i), now, 0.35)); // speed layers
@@ -113,13 +113,16 @@
       if (!cur) return; // tick() starts it
       if (cur.id === id && !pending && !o.restart) return;
       if (cur.id === id && pending && pending.id !== id) { pending = null; return; }
-      pending = { id, quant: o.quantize || cfg.quantize || 'bar' };
+      pending = { id, quant: o.quantize || cfg.quantize || 'bar', tmin: ctx.currentTime + (o.lead || 0) * cfg.bar }; // lead: bars the old section keeps playing before the swap can happen
     },
     trigger(ev, arg) {
       if (!cfg) return;
-      if (ev === 'checkpoint' && cfg.journey) { Music.goto(journeySection(arg), { quantize: cfg.transition || 'phrase' }); return; } // song order spread over however many checkpoints the level has
-      const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
-      if (t) Music.goto(t.section, { quantize: t.quantize });
+      try {
+        const lead = ev === 'finish' ? 0 : (cfg.lead ?? 2); // checkpoints and portals: let the old section play on a couple of bars first (finish: the outro should land right away)
+        if (ev === 'checkpoint' && cfg.journey) { Music.goto(journeySection(arg), { quantize: cfg.transition || 'phrase', lead }); return; } // song order spread over however many checkpoints the level has
+        const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
+        if (t) Music.goto(t.section, { quantize: t.quantize, lead });
+      } catch (e) { console.warn('music trigger failed', ev, e); } // music must never take the game down
     },
     at(piece, o) { // the section in force when you are at piece i (used on start and after a respawn)
       if (!cfg || !ready) { deferredAt = piece; return; }
