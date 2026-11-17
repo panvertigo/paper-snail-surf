@@ -175,7 +175,7 @@ const STAGE_META = {
     { piece: 13, d: 1850, s: -700, y: 40, R: 190, boost: 200 },
     { piece: 13, d: 3390, s: -210, y: -760, R: 190, boost: 200 }
   ] },
-  3: { scenery: 'descent', music: 'descent', pull: 0.3, fall: 0.1, riskRings: [
+  3: { scenery: 'descent', music: 'chicago', pull: 0.3, fall: 0.1, riskRings: [
     { piece: 1, d: 1030, s: 600, y: 90, R: 190, boost: 200 },
     { piece: 1, d: 1770, s: 70, y: -560, R: 190, boost: 200 },
     { piece: 3, d: 1870, s: 600, y: -40, R: 190, boost: 200 },
@@ -278,7 +278,7 @@ const STAGES = {};
       { turn: 160, R: 4600 },                      // final sweep
       { L: 2000 },                                 // launch ramp
     ],
-    4: { name: 'Bowl', fall: 0.3, park: { hoops: [
+    4: { name: 'Bowl', music: 'bowl', fall: 0.3, park: { hoops: [
         { a: 0, r: 4300, dir: 1 }, { a: 90, r: 4300, dir: 1 }, { a: 180, r: 4300, dir: 1 }, { a: 270, r: 4300, dir: 1 },
         { a: 45, r: 3700, dir: -1, y: 200 }, { a: 135, r: 3700, dir: -1, y: 200 }, { a: 225, r: 3700, dir: -1, y: 200 }, { a: 315, r: 3700, dir: -1, y: 200 } ] },
       // LEVEL 4 BOWL: a free-form skate park. Drop in from the deck, then do what you like: carve the wall, ride the rollers, fly off the lip. Hoops re-arm.
@@ -1283,9 +1283,9 @@ function startIntro() {
 
 // ---------- Flow and tricks: a style meter on top of the sim. Spin (turn in the air), clean landings, wall rides, loops and hoops fill it; slowness and sloppy landings drain it. ----------
 // Visual and musical reward only (rainbow trail, music lift at full flow); it never changes the physics or your time.
-const flow = { v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, lastYaw: 0, on: false, wasAir: false, noC: 0, tube: -1, best: +(store.get('surf_style_L' + LEVEL) || 0), newBest: false };
+const flow = { mood: 'calm', v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, lastYaw: 0, on: false, wasAir: false, noC: 0, tube: -1, best: +(store.get('surf_style_L' + LEVEL) || 0), newBest: false };
 const flowMult = () => 1 + Math.floor(flow.v * 4);
-function flowReset() { Object.assign(flow, { v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, on: false, wasAir: false, noC: 0, tube: -1, newBest: false }); }
+function flowReset() { Object.assign(flow, { mood: 'calm', v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, on: false, wasAir: false, noC: 0, tube: -1, newBest: false }); }
 function flowGain(pts, f) { flow.score += pts * flowMult(); flow.v = Math.min(1, flow.v + f); }
 function updateFlow(dt) {
   if (state !== 'run') return;
@@ -1311,6 +1311,10 @@ function updateFlow(dt) {
   flow.v = Math.max(0, Math.min(1, flow.v + (sp > 1800 ? 0.05 : sp > 1200 ? 0 : -0.12) * sim - 0.02 * sim));
   flow.score += (sp / 1000) * 10 * sim * flowMult();
   if (!flow.on && flow.v >= 0.9) { flow.on = true; toast('IN FLOW'); } else if (flow.on && flow.v < 0.6) flow.on = false;
+  if (stageMeta.park && stageMeta.music) { // bowl music follows your flow: calm -> groove -> peak (with a little hysteresis so it doesn't flicker)
+    const want = flow.on ? 'peak' : flow.v > (flow.mood === 'calm' ? 0.25 : 0.1) ? 'groove' : 'calm';
+    if (want !== flow.mood) { flow.mood = want; Music.goto(want, { quantize: want === 'peak' ? 'bar' : 'phrase' }); }
+  }
 }
 const flowEl = $('flow'), flowBar = $('flowbar').firstElementChild, flowTxt = $('flowtxt');
 function drawFlow() {

@@ -1,0 +1,26 @@
+{
+ "bpm": 140.0,
+ "beatsPerBar": 4,
+ "quantize": "bar",
+ "startOffset": 0.0251,
+ "sections": {
+  "calm": {
+   "file": "bowl_calm.mp3",
+   "bars": 16
+  },
+  "groove": {
+   "file": "bowl_groove.mp3",
+   "bars": 16
+  },
+  "peak": {
+   "file": "bowl_peak.mp3",
+   "bars": 16
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "calm"
+  }
+ ]
+}

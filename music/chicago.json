@@ -1,0 +1,55 @@
+{
+ "bpm": 140.0,
+ "beatsPerBar": 4,
+ "quantize": "bar",
+ "startOffset": 0.0251,
+ "sections": {
+  "moon": {
+   "file": "chicago_moon.mp3",
+   "bars": 16
+  },
+  "atmos": {
+   "file": "chicago_atmos.mp3",
+   "bars": 16
+  },
+  "sky": {
+   "file": "chicago_sky.mp3",
+   "bars": 16
+  },
+  "earth": {
+   "file": "chicago_earth.mp3",
+   "bars": 16
+  },
+  "outro": {
+   "file": "chicago_outro.mp3",
+   "bars": 12,
+   "once": true
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "moon"
+  },
+  {
+   "on": "portal",
+   "theme": 1,
+   "section": "atmos"
+  },
+  {
+   "on": "portal",
+   "theme": 2,
+   "section": "sky"
+  },
+  {
+   "on": "portal",
+   "theme": 3,
+   "section": "earth"
+  },
+  {
+   "on": "finish",
+   "section": "outro"
+  }
+ ],
+ "fallback": "descent"
+}

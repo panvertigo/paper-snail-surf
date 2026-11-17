@@ -55,12 +55,13 @@
     if (!AC) return Promise.resolve(false);
     if (loading) return loading;
     loading = (async () => {
+      let fb = null;
       try {
         const r = await fetch('music/' + name + '.json'); if (!r.ok) return false;
-        cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; ensureCtx();
+        cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; fb = cfg.fallback; ensureCtx(); bufs = {};
         await prepare(cfg); if (deferredAt !== null) { const p = deferredAt; deferredAt = null; Music.at(p); }
         return true;
-      } catch (e) { console.warn('music: could not load', name, e); return false; }
+      } catch (e) { console.warn('music: could not load', name, e); if (fb) { loading = null; cfg = null; return load(fb); } return false; } // fallback: a manifest whose audio is missing (e.g. songs kept out of the public repo) hands over to another one
     })();
     return loading;
   }
@@ -76,7 +77,7 @@
     });
     groups.push(g);
   }
-  function startSection(id, t) { const s = cfg.sections[id]; cur = { id, origin: t, nextStart: t, loopLen: s.loopLen }; }
+  function startSection(id, t) { const s = cfg.sections[id]; cur = { id, origin: t, nextStart: t, loopLen: s.loopLen, once: !!s.once, iters: 0 }; }
   function boundary(q, tmin) {
     const o = cur.origin, unit = q === 'beat' ? cfg.beat : q === 'phrase' ? 4 * cfg.bar : q === 'section' ? cur.loopLen : cfg.bar;
     return o + Math.max(0, Math.ceil((tmin - o) / unit - 1e-9)) * unit;
@@ -95,7 +96,7 @@
     const now = ctx.currentTime; groups = groups.filter(g => !g.dead && g.end + 6 > now);
     if (!cur) { if (wanted && cfg.sections[wanted]) startSection(wanted, now + 0.1); else return; }
     if (pending) { const tb = boundary(pending.quant, now + 0.12); if (tb < now + 0.5) commit(tb); }
-    while (cur && cur.nextStart < now + 0.5) { scheduleIter(cur.id, cur.nextStart); cur.nextStart += cur.loopLen; }
+    while (cur && cur.nextStart < now + 0.5 && !(cur.once && cur.iters >= 1)) { scheduleIter(cur.id, cur.nextStart); cur.nextStart += cur.loopLen; cur.iters++; } // once: play the section a single time (an outro), then silence
     for (const g of groups) if (!g.dead && g.start < now + 0.5 && g.end > now) g.gains.forEach((n, i) => n.gain.setTargetAtTime(layerTarget(g.sec, i), now, 0.35)); // speed layers
   }
 
