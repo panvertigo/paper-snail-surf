@@ -16,13 +16,18 @@ canvas{display:block;touch-action:none}
 #restart{right:8px}#gear{right:56px}
 #msg{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:17px;line-height:1.4;background:#000a;padding:14px 18px;border-radius:12px;max-width:80vw;pointer-events:none}
 #msg b{font-size:22px}
-#toast{position:fixed;left:50%;top:44px;transform:translateX(-50%);font-size:15px;font-weight:600;color:#ffe066;opacity:0;transition:opacity .4s;pointer-events:none;text-shadow:0 1px 4px #000a}
+#toast{position:fixed;left:50%;top:78px;transform:translateX(-50%);font-size:15px;font-weight:600;color:#ffe066;opacity:0;transition:opacity .4s;pointer-events:none;text-shadow:0 1px 4px #000a}
 #settings{position:fixed;right:8px;top:56px;background:#000c;padding:12px;border-radius:12px;font-size:14px;width:220px}
 #settings label{display:block;margin:6px 0 4px}
 #settings .row{display:flex;gap:6px}
 #settings .row button{flex:1;padding:8px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px}
 #settings .row button.on{background:#3fc1c9;color:#000}
 #settings input{width:100%}
+#flow{position:fixed;left:50%;top:38px;transform:translateX(-50%);width:210px;text-align:center;pointer-events:none;opacity:0;transition:opacity .4s;text-shadow:0 1px 4px #000a}
+#flow.on{opacity:1}
+#flowbar{height:6px;border-radius:3px;background:#ffffff26;overflow:hidden}
+#flowbar i{display:block;height:100%;width:0;background:#7be495}
+#flowtxt{font-size:13px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
 #flash{position:fixed;inset:0;background:#f33;opacity:0;pointer-events:none;transition:opacity .3s}
 </style>
 </head>
@@ -30,6 +35,7 @@ canvas{display:block;touch-action:none}
 <div id="timer">0.00</div>
 <div id="best"></div>
 <div id="prog"></div>
+<div id="flow"><div id="flowbar"><i></i></div><div id="flowtxt"></div></div>
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <button class="btn" id="gear">⚙</button>
@@ -530,7 +536,7 @@ function step() {
     }
   }
 
-  const i0 = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 3);
+  const i0 = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 10); // wide window: a fast rider can skip several pieces and still land on a lower one
   for (let i = i0; i <= i1; i++) {
     const r = ramps[i];
     if (r.tube) { tubeContact(r.tube, i); continue; }
@@ -904,7 +910,7 @@ function updateNpcs(now) {
 }
 function surfaceBelow(p) {
   let best = null;
-  const i0 = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 3);
+  const i0 = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 10); // wide window: a fast rider can skip several pieces and still land on a lower one
   for (let i = i0; i <= i1; i++) {
     const r = ramps[i], L = local(r, p.x, p.z);
     if (L.u < 0 || L.u > r.L) continue;
@@ -953,6 +959,7 @@ function updateSnail(dt, now, speed) {
   sqY = Math.max(-0.75, Math.min(0.7, sqY)); stZ = Math.max(-0.5, Math.min(0.9, stZ));
   const sp = Math.min(1, speed / 3000);
   const wob = contactN && state === 'run' ? 0.03 * Math.sin(now / 70) : 0;
+  { const a = flow.flipT > 0 ? (1 - flow.flipT / 0.7) * 2 * Math.PI : 0; snailInner.rotation.x = a; snailInner.position.set(0, 20 - 20 * Math.cos(a), -20 * Math.sin(a)); } // backflip about the body centre
   snailInner.scale.set(1 - sqY * 0.6 - stZ * 0.35, 1 + sqY - stZ * 0.35 - wob, 1 - sqY * 0.6 + stZ + wob + sp * 0.3); // stretches with speed
   { // eye stalks: swept back by speed, stretching comedically long near top speed, with a springy whip on launch and landing
     const sp2 = sp * Math.min(1, fxAmt), tgt = 1.5 * Math.pow(sp2, 0.9), L = 1 + 4.5 * Math.pow(sp2, 2.2); // up to ~86 deg: stalks streaming back almost at the camera
@@ -984,6 +991,7 @@ trailGeo.setAttribute('color', new THREE.BufferAttribute(trailCol, 3));
 const trailMesh = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide, fog: false }));
 trailMesh.frustumCulled = false; scene.add(trailMesh);
 const vTmp = new THREE.Vector3(), lat = new THREE.Vector3();
+const _fc = new THREE.Color();
 function updateTrail(speed) {
   const cx = snail.position.x + sUp.x * 1.5, cy = snail.position.y + sUp.y * 1.5, cz = snail.position.z + sUp.z * 1.5;
   const l = trail[0];
@@ -998,7 +1006,8 @@ function updateTrail(speed) {
     const s = trail[i], w = 1 - i / TRAIL_N, o = i * 6; // slime ribbon tapers with age
     trailPos[o] = s.x - s.lx * w; trailPos[o + 1] = s.y - s.ly * w; trailPos[o + 2] = s.z - s.lz * w;
     trailPos[o + 3] = s.x + s.lx * w; trailPos[o + 4] = s.y + s.ly * w; trailPos[o + 5] = s.z + s.lz * w;
-    const f = 0.55 + 0.45 * s.b, r = 0.3 * f, g = 0.95 * f, b = 0.6 * f; // slime green
+    let f = 0.55 + 0.45 * s.b, r = 0.3 * f, g = 0.95 * f, b = 0.6 * f; // slime green
+    if (flow.on) { _fc.setHSL(((i * 6 + performance.now() / 8) % 360) / 360, 0.85, 0.6); r = _fc.r * f; g = _fc.g * f; b = _fc.b * f; } // in flow: rainbow
     trailCol[o] = trailCol[o + 3] = r; trailCol[o + 1] = trailCol[o + 4] = g; trailCol[o + 2] = trailCol[o + 5] = b;
   }
   trailGeo.setDrawRange(0, Math.max(0, n - 1) * 6);
@@ -1095,7 +1104,7 @@ const prevPos = new THREE.Vector3();
 function onRing(g, off) {
   const o = ringObjs[rings.indexOf(g)]; if (o) o.fx = 1;
   if (g.kind === 'portal') { setTheme(g.theme); fovKick += 16; toast('Portal'); Sfx.portal(); Music.trigger('portal', g.theme); }
-  else { toast((off < 0.25 ? 'Perfect hoop  +' : 'Hoop  +') + Math.round(g.boost * (1 - off * off) * (off < 0.25 ? 1.5 : 1))); Sfx.hoop(1 - off * off); }
+  else { flowGain(off < 0.25 ? 300 : 120, off < 0.25 ? 0.15 : 0.08); toast((off < 0.25 ? 'Perfect hoop  +' : 'Hoop  +') + Math.round(g.boost * (1 - off * off) * (off < 0.25 ? 1.5 : 1))); Sfx.hoop(1 - off * off); }
 }
 let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
@@ -1110,7 +1119,7 @@ function hud() {
 const START_MSG = '<b>Swipe</b> to turn<br>In the air: <b>hold + swipe</b> to drift<br><br>Touch to drop in';
 function resetRun() {
   intro.on = false;
-  ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
+  flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
   gates.forEach(g => g.material.color.set(0xffe066));
   spawnOn(0); prevPos.copy(pos); setTheme(0, true); Music.at(0);
   showMsg(START_MSG);
@@ -1118,7 +1127,7 @@ function resetRun() {
 }
 function onCheckpoint() { gates[nextCp - 1].material.color.set(0x7be495); Sfx.checkpoint(); Music.trigger('checkpoint', nextCp); toast('Checkpoint ' + nextCp + '/' + checkpoints.length + '  ·  ' + tRun.toFixed(2) + 's'); hud(); }
 function fail() {
-  falls++;
+  falls++; flow.v = 0; flow.on = false; flow.pend = 0; flow.wasAir = false;
   $('flash').style.opacity = .3; setTimeout(() => $('flash').style.opacity = 0, 120);
   spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.turn = 0; setTheme(themeFor(cpRamp), true);
   Sfx.splat(); Music.at(cpRamp);
@@ -1126,10 +1135,11 @@ function fail() {
 }
 function finish() {
   state = 'done'; Sfx.finish(); Music.trigger('finish');
+  if (flow.score > flow.best) { flow.best = flow.score; flow.newBest = true; store.set('surf_style_L' + LEVEL, String(Math.round(flow.score))); }
   const pb = !best || tRun < best;
   if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); store.set('surf_ghost_L' + LEVEL, JSON.stringify(ghostRec)); }
   hud();
-  showMsg('<b>' + tRun.toFixed(2) + 's</b><br>' + (falls ? falls + ' falls' : 'Clean run!') + (pb ? '<br>New best!' : '<br>Best ' + best.toFixed(2) + 's') + '<br><br>Touch to go again');
+  showMsg('<b>' + tRun.toFixed(2) + 's</b><br>' + (falls ? falls + ' falls' : 'Clean run!') + '<br>Style ' + Math.round(flow.score).toLocaleString() + (flow.newBest ? ' (best!)' : '') + (pb ? '<br>New best!' : '<br>Best ' + best.toFixed(2) + 's') + '<br><br>Touch to go again');
 }
 
 // ---------- Input ----------
@@ -1138,7 +1148,7 @@ function turn(r) { if (state === 'run') cmd.turn += r; else yaw += r; } // while
 const cv = renderer.domElement;
 cv.addEventListener('pointerdown', e => {
   e.preventDefault(); $('settings').hidden = true;
-  if (pid !== null) return;
+  if (pid !== null) { if (e.pointerId !== pid && state === 'run') flipReq = true; return; } // a second finger flips
   if (intro.on) { intro.on = false; showMsg(START_MSG); return; } // tap skips the flyover, never drops in blind
   pid = e.pointerId; lastX = e.clientX; fingerDown = true;
   if (state === 'ready') { state = 'run'; showMsg(''); }
@@ -1159,6 +1169,7 @@ addEventListener('keydown', e => {
   if (e.key === 'd' || e.key === 'D') cmd.key = 1;
   if (e.key === 'ArrowLeft') turn(0.08); if (e.key === 'ArrowRight') turn(-0.08);
   if (e.key === 'r' || e.key === 'R') resetRun();
+  if ((e.key === 'f' || e.key === 'F') && state === 'run') flipReq = true;
   if (e.key === 'c' || e.key === 'C') { camMode = camMode === 1 ? 3 : 1; store.set('surf_cam', camMode); syncSettings(); }
   if (intro.on) { intro.on = false; showMsg(START_MSG); cmd.key = 0; return; }
   if (state === 'ready' && cmd.key) { state = 'run'; showMsg(''); }
@@ -1251,6 +1262,48 @@ function startIntro() {
   intro.on = true; intro.t = 0; showMsg('');
 }
 
+
+// ---------- Flow and tricks: a style meter on top of the sim. Spin (turn in the air), flip (second finger, or F), clean landings, wall rides, loops and hoops fill it; slowness and sloppy landings drain it. ----------
+// Visual and musical reward only (rainbow trail, music lift at full flow); it never changes the physics or your time.
+const flow = { v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, flips: 0, flipT: 0, lastYaw: 0, on: false, wasAir: false, noC: 0, tube: -1, best: +(store.get('surf_style_L' + LEVEL) || 0), newBest: false };
+let flipReq = false;
+const flowMult = () => 1 + Math.floor(flow.v * 4);
+function flowReset() { Object.assign(flow, { v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, flips: 0, flipT: 0, on: false, wasAir: false, noC: 0, tube: -1, newBest: false }); flipReq = false; }
+function flowGain(pts, f) { flow.score += pts * flowMult(); flow.v = Math.min(1, flow.v + f); }
+function updateFlow(dt) {
+  if (state !== 'run') return;
+  const sim = dt * gameSpeed, sp = Math.hypot(vel.x, vel.y, vel.z), hs = Math.hypot(vel.x, vel.z), air = !contactN;
+  flow.noC = air ? flow.noC + sim : 0;
+  if (flow.flipT > 0) flow.flipT -= sim;
+  if (air && flow.noC > 0.25) { // in a real flight
+    if (!flow.wasAir) { flow.wasAir = true; flow.spin = 0; flow.spinDone = 0; flow.lastYaw = yaw; flow.air = 0; flow.pend = 0; flow.nt = 0; }
+    flow.air += sim; flow.pend += 60 * sim * (sp / 1500);
+    flow.spin += wrapPi(yaw - flow.lastYaw); flow.lastYaw = yaw;
+    const n = Math.floor(Math.abs(flow.spin) / (2 * Math.PI));
+    if (n > flow.spinDone) { flow.spinDone = n; flow.pend += 300; flow.nt++; toast('Spin x' + n); }
+    if (flipReq && flow.flipT <= 0 && flow.air > 0.12) { flow.flipT = 0.7; flow.pend += 400; flow.nt++; flow.flips++; toast('Flip!'); }
+  } else if (!air && flow.wasAir) { // touched down
+    flow.wasAir = false;
+    if (flow.air > 0.45) {
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw), clean = hs > 200 && (vel.x * fx + vel.z * fz) / hs > 0.765; // within about 40 degrees of where you travel
+      if (clean) { const pts = Math.round(flow.pend * flowMult()); flow.score += pts; flow.v = Math.min(1, flow.v + Math.min(0.3, 0.06 + 0.05 * flow.nt)); if (pts > 40) toast((flow.nt ? 'Clean  ' : 'Air  ') + '+' + pts); }
+      else { flow.v = Math.max(0, flow.v - 0.2); if (flow.pend > 60) toast('Sketchy landing'); }
+    }
+    flow.pend = 0; flow.air = 0;
+  }
+  if (!(air && flow.noC > 0.25) || flow.flipT > 0) flipReq = false; // a flip tap only counts in flight
+  if (contactN && stageMeta.park && contactN[1] < 0.55 && hs > 1300) flowGain(80 * sim, 0.08 * sim);          // wall ride
+  if (contactN && contactTube && !stageMeta.park && ramps[lastTouched] && ramps[lastTouched].tube && flow.tube !== lastTouched && hs > 1200) { flow.tube = lastTouched; flowGain(500, 0.15); toast('Loop +' + 500 * flowMult()); }
+  flow.v = Math.max(0, Math.min(1, flow.v + (sp > 1800 ? 0.05 : sp > 1200 ? 0 : -0.12) * sim - 0.02 * sim));
+  flow.score += (sp / 1000) * 10 * sim * flowMult();
+  if (!flow.on && flow.v >= 0.9) { flow.on = true; toast('IN FLOW'); } else if (flow.on && flow.v < 0.6) flow.on = false;
+}
+const flowEl = $('flow'), flowBar = $('flowbar').firstElementChild, flowTxt = $('flowtxt');
+function drawFlow() {
+  flowEl.classList.toggle('on', state === 'run' || state === 'done');
+  flowBar.style.width = (flow.v * 100).toFixed(0) + '%'; flowBar.style.background = flow.on ? 'hsl(' + ((performance.now() / 6) % 360 | 0) + ',85%,60%)' : '#7be495';
+  flowTxt.textContent = 'x' + flowMult() + '   ' + Math.round(flow.score).toLocaleString() + (flow.best ? '   best ' + Math.round(flow.best).toLocaleString() : '');
+}
 // ---------- Loop ----------
 let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
@@ -1291,7 +1344,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick; camera.updateProjectionMatrix();
-  updateNpcs(now); updateTrail(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now); Music.setSpeed(speed);
+  updateFlow(dt); drawFlow(); updateNpcs(now); updateTrail(speed); updateStreaks(speed); tickTheme(dt); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
