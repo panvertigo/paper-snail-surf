@@ -486,13 +486,18 @@ function parkCarve() { // on the surface: velocity swings toward where you face 
   }
   vel.x = n[0] * vn + tx; vel.y = n[1] * vn + ty; vel.z = n[2] * vn + tz;
 }
-// Shortcuts: if you are flying over any of the next dozen pieces (inside its footprint, not yet below its lowest point) you are not falling, you are about to land on it.
+// Shortcuts: you are not falling while you can still reach one of the next dozen pieces: it is still above its lowest point (900 slack) and, at your horizontal speed,
+// you can cover the distance to its footprint in the time it takes to drop to its level. Flying over it, or flying a long arc at it, both count.
 function aboveRampAhead() {
+  const hs = dhypot(vel.x, vel.z), vd = -vel.y;
   for (let i = Math.max(0, lastTouched - 1), i1 = Math.min(ramps.length - 1, lastTouched + 12); i <= i1; i++) {
-    const r = ramps[i];
-    if (r.tube) { const T = r.tube; if (dhypot(pos.x - T.ox, pos.y - T.oy, pos.z - T.oz) < T.bound && pos.y > r.oy - 900) return true; continue; }
-    const L = local(r, pos.x, pos.z);
-    if (L.u >= -200 && L.u <= r.L + 200 && Math.abs(L.v) < r.W + 300 && pos.y > Math.min(r.oy, r.ey) - 900) return true;
+    const r = ramps[i], base = r.tube ? r.oy : Math.min(r.oy, r.ey), dy = pos.y - base;
+    if (dy < -900) continue;
+    const t = dy > 0 ? (vd + Math.sqrt(Math.max(0, vd * vd + 2 * P.g * dy))) / P.g : 0, reach = hs * Math.max(0, t) + 800;
+    let dist;
+    if (r.tube) { const T = r.tube; dist = Math.max(0, dhypot(pos.x - T.ox, pos.y - T.oy, pos.z - T.oz) - T.bound); }
+    else { const L = local(r, pos.x, pos.z), du = L.u < 0 ? -L.u : L.u > r.L ? L.u - r.L : 0, dv = Math.max(0, Math.abs(L.v) - (r.W + 300)); dist = dhypot(du, dv); }
+    if (dist <= reach) return true;
   }
   return false;
 }
