@@ -164,7 +164,30 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
 }
 const ramps = [], checkpoints = [], rings = [];
 let fin, stageMeta = {};
-const STAGE_META = { 1: { pull: 0.3, fall: 0.5 }, 3: { scenery: 'descent', music: 'descent', pull: 0.3, fall: 0.1 } }; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
+const STAGE_META = {
+  1: { pull: 0.3, fall: 0.5, riskRings: [ // risk hoops: small, worth +200 (+50% dead centre); sit outside and inside the safe line, so you pick them by where you leave the ramp
+    { piece: 13, d: 1850, s: -700, y: 40, R: 190, boost: 200 },
+    { piece: 13, d: 3390, s: -210, y: -760, R: 190, boost: 200 }
+  ] },
+  3: { scenery: 'descent', music: 'descent', pull: 0.3, fall: 0.1, riskRings: [
+    { piece: 1, d: 1030, s: 600, y: 90, R: 190, boost: 200 },
+    { piece: 1, d: 1770, s: 70, y: -560, R: 190, boost: 200 },
+    { piece: 3, d: 1870, s: 600, y: -40, R: 190, boost: 200 },
+    { piece: 3, d: 3430, s: 60, y: -1080, R: 190, boost: 200 },
+    { piece: 8, d: 2220, s: -670, y: -120, R: 190, boost: 200 },
+    { piece: 8, d: 4160, s: -170, y: -1280, R: 190, boost: 200 },
+    { piece: 10, d: 2270, s: -670, y: -20, R: 190, boost: 200 },
+    { piece: 10, d: 4220, s: -170, y: -940, R: 190, boost: 200 },
+    { piece: 17, d: 2100, s: 680, y: -120, R: 190, boost: 200 },
+    { piece: 17, d: 3920, s: 170, y: -1280, R: 190, boost: 200 },
+    { piece: 20, d: 2550, s: 660, y: -30, R: 190, boost: 200 },
+    { piece: 20, d: 4810, s: 170, y: -1190, R: 190, boost: 200 },
+    { piece: 27, d: 2390, s: -670, y: -160, R: 190, boost: 200 },
+    { piece: 27, d: 4480, s: -170, y: -1410, R: 190, boost: 200 },
+    { piece: 30, d: 2780, s: -590, y: 100, R: 190, boost: 200 },
+    { piece: 30, d: 5280, s: -90, y: -1110, R: 190, boost: 200 }
+  ] },
+}; // per built-in level: scenery 'descent' = space themes, moon mesa, Earth
 const STAGES = {};
 {
   // Hand-built stage: one entry per ramp, placed in order. Fields (defaults in brackets):
@@ -332,7 +355,8 @@ function buildCourse(S, meta) {
     else { ramps.push(makeRamp(x, y, z, h, L, k, W, W * 1.25, i, tex, side, p.C || 0)); tex += L; }
     ramps[ramps.length - 1].hue = hue;
     // rings sit in the flight just before this piece, placed from the previous piece's end: d ahead, s to the right, y above its end height
-    if (p.rings && prevEnd) for (const q of p.rings) {
+    const allRings = (p.rings || []).concat((stageMeta.riskRings || []).filter(q => q.piece === i));
+    if (allRings.length && prevEnd) for (const q of allRings) {
       const dir = dirOf(prevEnd.h1), right = rightOf(prevEnd.h1), dip = (q.dip || 0) * Math.PI / 180, c = dcos(dip);
       const lane = q.s ?? prevEnd.side * 0.5 * prevEnd.W; // default lane: where the rider flies, mid-face of the previous ramp
       rings.push({ x: prevEnd.ex + dir[0] * q.d + right[0] * lane, y: prevEnd.ey + (q.y || 0), z: prevEnd.ez + dir[2] * q.d + right[2] * lane,
@@ -492,14 +516,14 @@ function step() {
   vel.z = Math.max(-P.maxvel, Math.min(P.maxvel, vel.z));
   const ox = pos.x, oy = pos.y, oz = pos.z;
   pos.x += vel.x * P.dt; pos.y += vel.y * P.dt; pos.z += vel.z * P.dt;
-  for (const g of rings) { // rings: crossing the plane forward inside the radius. hoop = speed boost (more when centred), portal = scenery trigger
+  for (const g of rings) { // rings: crossing the plane forward inside the radius. hoop = speed boost (more when centred, +50% dead centre), portal = scenery trigger
     if (g.hit) { if (g.rearm && --g.cool <= 0) g.hit = false; continue; }
     const s0 = (ox - g.x) * g.nx + (oy - g.y) * g.ny + (oz - g.z) * g.nz, s1 = (pos.x - g.x) * g.nx + (pos.y - g.y) * g.ny + (pos.z - g.z) * g.nz;
     if (s0 < 0 && s1 >= 0) {
       const t = s0 / (s0 - s1), dd = dhypot(ox + (pos.x - ox) * t - g.x, oy + (pos.y - oy) * t - g.y, oz + (pos.z - oz) * t - g.z);
       if (dd <= g.R) {
         g.hit = true; g.cool = 300;
-        if (g.kind === 'hoop') { const sp = dhypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
+        if (g.kind === 'hoop') { const sp = dhypot(vel.x, vel.y, vel.z) || 1, f = 1 + g.boost * (1 - (dd / g.R) * (dd / g.R)) * (dd < 0.25 * g.R ? 1.5 : 1) / sp; vel.x *= f; vel.y *= f; vel.z *= f; }
         if (g.kind === 'boost') { const sp = dhypot(vel.x, vel.y, vel.z) || 1; if (sp < g.min) { const f = g.min / sp; vel.x *= f; vel.y *= f; vel.z *= f; } } // booster: lifts you to a minimum speed, never slows you
         onRing(g, dd / g.R);
       }
@@ -829,6 +853,9 @@ function npcFeel(o, speed, now, k) { // stretch and eye sweep like the player, m
 const tmpU = new THREE.Vector3();
 if (typeof LEVEL === 'number' && !/^#edit/.test(location.hash)) {
   for (const r of (globalThis.RACERS && RACERS[LEVEL]) || []) { const o = makeNpc(r.c, 1.25); o.s = r.s; o.n = r.s.length / 6; npcs.racers.push(o); }
+  try { const gs = JSON.parse(store.get('surf_ghost_L' + LEVEL) || 'null'); if (gs && gs.length > 12 && !stageMeta.park) { // your best run, as a see-through snail
+    const o = makeNpc(0xffffff, 1.25); o.g.traverse(m => { if (m.material && !Array.isArray(m.material)) { m.material.transparent = true; m.material.opacity = 0.45; } else if (Array.isArray(m.material)) m.material.forEach(q => { q.transparent = true; q.opacity = 0.45; }); });
+    o.s = gs; o.n = gs.length / 6; o.ghost = true; npcs.racers.push(o); } } catch (e) {}
   const rnd = rng(LEVEL * 77 + 5); let cnt = 0;
   ramps.forEach((r, i) => { if (r.tube || r.L < 3000 || i < 2 || i % 3 !== 1 || cnt >= 10) return; cnt++;
     const o = makeNpc([0x9aa3b5, 0xc9a27a, 0x8fbf9a, 0xd69aa6][cnt % 4], 1.9);
@@ -856,7 +883,7 @@ function updateNpcs(now) {
   const t = state === 'ready' || state === 'done' && false ? tRun : tRun;
   for (const o of npcs.racers) {
     const f = Math.max(0, Math.min(o.n - 1, t * 10)), i = Math.min(o.n - 2, Math.floor(f)), a = f - i, A = i * 6, B = A + 6, S = o.s;
-    const L = k => S[A + k] + (S[B + k] - S[A + k]) * a, n = [L(3) / 100, L(4) / 100, L(5) / 100], nl = Math.hypot(n[0], n[1], n[2]) || 1;
+    const jump = Math.hypot(S[B] - S[A], S[B + 1] - S[A + 1], S[B + 2] - S[A + 2]) > 900, L = k => S[A + k] + (S[B + k] - S[A + k]) * (jump ? 0 : a), n = [L(3) / 100, L(4) / 100, L(5) / 100], nl = Math.hypot(n[0], n[1], n[2]) || 1;
     const up = [n[0] / nl, n[1] / nl, n[2] / nl], dx = S[B] - S[A], dy = S[B + 1] - S[A + 1], dz = S[B + 2] - S[A + 2], sp = Math.hypot(dx, dy, dz) * 10;
     o.g.visible = true;
     orientNpc(o, [L(0) - up[0] * P.r, L(1) - up[1] * P.r, L(2) - up[2] * P.r], sp > 80 ? [dx, dy, dz] : [o.fx || 0, 0, o.fz || -1], up);
@@ -1068,9 +1095,9 @@ const prevPos = new THREE.Vector3();
 function onRing(g, off) {
   const o = ringObjs[rings.indexOf(g)]; if (o) o.fx = 1;
   if (g.kind === 'portal') { setTheme(g.theme); fovKick += 16; toast('Portal'); Sfx.portal(); Music.trigger('portal', g.theme); }
-  else { toast('Hoop  +' + Math.round(g.boost * (1 - off * off))); Sfx.hoop(1 - off * off); }
+  else { toast((off < 0.25 ? 'Perfect hoop  +' : 'Hoop  +') + Math.round(g.boost * (1 - off * off) * (off < 0.25 ? 1.5 : 1))); Sfx.hoop(1 - off * off); }
 }
-let fingerDown = false, falls = 0;
+let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
 const $ = id => document.getElementById(id);
 const msg = $('msg');
@@ -1083,7 +1110,7 @@ function hud() {
 const START_MSG = '<b>Swipe</b> to turn<br>In the air: <b>hold + swipe</b> to drift<br><br>Touch to drop in';
 function resetRun() {
   intro.on = false;
-  nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
+  ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.turn = 0;
   gates.forEach(g => g.material.color.set(0xffe066));
   spawnOn(0); prevPos.copy(pos); setTheme(0, true); Music.at(0);
   showMsg(START_MSG);
@@ -1100,7 +1127,7 @@ function fail() {
 function finish() {
   state = 'done'; Sfx.finish(); Music.trigger('finish');
   const pb = !best || tRun < best;
-  if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); }
+  if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); store.set('surf_ghost_L' + LEVEL, JSON.stringify(ghostRec)); }
   hud();
   showMsg('<b>' + tRun.toFixed(2) + 's</b><br>' + (falls ? falls + ' falls' : 'Clean run!') + (pb ? '<br>New best!' : '<br>Best ' + best.toFixed(2) + 's') + '<br><br>Touch to go again');
 }
@@ -1232,7 +1259,7 @@ function frame(now) {
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
   if (state === 'run') {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
-    while (acc >= P.dt && state === 'run') { prevPos.copy(pos); step(); if (state === 'run') tRun += P.dt; acc -= P.dt; }
+    while (acc >= P.dt && state === 'run') { prevPos.copy(pos); step(); if (state === 'run') { tRun += P.dt; if (++ghostTick % 10 === 0) { const c = contactN || [0, 1, 0]; ghostRec.push(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z), Math.round(c[0] * 100), Math.round(c[1] * 100), Math.round(c[2] * 100)); } } acc -= P.dt; }
   } else { acc = 0; prevPos.copy(pos); }
   rp.lerpVectors(prevPos, pos, state === 'run' ? acc / P.dt : 1);
   const speed = Math.hypot(vel.x, vel.z);
