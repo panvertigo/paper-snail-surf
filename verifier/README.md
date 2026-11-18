@@ -40,3 +40,4 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - v39: Level 5 grand descent (L3 stretched, 7 checkpoints, ~154 s perfect run; bot finishes 30/30 at 10 ms). No physics change; golden L1-L4 OK.
 - v44: sky now drifts through twilight, sunset, golden hour, morning, pink dawn by course progress; portals no longer change the scene (cosmetic hoop only). No physics change; golden L1-L4 OK.
 - v45: painted art (art/web) for mountains, clouds, floating islands; fusion look drops the moon and planet (every level is an earth view). No physics change; golden OK.
+- v73: EDGE 160 -> 40 (the invisible landing strip past the visible outer base shrinks to 40 u). Golden L1-L4 unchanged; sim L1-L3 results identical to EDGE 160 (bots never used the strip). Revert by setting EDGE back to 160.

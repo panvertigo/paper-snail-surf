@@ -346,7 +346,7 @@ const STAGES = {};
     );
   }
 }
-const EDGE = 160, RAMP_CAP = 3000; // extra downhill pull on ramps (stage meta `pull`, fraction of gravity) stops above this speed
+const EDGE = 40, RAMP_CAP = 3000; // extra downhill pull on ramps (stage meta `pull`, fraction of gravity) stops above this speed
 // Skate park profile constants (see parkH below)
 const PK = { r0: 3000, Rq: 3000, s1: 2898, H1: 2224, deckEnd: 7400, kick: 1500, boost: 0.6, vcap: 2500, dk: 0.15 };
 // buildCourse(S, meta): S = array of pieces, or { name, scenery, theme0, pieces }. Rebuilds ramps / checkpoints / rings / fin (the editor calls it again).
