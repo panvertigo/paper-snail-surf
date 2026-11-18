@@ -35,7 +35,7 @@
     try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.pieces && s.pieces.length) return s; } catch (e) {}
     return fromLevel(1);
   }
-  function fromLevel(n) { const m = STAGE_META[n] || {}; return { name: 'Level ' + n + ' copy', scenery: m.scenery || 'plain', theme0: 0, pieces: clone(STAGES[n]) }; }
+  function fromLevel(n) { const m = STAGE_META[n] || {}; const o = { name: 'Level ' + n + ' copy', scenery: m.scenery || 'plain', theme0: 0, pieces: clone(STAGES[n]) }; for (const k of ['music', 'pull', 'fall']) if (m[k] !== undefined) o[k] = m[k]; if (m.riskRings) o.riskRings = clone(m.riskRings); return o; /* feel settings come along too */ }
   function snapshot() { const j = JSON.stringify(stage); if (hist[histI] === j) return; hist = hist.slice(0, histI + 1); hist.push(j); histI = hist.length - 1; if (hist.length > 200) { hist.shift(); histI--; } try { localStorage.setItem(KEY, j); } catch (e) {} }
   function undo(d) { const i = histI + d; if (i < 0 || i >= hist.length) return; histI = i; stage = JSON.parse(hist[i]); sel = Math.min(sel, stage.pieces.length - 1); try { localStorage.setItem(KEY, hist[i]); } catch (e) {} refresh(true); }
 
@@ -330,11 +330,18 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     sc.onchange = () => { stage.scenery = sc.value; change(); }; sr.appendChild(sc);
     const t0 = document.createElement('select'); ['moon', 'atmosphere', 'sky', 'Earth'].forEach((o, i) => { const op = document.createElement('option'); op.value = i; op.textContent = 'start: ' + o; t0.appendChild(op); }); t0.value = stage.theme0 || 0;
     t0.onchange = () => { stage.theme0 = +t0.value; change(); }; sr.appendChild(t0); top.appendChild(sr);
+    const fr = document.createElement('div'); fr.className = 'row'; fr.innerHTML = '<label>Music</label>';
+    const ms = document.createElement('select'); for (const o of ['', 'chicago', 'bowl', 'descent']) { const op = document.createElement('option'); op.value = o; op.textContent = o || 'none'; ms.appendChild(op); } ms.value = stage.music || '';
+    ms.onchange = () => { if (ms.value) stage.music = ms.value; else delete stage.music; snapshot(); }; fr.appendChild(ms); top.appendChild(fr);
+    const fr2 = document.createElement('div'); fr2.className = 'row'; fr2.innerHTML = '<label>Downhill pull</label><small>0 to 1, adds speed on ramps</small>';
+    const pn = document.createElement('input'); pn.type = 'number'; pn.step = '0.05'; pn.min = '0'; pn.max = '1'; pn.value = stage.pull ?? 0; pn.onchange = () => { stage.pull = +pn.value || 0; if (!stage.pull) delete stage.pull; change(); }; fr2.prepend(pn); top.appendChild(fr2);
+    const fr3 = document.createElement('div'); fr3.className = 'row'; fr3.innerHTML = '<label>Air gravity</label><small>0 to 1, extra fall in the air</small>';
+    const fl = document.createElement('input'); fl.type = 'number'; fl.step = '0.05'; fl.min = '0'; fl.max = '1'; fl.value = stage.fall ?? 0; fl.onchange = () => { stage.fall = +fl.value || 0; if (!stage.fall) delete stage.fall; change(); }; fr3.prepend(fl); top.appendChild(fr3);
     const bar = document.createElement('div'); const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; bar.appendChild(b); };
     bt('▶ Play', () => play()); bt('▶ Play from selected', () => play(sel)); bt('Full check', () => runBots(true)); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1));
     bt('Export', () => modal('Stage JSON (copy it)', JSON.stringify(stage, null, 1))); bt('Import', () => modal('Paste stage JSON', '', t => { const s = JSON.parse(t); if (!s.pieces) throw new Error('no pieces'); stage = s; sel = 0; snapshot(); refresh(true); }));
     top.appendChild(bar);
-    const tp = document.createElement('div'); tp.innerHTML = '<small style="color:#7d8ab8">Start from: </small>'; for (const n of [1, 2, 3]) { const b = document.createElement('button'); b.textContent = 'Level ' + n; b.onclick = () => { if (confirm('Replace the current stage with a copy of Level ' + n + '?')) { stage = fromLevel(n); sel = 0; snapshot(); refresh(true); } }; tp.appendChild(b); }
+    const tp = document.createElement('div'); tp.innerHTML = '<small style="color:#7d8ab8">Start from: </small>'; for (const n of [1, 2, 3, 5]) { const b = document.createElement('button'); b.textContent = 'Level ' + n; b.onclick = () => { if (confirm('Replace the current stage with a copy of Level ' + n + '?')) { stage = fromLevel(n); sel = 0; snapshot(); refresh(true); } }; tp.appendChild(b); }
     const nb = document.createElement('button'); nb.textContent = 'New'; nb.onclick = () => { if (confirm('Start an empty stage?')) { stage = { name: 'New stage', scenery: 'plain', theme0: 0, pieces: [{ L: 3000 }, { L: 3500, gap: 700, drop: 1200 }, { turn: 60, R: 6500 }, { L: 3500 }] }; sel = 0; snapshot(); refresh(true); } }; tp.appendChild(nb); top.appendChild(tp);
     const ph = document.createElement('h3'); ph.textContent = 'Add after the selected piece'; ed.appendChild(ph);
     const pal = document.createElement('div'); for (const [k, v] of Object.entries(PRESETS)) { const b = document.createElement('button'); b.textContent = '+ ' + v.label; b.title = v.tip; b.onclick = () => add(k); pal.appendChild(b); } ed.appendChild(pal);

@@ -1,5 +1,4 @@
-
-# copyrighted source tracks and the loops cut from them stay local
+# full source tracks stay local; the cut loops (music/<song>_<section>.mp3) are tracked
 music/*.wav
-music/*.mp3
+music/5 Chicago*
 art/ChatGPT*
