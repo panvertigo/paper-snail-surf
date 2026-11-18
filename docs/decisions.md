@@ -73,3 +73,7 @@ Monetization lean: premium upfront ($3-5) over F2P at friend scale; cosmetics on
 - Hitbox forgiveness strip past a ramp's outer edge: 160 -> 40 u.
 - Music: each level has a song (L1 Salt for Mushroom Field, L2 Fleetwood Mac, L3 and L5 Chicago, L4 bowl). The default policy is "linear (hybrid)": play the song in order, steered by progress; Jeffry likes it. Details and rules in docs/music-notes.md. The sample-music preference rules (never swap immediately, no cuts, finish on the climax, no discordant ending) are logged there.
 - Performance: ?perf, ?lite and per-feature URL switches exist to measure on the phone; see docs/performance-notes.md.
+
+## 2026-11-18: art direction and courses
+- Art direction (Jeffry): start inside an apartment (perhaps his), courses through different rooms, everything feels huge. Outside views are rare and surprising. Level 5 stays as a later level (an ascent). The green landing pad is to be replaced by something wondrous and whimsical; ideas in docs/roadmap.md.
+- Courses: built-in levels are read only; user courses are stored separately (browser storage, JSON files, share links, the levels/ folder). See docs/courses.md.

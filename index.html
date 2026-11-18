@@ -43,6 +43,9 @@ canvas{display:block;touch-action:none}
 <div id="settings" hidden>
   <label>Level</label>
   <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="4">4<br>bowl</button><button data-l="5">5<br>grand descent</button></div>
+  <label>My and shared courses</label>
+  <select id="courses" style="width:100%;padding:6px;border-radius:8px;background:#ffffff22;color:#fff;border:0"><option value="">Choose a course...</option></select>
+  <button id="toedit" style="margin-top:6px;width:100%;padding:6px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px">Course editor (desktop)</button>
   <label>Air accel (ramp grip)</label>
   <div class="row" id="aa">
     <button data-v="150">150<br>classic</button><button data-v="400">400<br>medium</button><button data-v="800">800<br>easy</button>
@@ -69,10 +72,18 @@ canvas{display:block;touch-action:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="music.js?v=67"></script>
 <script src="racers.js"></script>
+<script src="courses.js?v=1"></script>
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
 class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
-try { if (/^#custom/.test(location.hash)) { globalThis.SURF_STAGE = JSON.parse(localStorage.getItem('surf_custom_stage')); globalThis.SURF_LEVEL = 'custom'; } } catch (e) {}
+try { // courses: #custom (the editor's Play), #course-<id> (my courses), #share-<code> (a shared link), #file-<name> (levels/<name>.json)
+  const h = location.hash; let S = null, id = '';
+  if (/^#custom/.test(h)) { S = JSON.parse(localStorage.getItem('surf_custom_stage')); id = localStorage.getItem('surf_custom_id') || ''; }
+  else if (/^#course-/.test(h)) { id = decodeURIComponent(h.slice(8)); S = Courses.get(id); }
+  else if (/^#share-/.test(h)) { const c = h.slice(7); S = Courses.decode(c); let hh = 5381; for (let i = 0; i < c.length; i++) hh = ((hh * 33) ^ c.charCodeAt(i)) >>> 0; id = 's' + hh.toString(36); }
+  else if (/^#file-/.test(h)) { id = 'f_' + decodeURIComponent(h.slice(6)); S = Courses.readFileSync(decodeURIComponent(h.slice(6))); }
+  if (S) { globalThis.SURF_STAGE = S; globalThis.SURF_LEVEL = 'custom'; globalThis.SURF_COURSE = id; }
+} catch (e) { console.warn('could not load that course', e); }
 // ==PHYSICS START== (shared verbatim with the offline course verifier; needs a V class and onCheckpoint/finish/fail hooks)
 // Deterministic math: engines differ in the last bit for sin/cos/atan2/hypot, so replays would diverge across devices (Node vs Chrome already do).
 // These use only + - * / and sqrt, which IEEE 754 makes bit-identical everywhere.
@@ -612,7 +623,7 @@ const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return
                 set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
 P.airaccel = +(store.get('surf_aa') || P.airaccel);
 P.sens = +(store.get('surf_sens_v2') || P.sens);
-const LEVEL = globalThis.SURF_LEVEL, LEVEL_LABEL = LEVEL === 'custom' ? (stageMeta.name || 'Custom stage') : 'Level ' + LEVEL, BK = 'surf_best_L' + LEVEL, BFK = 'surf_bestf_L' + LEVEL;
+const LEVEL = globalThis.SURF_LEVEL, LEVEL_LABEL = LEVEL === 'custom' ? (stageMeta.name || 'Custom stage') : 'Level ' + LEVEL, LKEY = LEVEL + (globalThis.SURF_COURSE ? '_' + globalThis.SURF_COURSE : ''), BK = 'surf_best_L' + LKEY, BFK = 'surf_bestf_L' + LKEY;
 let best = +(store.get(BK) || 0), bestFalls = +(store.get(BFK) || 0);
 
 // ---------- Scene ----------
@@ -1165,7 +1176,7 @@ function npcFeel(o, speed, now, k) { // stretch and eye sweep like the player, m
 const tmpU = new THREE.Vector3();
 if (typeof LEVEL === 'number' && !/^#edit/.test(location.hash)) {
   for (const r of (globalThis.RACERS && RACERS[LEVEL]) || []) { const o = makeNpc(r.c, 1.25); o.s = r.s; o.n = r.s.length / 6; npcs.racers.push(o); }
-  try { const gs = JSON.parse(store.get('surf_ghost_L' + LEVEL) || 'null'); if (gs && gs.length > 12 && !stageMeta.park) { // your best run, as a see-through snail
+  try { const gs = JSON.parse(store.get('surf_ghost_L' + LKEY) || 'null'); if (gs && gs.length > 12 && !stageMeta.park) { // your best run, as a see-through snail
     const o = makeNpc(0xffffff, 1.25); o.g.traverse(m => { if (m.material && !Array.isArray(m.material)) { m.material.transparent = true; m.material.opacity = 0.45; } else if (Array.isArray(m.material)) m.material.forEach(q => { q.transparent = true; q.opacity = 0.45; }); });
     o.s = gs; o.n = gs.length / 6; o.ghost = true; npcs.racers.push(o); } } catch (e) {}
 }
@@ -1596,9 +1607,9 @@ function fail() {
 }
 function finish() {
   state = 'done'; Sfx.finish(); if (!aheadFin) Music.trigger('finish');
-  if (flow.score > flow.best) { flow.best = flow.score; flow.newBest = true; store.set('surf_style_L' + LEVEL, String(Math.round(flow.score))); }
+  if (flow.score > flow.best) { flow.best = flow.score; flow.newBest = true; store.set('surf_style_L' + LKEY, String(Math.round(flow.score))); }
   const pb = !best || tRun < best;
-  if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); store.set('surf_ghost_L' + LEVEL, JSON.stringify(ghostRec)); }
+  if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); store.set('surf_ghost_L' + LKEY, JSON.stringify(ghostRec)); }
   hud();
   showMsg('<b>' + tRun.toFixed(2) + 's</b><br>' + (falls ? falls + ' falls' : 'Clean run!') + '<br>Style ' + Math.round(flow.score).toLocaleString() + (flow.newBest ? ' (best!)' : '') + (pb ? '<br>New best!' : '<br>Best ' + best.toFixed(2) + 's') + '<br><br>Touch to go again');
 }
@@ -1661,6 +1672,13 @@ function syncSettings() {
   $('sfx').value = Math.round(sfxVol * 100); $('sfxv').textContent = Math.round(sfxVol * 100) + '%';
 }
 document.querySelectorAll('#lvl button').forEach(b => { b.classList.toggle('on', +b.dataset.l === LEVEL); b.onclick = () => { if (+b.dataset.l !== LEVEL) { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; location.reload(); } }; });
+{ // courses menu: my saved courses (this browser) and the shared ones listed in levels/index.json
+  const sel = $('courses'), add = (label, items) => { if (!items.length) return; const g = document.createElement('optgroup'); g.label = label; for (const it of items) { const o = document.createElement('option'); o.value = it.v; o.textContent = it.t; g.appendChild(o); } sel.appendChild(g); };
+  try { add('My courses', Courses.list().map(c => ({ v: 'course-' + c.id, t: c.name }))); } catch (e) {}
+  try { Courses.index().then(list => add('Shared courses', list.map(c => ({ v: 'file-' + c.file, t: c.name + (c.author ? ' (' + c.author + ')' : '') })))).then(() => { sel.value = location.hash.slice(1); }); } catch (e) {}
+  sel.onchange = () => { if (sel.value) { location.hash = sel.value; location.reload(); } }; sel.value = location.hash.slice(1);
+  $('toedit').onclick = () => { location.hash = 'edit'; location.reload(); };
+}
 document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airaccel = +b.dataset.v; store.set('surf_aa', P.airaccel); syncSettings(); });
 $('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
 $('zoomd').oninput = e => { zoomD = +e.target.value / 100; store.set('surf_zoom', e.target.value); syncSettings(); };
@@ -1736,7 +1754,7 @@ function startIntro() {
 
 // ---------- Flow and tricks: a style meter on top of the sim. Spin (turn in the air), clean landings, wall rides, loops and hoops fill it; slowness and sloppy landings drain it. ----------
 // Visual and musical reward only (rainbow trail, music lift at full flow); it never changes the physics or your time.
-const flow = { mood: 'calm', v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, lastYaw: 0, on: false, wasAir: false, noC: 0, tube: -1, best: +(store.get('surf_style_L' + LEVEL) || 0), newBest: false };
+const flow = { mood: 'calm', v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, lastYaw: 0, on: false, wasAir: false, noC: 0, tube: -1, best: +(store.get('surf_style_L' + LKEY) || 0), newBest: false };
 const flowMult = () => 1 + Math.floor(flow.v * 4);
 function flowReset() { Object.assign(flow, { mood: 'calm', v: 0, score: 0, pend: 0, nt: 0, air: 0, spin: 0, spinDone: 0, on: false, wasAir: false, noC: 0, tube: -1, newBest: false }); }
 function flowGain(pts, f) { flow.score += pts * flowMult(); flow.v = Math.min(1, flow.v + f); }

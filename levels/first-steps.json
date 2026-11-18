@@ -1,0 +1,17 @@
+{
+ "name": "First steps",
+ "author": "Paper Snail Surf",
+ "scenery": "plain",
+ "theme0": 0,
+ "music": "salt",
+ "pull": 0.3,
+ "pieces": [
+  { "L": 3500, "W": 700 },
+  { "L": 3500, "W": 700, "gap": 700, "drop": 1200 },
+  { "turn": 60, "R": 6500 },
+  { "L": 3500, "cp": true },
+  { "L": 4200, "C": 900 },
+  { "L": 3500, "gap": 700, "drop": 1200 },
+  { "L": 3500, "cp": true }
+ ]
+}

@@ -20,7 +20,8 @@ Music (docs/music-notes.md)
 - iOS audio unlock hardened (still unconfirmed on a device).
 Performance (docs/performance-notes.md)
 - Found and fixed a ramp-texture-per-piece bug (probable crash cause). Added `?perf=1`, `?lite=1` and per-feature URL switches so the phone can tell us what is slow.
-Editor
+Courses and editor (2026-11-18)
+- Course library: New, Copy (of any built-in level or your course; the original is never touched), Open, Save, Save as, Delete, Share link, Export and Import file, all in an obvious blue course bar with a Saved / UNSAVED pill. Courses are stored separately from the app (browser storage plus plain JSON files; the levels/ folder for shipped ones), appear in the game menu, and keep their own best times. The Music list comes from music/index.json and you can type your own song id. Details: docs/courses.md.
 - Click any ramp to select, drag its body to place it, music/pull/fall fields, Start-from copies carry music, pull, fall and risk hoops.
 
 ## Next, in order
@@ -45,7 +46,7 @@ Goal: find what makes the best surf maps fun, then translate it into our one-fin
 - Desktop only for now.
 
 ## Open questions for you
-1. Art direction: the game has drifted from "whole house" (kitchen island to dog bed) to painted skies, mountains and towns. Is that the new direction, or should stages mix both (a house intro, then the sky)?
+1. (Answered 2026-11-18, see Art direction below.)
 2. Fleetwood outro: keep the 5-bar ending that plays on finish, or end on the loop like Chicago?
 3. Salt: does the drop at 45 s land on the beat you hear (I set the grid from the energy step, not by ear)? Should longer levels use its second climax?
 4. Chicago on Level 3: the arrival riser plays through the finish and the arpeggio comes about 10 s after. Fine, or should the short order be trimmed so the arpeggio lands at the finish?
@@ -55,3 +56,24 @@ Goal: find what makes the best surf maps fun, then translate it into our one-fin
 8. Camera: is 60% distance the right default, or do you want presets (close / default / wide)?
 9. Level 4 (bowl): move its music to the linear policy and give it a proper start and end?
 10. Retire the lean physics code for good (it is only unused now), or keep it for a future advanced mode?
+
+## Art direction (decided 2026-11-18)
+- Start inside an apartment, maybe Jeffry's own. Stages go through the rooms (bedroom, hallway, kitchen, bathroom, living room, balcony door last) and everything is huge: the snail is tiny, so furniture, appliances and clutter are mountains. Outside views should be rare and surprising (a window you fly past, a balcony at the end), not the default.
+- Level 5 (the grand descent: sky, mountains, town, night) is a proof of concept. Keep it as one of the later levels, for example the final climb out of the house ("we ascend") once the apartment stages exist.
+- What carries over: the time-of-day light system (golden hour to dusk to night) becomes window light and room lighting across a stage (sunbeams on the floor, lamps and TV glow switching on), the paper ramps, the cute snail, the particle and speed look, the headlights (a dark room!), the town and ferris wheel (seen from the balcony or a window), the music system.
+- What is new: interior sets (room shell with floor and wall textures, big furniture silhouettes as set dressing, props that the ramps lean on or sit among), scale cues, window views, per-room palettes. Cheap first version: flat painted cards and simple boxes in the existing renderer, then art from the illustrator friend.
+- Open questions: is it literally Jeffry's apartment layout (then a floor plan and photos are the reference) or a generic cozy apartment? How many rooms for v1?
+
+## Landing pad ideas (instead of the green pad)
+Goals: wondrous, symbolic, whimsical; easy to see from the air (glow or spiral); a soft, forgiving target; reacts when you land (ripple, chime, petals, light); never green.
+- A sunbeam pool on the floor, with a cat or dog bed in it: warm light, the thing every small creature heads for. Natural for the first apartment stages.
+- A child's crayon drawing of a house, on the floor or fridge: you land inside the drawn house and the chimney smoke curls. Ties to the "Someone made you" story and "going home".
+- A spinning vinyl record: you land on it, it starts turning and the outro of the song plays. Pairs the finish with the music.
+- A music box with a turning ballerina platform that plays a few bars when you land.
+- A cinnamon roll, a seashell, or a spiral staircase of books: spirals echo the snail's shell; landing winds you into the middle.
+- An open storybook: you land on the last page, the words "the end" glow and the page flutters.
+- A dewdrop-covered leaf in a pot by the window, or a flower whose petals open when you land (the garden as the very last destination, not stage 1).
+- A paper boat on a puddle or in the bathtub: you land and drift out of frame; water rings ripple.
+- A pillow fort with a lantern: the cosiest ending, lanterns hang over it.
+- A moonlit puddle on the balcony that reflects the sky: the exit from the house for the last stage.
+Recommendation: one signature pad per room so each stage ends on a different small wonder: sunbeam and cat bed (bedroom), spinning record (living room), open storybook (study), paper boat (bathroom), crayon house (the final one). Cheap to build as a flat painted card plus a glow and a particle burst on landing.

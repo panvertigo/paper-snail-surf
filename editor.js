@@ -25,7 +25,9 @@
   const F_RING = [['d', 'Ahead', -500, 3000, 50, 'Distance past the previous piece\'s end'], ['y', 'Height', -1500, 3000, 50], ['s', 'Lane', -1500, 1500, 50, 'Blank = where the rider flies'], ['R', 'Radius', 100, 800, 10],
     ['boost', 'Boost (hoop)', 0, 400, 10], ['theme', 'Scene (portal)', 0, 3, 1, '0 moon, 1 atmosphere, 2 sky, 3 Earth'], ['dip', 'Dip (deg)', -30, 60, 5]];
 
-  let stage, sel = 0, hist = [], histI = -1, version = 0;
+  let stage, sel = 0, hist = [], histI = -1, version = 0, savedJ = null, fresh = false;
+  const LEVEL_NAMES = { 1: 'cruise', 2: 'gauntlet', 3: 'descent', 5: 'grand descent' };
+  let SONGS = [{ id: 'chicago', name: 'Chicago Meditation' }, { id: 'fleetwood', name: 'Fleetwood Mac' }, { id: 'salt', name: 'Salt for Mushroom Field' }, { id: 'bowl', name: 'Bowl mix' }, { id: 'descent', name: 'Demo (generated)' }];
   let botRes = null, entries = {}, pathLine = null, selObjs = [], busy = false, pendingRun = null;
   const cam = { yaw: 0.6, pitch: 0.55, dist: 60000, tx: 0, ty: 0, tz: 0 };
 
@@ -33,10 +35,10 @@
   const kind = p => p.loop ? (p.loop.bank ? 'swirl' : 'loop') : p.turn ? 'turn' : 'ramp';
   function load() {
     try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.pieces && s.pieces.length) return s; } catch (e) {}
-    return fromLevel(1);
+    fresh = true; return { name: 'My first course', scenery: 'plain', theme0: 0, pieces: [{ L: 3000 }, { L: 3500, gap: 700, drop: 1200 }, { turn: 60, R: 6500 }, { L: 3500, cp: true }] };
   }
   function fromLevel(n) { const m = STAGE_META[n] || {}; const o = { name: 'Level ' + n + ' copy', scenery: m.scenery || 'plain', theme0: 0, pieces: clone(STAGES[n]) }; for (const k of ['music', 'pull', 'fall']) if (m[k] !== undefined) o[k] = m[k]; if (m.riskRings) o.riskRings = clone(m.riskRings); return o; /* feel settings come along too */ }
-  function snapshot() { const j = JSON.stringify(stage); if (hist[histI] === j) return; hist = hist.slice(0, histI + 1); hist.push(j); histI = hist.length - 1; if (hist.length > 200) { hist.shift(); histI--; } try { localStorage.setItem(KEY, j); } catch (e) {} }
+  function snapshot() { const j = JSON.stringify(stage); if (hist[histI] === j) return; hist = hist.slice(0, histI + 1); hist.push(j); histI = hist.length - 1; if (hist.length > 200) { hist.shift(); histI--; } try { localStorage.setItem(KEY, j); } catch (e) {} updateBar(); }
   function undo(d) { const i = histI + d; if (i < 0 || i >= hist.length) return; histI = i; stage = JSON.parse(hist[i]); sel = Math.min(sel, stage.pieces.length - 1); try { localStorage.setItem(KEY, hist[i]); } catch (e) {} refresh(true); }
 
   // ---------- rebuild ----------
@@ -312,37 +314,96 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
   }
   function play(from) {
     try {
-      localStorage.setItem('surf_custom_stage', JSON.stringify(stage));
+      localStorage.setItem('surf_custom_stage', JSON.stringify(stage)); localStorage.setItem('surf_custom_id', stage.id || '');
       localStorage.setItem('surf_custom_from', from !== undefined && entries[from] ? JSON.stringify({ ...entries[from], cpRamp: entries[from].cpRamp ?? 0 }) : '');
       window.open(location.pathname + '#custom', '_blank');
     } catch (e) { alert('Could not open the game: ' + e.message); }
   }
+  // ---------- course library: new / copy / open / save (built-in levels are never edited, only copied) ----------
+  const unsaved = () => savedJ === null || JSON.stringify(stage) !== savedJ;
+  function updateBar() { const pl = $id('edpill'); if (!pl) return; const u = unsaved(); pl.textContent = u ? 'UNSAVED CHANGES: press Save' : 'Saved in My courses'; pl.style.background = u ? '#c2571a' : '#1f7a4a'; }
+  function popup(title, body, buttons) {
+    const m = document.createElement('div'); m.id = 'edmodal'; const box = document.createElement('div'), h = document.createElement('b'); h.textContent = title; box.appendChild(h);
+    if (typeof body === 'string') { const q = document.createElement('p'); q.textContent = body; q.style.margin = '8px 0'; box.appendChild(q); } else if (body) box.appendChild(body);
+    const bar = document.createElement('div'); bar.style.marginTop = '10px';
+    for (const [t, f, cls] of buttons) { const b = document.createElement('button'); b.textContent = t; b.style.cssText = 'color:#fff;border:0;border-radius:6px;padding:8px 14px;margin-right:8px;cursor:pointer;font-size:13px;background:' + (cls === 'primary' ? '#1f7a4a' : cls === 'danger' ? '#8a2c3c' : '#27325a'); b.onclick = () => { m.remove(); if (f) f(); }; bar.appendChild(b); }
+    box.appendChild(bar); m.appendChild(box); m.onclick = e => { if (e.target === m) m.remove(); }; document.body.appendChild(m); return m;
+  }
+  function chooser(title, groups, onPick) {
+    const wrap = document.createElement('div'); wrap.style.cssText = 'max-height:55vh;overflow:auto;margin-top:8px'; let m;
+    for (const [label, items] of groups) { if (!items.length) continue; const gh = document.createElement('div'); gh.textContent = label; gh.style.cssText = 'margin:10px 0 4px;color:#8fa2d6;font-size:12px;text-transform:uppercase'; wrap.appendChild(gh);
+      for (const it of items) { const b = document.createElement('button'); b.style.cssText = 'display:block;width:100%;text-align:left;background:#1c2548;color:#fff;border:0;border-radius:6px;padding:9px 10px;margin:3px 0;cursor:pointer;font-size:13px'; const t = document.createElement('b'); t.textContent = it.t; b.appendChild(t); if (it.s) { const q = document.createElement('span'); q.textContent = '   ' + it.s; q.style.color = '#8fa2d6'; b.appendChild(q); } b.onclick = () => { m.remove(); onPick(it); }; wrap.appendChild(b); } }
+    m = popup(title, wrap, [['Cancel']]);
+  }
+  function adopt(st, note) { stage = st; if (!stage.id) stage.id = Courses.uid(); Courses.save(stage); savedJ = Courses.json(stage.id); sel = 0; hist = []; histI = -1; snapshot(); refresh(true); setStatus(note || ''); }
+  function guard(next) { if (!unsaved()) { next(); return; } popup('Unsaved changes', 'Your current course has changes that are not saved. What now?', [['Save, then continue', () => { saveCourse(); next(); }, 'primary'], ['Discard the changes', next, 'danger'], ['Cancel']]); }
+  function newCourse() { guard(() => adopt({ name: 'New course', scenery: 'plain', theme0: 0, pieces: [{ L: 3000 }, { L: 3500, gap: 700, drop: 1200 }, { turn: 60, R: 6500 }, { L: 3500, cp: true }] }, 'New course created and saved.')); }
+  function copyFrom() {
+    guard(() => { const mine = Courses.list().map(c => ({ t: c.name, s: c.pieces + ' pieces', my: c.id }));
+      chooser('Copy which course?  The original is never touched.', [['Built-in levels', [1, 2, 3, 5].map(n => ({ t: 'Level ' + n + '  ' + LEVEL_NAMES[n], s: 'built in', lvl: n }))], ['My courses', mine]], it => {
+        let st; if (it.lvl) { st = fromLevel(it.lvl); st.name = 'Level ' + it.lvl + ' copy'; } else { st = Courses.get(it.my); st.name = (st.name || 'Course') + ' copy'; }
+        delete st.id; adopt(st, 'Copy made and saved: ' + st.name + '. Edit freely, the original is untouched.'); }); });
+  }
+  function openCourse() {
+    guard(() => { const mine = Courses.list().map(c => ({ t: c.name, s: c.pieces + ' pieces, ' + new Date(c.updated).toLocaleDateString(), my: c.id })); if (!mine.length) { setStatus('No saved courses yet. Use New or Copy.'); return; }
+      chooser('Open which of your courses?', [['My courses', mine]], it => { const st = Courses.get(it.my); adopt(st, 'Opened ' + (st.name || 'course') + '.'); }); });
+  }
+  function saveCourse() { if (!stage.name || !stage.name.trim()) stage.name = 'Untitled'; Courses.save(stage); savedJ = Courses.json(stage.id); updateBar(); setStatus('Saved "' + stage.name + '" to My courses.'); }
+  function saveAs() {
+    const inp = document.createElement('input'); inp.value = (stage.name || 'Course') + ' (2)'; inp.style.cssText = 'width:100%;margin-top:8px;padding:8px;background:#18203a;color:#fff;border:1px solid #33406e;border-radius:6px;box-sizing:border-box';
+    popup('Save a copy as...', inp, [['Save copy', () => { const st = clone(stage); st.name = inp.value.trim() || 'Untitled'; delete st.id; adopt(st, 'Saved as "' + st.name + '". You are now editing the copy; the earlier saved version is unchanged.'); }, 'primary'], ['Cancel']]); inp.select();
+  }
+  function deleteCourse() {
+    popup('Delete this course?', '"' + (stage.name || 'Untitled') + '" will be removed from My courses. This cannot be undone. Built-in levels are not affected.', [['Delete it', () => { Courses.remove(stage.id); adopt({ name: 'New course', scenery: 'plain', theme0: 0, pieces: [{ L: 3000 }, { L: 3500, gap: 700, drop: 1200 }, { turn: 60, R: 6500 }, { L: 3500, cp: true }] }, 'Deleted. A fresh course was created.'); }, 'danger'], ['Cancel']]);
+  }
+  function shareLink() {
+    const url = location.origin + location.pathname + '#share-' + Courses.encode(stage), ta = document.createElement('textarea'); ta.value = url; ta.readOnly = true; ta.style.cssText = 'width:100%;height:110px;margin-top:8px;background:#18203a;color:#fff;border:1px solid #33406e;border-radius:6px;box-sizing:border-box;font:11px monospace';
+    const w = document.createElement('div'); w.appendChild(ta); const n = document.createElement('div'); n.style.cssText = 'font-size:12px;color:#8fa2d6;margin-top:6px'; n.textContent = 'Anyone who opens this link plays your course as it is right now (' + url.length + ' characters). ' + (url.length > 8000 ? 'It is long: some chat apps may cut it, use Export file instead.' : ''); w.appendChild(n);
+    popup('Share link', w, [['Copy link', () => { navigator.clipboard.writeText(url).catch(() => {}); setStatus('Link copied.'); }, 'primary'], ['Close']]); ta.select();
+  }
+  function exportFile() {
+    const nm = (stage.name || 'course').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'course', st = clone(stage); delete st.id;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(st, null, 1)], { type: 'application/json' })); a.download = nm + '.json'; document.body.appendChild(a); a.click(); a.remove();
+    setStatus('Exported ' + nm + '.json. Send it to a friend to Import, or put it in the levels/ folder to ship it with the game.');
+  }
+  function importFile() {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = () => { const f = inp.files[0]; if (!f) return; f.text().then(t => { const st = JSON.parse(t); if (!Courses.valid(st)) throw new Error('no pieces in that file'); guard(() => { delete st.id; if (!st.name) st.name = f.name.replace(/\.json$/i, ''); adopt(st, 'Imported "' + st.name + '" and saved it to My courses.'); }); }).catch(e => alert('Could not import: ' + e.message)); };
+    inp.click();
+  }
+
   function renderPanel() {
     const ed = $id('ed') || Object.assign(document.createElement('div'), { id: 'ed' }); if (!ed.parentNode) document.body.appendChild(ed);
     ed.innerHTML = '';
+    const cb = document.createElement('div'); cb.id = 'edcbar'; cb.style.cssText = 'background:#101b3d;border:2px solid #3b5bdb;border-radius:10px;padding:8px 8px 6px;margin-bottom:8px';
+    const cl = document.createElement('div'); cl.textContent = 'YOUR COURSE'; cl.style.cssText = 'font-size:11px;letter-spacing:.08em;color:#8fa2d6'; cb.appendChild(cl);
+    const cn = document.createElement('input'); cn.id = 'edcname'; cn.value = stage.name || ''; cn.placeholder = 'course name'; cn.style.cssText = 'width:100%;font-size:15px;font-weight:600;padding:6px;margin:4px 0'; cn.oninput = () => { stage.name = cn.value; snapshot(); }; cb.appendChild(cn);
+    const pill = document.createElement('div'); pill.id = 'edpill'; pill.style.cssText = 'display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;margin-bottom:4px'; cb.appendChild(pill);
+    const cnote = document.createElement('div'); cnote.style.cssText = 'font-size:11px;color:#8fa2d6;margin:2px 0 6px'; cnote.textContent = 'Built-in levels are read only. To change one, press Copy and edit the copy.'; cb.appendChild(cnote);
+    const crow = list => { const r = document.createElement('div'); r.style.cssText = 'display:flex;gap:6px;margin:4px 0'; for (const [t, f, cls] of list) { const b = document.createElement('button'); b.textContent = t; b.onclick = f; b.style.cssText = 'flex:1;padding:9px 4px;font-size:13px;font-weight:600;margin:0;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); r.appendChild(b); } return r; };
+    cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Share link', shareLink], ['Export file', exportFile], ['Import file', importFile]]));
+    ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;line-height:1.5';
     how.innerHTML = '<b>How to build</b><br>1. Press <b>+ Ramp</b> below, then <b>click any ramp</b> in the 3D view to select it; <b>drag the ramp itself</b> to place it.<br>2. Drag the balls on the selected ramp:<br><span style="color:#ffe14a">&#9679;</span> yellow: <b>length</b> (turn angle on a turn) &nbsp;<span style="color:#ff9a3c">&#9679;</span> orange: <b>width</b><br><span style="color:#4be07a">&#9679;</span> green: <b>move</b> along the ground and sideways &nbsp;<span style="color:#4aa8ff">&#9670;</span> blue: <b>raise / lower</b><br>3. The coloured line is the bot riding it; red rows are where it falls. Press <b>Play</b> to try it yourself.';
     ed.appendChild(how);
-    const top = document.createElement('div'); top.innerHTML = '<h3 style="margin-top:0">Stage</h3>'; ed.appendChild(top);
-    const nm = document.createElement('input'); nm.value = stage.name || ''; nm.style.width = '100%'; nm.placeholder = 'stage name'; nm.oninput = () => { stage.name = nm.value; snapshot(); }; top.appendChild(nm);
+    const top = document.createElement('div'); top.innerHTML = '<h3 style="margin-top:0">Course settings</h3>'; ed.appendChild(top);
     const sr = document.createElement('div'); sr.className = 'row'; sr.innerHTML = '<label>Scenery</label>';
     const sc = document.createElement('select'); for (const o of ['plain', 'descent']) { const op = document.createElement('option'); op.value = op.textContent = o; sc.appendChild(op); } sc.value = stage.scenery || 'plain';
     sc.onchange = () => { stage.scenery = sc.value; change(); }; sr.appendChild(sc);
     const t0 = document.createElement('select'); ['moon', 'atmosphere', 'sky', 'Earth'].forEach((o, i) => { const op = document.createElement('option'); op.value = i; op.textContent = 'start: ' + o; t0.appendChild(op); }); t0.value = stage.theme0 || 0;
     t0.onchange = () => { stage.theme0 = +t0.value; change(); }; sr.appendChild(t0); top.appendChild(sr);
     const fr = document.createElement('div'); fr.className = 'row'; fr.innerHTML = '<label>Music</label>';
-    const ms = document.createElement('select'); for (const o of ['', 'chicago', 'fleetwood', 'salt', 'bowl', 'descent']) { const op = document.createElement('option'); op.value = o; op.textContent = o || 'none'; ms.appendChild(op); } ms.value = stage.music || '';
+    const ms = document.createElement('select'), fillSongs = list => { ms.innerHTML = ''; const ids = ['', ...list.map(x => x.id)]; if (stage.music && !ids.includes(stage.music)) ids.push(stage.music); for (const o of ids) { const op = document.createElement('option'); const f = list.find(x => x.id === o); op.value = o; op.textContent = o ? (f ? f.name + ' (' + o + ')' : o + ' (your song id)') : 'none'; ms.appendChild(op); } ms.value = stage.music || ''; };
+    fillSongs(SONGS); Courses.songs().then(l => { if (l.length) { SONGS = l; fillSongs(l); } });
     ms.onchange = () => { if (ms.value) stage.music = ms.value; else delete stage.music; snapshot(); }; fr.appendChild(ms); top.appendChild(fr);
+    const fm = document.createElement('div'); fm.className = 'row'; fm.innerHTML = '<label>Your song id</label>'; const mi = document.createElement('input'); mi.placeholder = 'a song you added to music/'; mi.style.flex = '1'; mi.value = SONGS.some(x => x.id === stage.music) ? '' : (stage.music || ''); mi.onchange = () => { const v = mi.value.trim(); if (v) stage.music = v; else delete stage.music; snapshot(); fillSongs(SONGS); }; fm.appendChild(mi); top.appendChild(fm);
     const fr2 = document.createElement('div'); fr2.className = 'row'; fr2.innerHTML = '<label>Downhill pull</label><small>0 to 1, adds speed on ramps</small>';
     const pn = document.createElement('input'); pn.type = 'number'; pn.step = '0.05'; pn.min = '0'; pn.max = '1'; pn.value = stage.pull ?? 0; pn.onchange = () => { stage.pull = +pn.value || 0; if (!stage.pull) delete stage.pull; change(); }; fr2.prepend(pn); top.appendChild(fr2);
     const fr3 = document.createElement('div'); fr3.className = 'row'; fr3.innerHTML = '<label>Air gravity</label><small>0 to 1, extra fall in the air</small>';
     const fl = document.createElement('input'); fl.type = 'number'; fl.step = '0.05'; fl.min = '0'; fl.max = '1'; fl.value = stage.fall ?? 0; fl.onchange = () => { stage.fall = +fl.value || 0; if (!stage.fall) delete stage.fall; change(); }; fr3.prepend(fl); top.appendChild(fr3);
     const bar = document.createElement('div'); const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; bar.appendChild(b); };
     bt('▶ Play', () => play()); bt('▶ Play from selected', () => play(sel)); bt('Full check', () => runBots(true)); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1));
-    bt('Export', () => modal('Stage JSON (copy it)', JSON.stringify(stage, null, 1))); bt('Import', () => modal('Paste stage JSON', '', t => { const s = JSON.parse(t); if (!s.pieces) throw new Error('no pieces'); stage = s; sel = 0; snapshot(); refresh(true); }));
     top.appendChild(bar);
-    const tp = document.createElement('div'); tp.innerHTML = '<small style="color:#7d8ab8">Start from: </small>'; for (const n of [1, 2, 3, 5]) { const b = document.createElement('button'); b.textContent = 'Level ' + n; b.onclick = () => { if (confirm('Replace the current stage with a copy of Level ' + n + '?')) { stage = fromLevel(n); sel = 0; snapshot(); refresh(true); } }; tp.appendChild(b); }
-    const nb = document.createElement('button'); nb.textContent = 'New'; nb.onclick = () => { if (confirm('Start an empty stage?')) { stage = { name: 'New stage', scenery: 'plain', theme0: 0, pieces: [{ L: 3000 }, { L: 3500, gap: 700, drop: 1200 }, { turn: 60, R: 6500 }, { L: 3500 }] }; sel = 0; snapshot(); refresh(true); } }; tp.appendChild(nb); top.appendChild(tp);
     const ph = document.createElement('h3'); ph.textContent = 'Add after the selected piece'; ed.appendChild(ph);
     const pal = document.createElement('div'); for (const [k, v] of Object.entries(PRESETS)) { const b = document.createElement('button'); b.textContent = '+ ' + v.label; b.title = v.tip; b.onclick = () => add(k); pal.appendChild(b); } ed.appendChild(pal);
     const lh = document.createElement('h3'); lh.textContent = 'Pieces (entry speed from the good bot)'; ed.appendChild(lh);
@@ -413,7 +474,9 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
   function init() {
     for (const id of ['timer', 'best', 'prog', 'toast', 'speed', 'gear', 'restart', 'settings', 'msg', 'flash']) { const e = $id(id); if (e) e.style.display = 'none'; }
     snail.visible = false; trailMesh.visible = false; shadow.visible = false; wind.mesh.visible = false; clouds.mesh.visible = false; intro.on = false;
-    css(); stage = load(); snapshot(); setupInput();
+    css(); stage = load(); if (!stage.id) stage.id = Courses.uid();
+    if (Courses.has(stage.id)) savedJ = Courses.json(stage.id); else if (fresh) { Courses.save(stage); savedJ = Courses.json(stage.id); } else { stage.name = stage.name || 'Recovered draft'; Courses.save(stage); savedJ = Courses.json(stage.id); setTimeout(() => setStatus('Your earlier editor work was saved as "' + stage.name + '" in My courses.'), 600); }
+    snapshot(); setupInput(); addEventListener('beforeunload', e => { if (unsaved()) { e.preventDefault(); e.returnValue = ''; } });
     const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>drag: orbit · right-drag / shift-drag: pan · wheel: zoom · ↑↓: select · F: focus · D: duplicate · Del: delete · Ctrl+Z: undo · click a ramp: select · drag a ramp: move it'; document.body.appendChild(h);
     refresh(true);
   }

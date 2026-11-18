@@ -1,0 +1,43 @@
+# Courses: where levels live and how to make your own
+
+## Where levels are stored
+- **Built-in levels 1 to 5** are part of the game (the `STAGES` list and `STAGE_META` in `index.html`). They are read only: the editor never changes them, it only makes copies. Level 4 (the bowl) is a heightfield park and cannot be copied into the editor yet.
+- **Your courses** are stored separately, in this browser (`localStorage`, key `surf_courses`): any number of named courses. They appear in the editor's Open and Copy lists and in the game menu under "My and shared courses". They are NOT stored in the app, so updating the game never overwrites them. They are per browser: use Export file or Share link to move one to another device.
+- **Files**: a course is plain JSON. Export it from the editor, send it to a friend (Import file), or put it in the `levels/` folder and list it in `levels/index.json` to ship it with the game (it then shows under "Shared courses").
+- **Links**: Share link packs the whole course into a URL (`#share-...`). Anyone who opens it plays your course; best times are kept per link.
+
+## The editor (open `index.html#edit` on a desktop browser)
+The blue box at the top is the course bar:
+- **New**: a fresh saved course.
+- **Copy...**: make a copy of a built-in level or one of your courses. The copy is saved immediately and you edit the copy; the original is never touched. This is the safe way to start from Level 1, 2, 3 or 5.
+- **Open...**: switch to one of your saved courses.
+- **Save**: save the current state (the orange "UNSAVED CHANGES" pill turns green "Saved in My courses").
+- **Save as...**: save a copy under a new name and keep editing the copy.
+- **Delete**: remove the course from My courses (asks first).
+- **Share link / Export file / Import file**: see above.
+
+Switching course with unsaved changes always asks (Save, Discard, Cancel). The editor also keeps a draft, so closing the tab by accident does not lose work, and the browser warns you if you leave with unsaved changes. The first time you open the new editor, any earlier draft is rescued into My courses.
+
+## Course file format
+```json
+{
+  "name": "First steps",
+  "author": "you",
+  "scenery": "plain",
+  "theme0": 0,
+  "music": "salt",
+  "pull": 0.3,
+  "fall": 0,
+  "pieces": [ { "L": 3500, "W": 700 }, { "turn": 60, "R": 6500 }, { "L": 3500, "cp": true } ],
+  "riskRings": []
+}
+```
+`pieces` is the same list the built-in levels use (keys are documented in the editor tooltips and in `STAGES` in `index.html`). `music` is a song id (see below). `pull` and `fall` are the feel settings (downhill pull and extra air gravity). Check a file with the bots: `node tools/check-stage.js levels/first-steps.json`.
+
+## Adding your own music
+1. Make loops and a manifest as described in `music/README.md` (or cut a full track with `tools/cut-music.py`; see `docs/music-notes.md` for the hybrid policy).
+2. Put the files in `music/` and add the song to `music/index.json` (`{ "id": "mysong", "name": "My song" }`). The editor's Music list reads that file.
+3. In the editor, pick it from Music, or type its id in "Your song id".
+
+## Shipping a course with the game
+Export file, drop the JSON in `levels/`, add `{ "file": "<filename without .json>", "name": "...", "author": "..." }` to `levels/index.json`, commit and push. Open it directly with `#file-<filename>`.

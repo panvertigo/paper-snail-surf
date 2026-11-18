@@ -18,6 +18,7 @@ iPhone game capturing the joy of CS:GO surfing. Owner: Jeffry (knows CS surf wel
 - tools/: one-off analysis scripts (air-strafe-gain.js, fall-map.js = where bots fall + no-air-control test, checkpoint-splits.js). Same usage as the verifier.
 - docs/roadmap.md: current state, next steps, open questions. Read it first.
 - docs/decisions.md: decisions, measurements, feature plan, art direction. Read it before proposing design changes.
+- docs/courses.md: where levels live (built-in vs your courses vs files vs links) and the editor's New / Copy / Save flow.
 - docs/music-notes.md: the music system (engine, linear/hybrid policy, Jeffry's splicing rules, how to add a song). docs/performance-notes.md: measurements and the ?perf / ?lite switches.
 - music.js (engine), music/*.json (manifests), tools/cut-music.py (cuts loops, tames harsh bands: `python tools/cut-music.py <song>`), tools/music-sim.py (policy simulation with guessed player groups), editor.js (level editor at #edit).
 
@@ -27,7 +28,7 @@ iPhone game capturing the joy of CS:GO surfing. Owner: Jeffry (knows CS surf wel
 - Ramps: ~51 deg faces (H = 1.25 W). Base half-width 460, finales narrow to 310 (Level 1 uses 700, landing 1000).
 - Course rules: turns are analytic arcs, always banked toward the face being ridden. Zigzag transfers shift 0.75 W so you land on the face that faces you. Uphill ramp just before each checkpoint; never an uphill within 3 ramps after a checkpoint (respawn at 600 u/s soft-locks). Checkpoints about every 30 s; falls respawn there, clock keeps running.
 - Camera: third person, high and far (back 700, up 850, scaled by the camera-distance setting, default 60%). Avatar: cute paper snail. Speed FX: slime trail, wind streaks, FOV kick, eye stalks blow back.
-- Art scale: whole house (courses span rooms, island to floor). UNDER REVIEW: the look has moved to painted skies and landscapes; see the first open question in docs/roadmap.md.
+- Art scale: start inside an apartment, courses through its rooms, everything huge; outside views are rare. Level 5 (sky descent) is a later level. See docs/roadmap.md (Art direction).
 - Business: Trackmania model (timed stages, medals, ghosts, user maps, seasons). Cosmetics only, never pay-to-win.
 
 ## Hard-won learnings
