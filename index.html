@@ -63,7 +63,7 @@ canvas{display:block;touch-action:none}
 <div id="msg"></div>
 <div id="flash"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="music.js?v=40"></script>
+<script src="music.js?v=60"></script>
 <script src="racers.js"></script>
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
@@ -1415,7 +1415,8 @@ function musicAhead(speed) {
   const r = ramps[lastTouched], s = cumD[lastTouched] + Math.max(0, Math.min(r.L, Math.hypot(pos.x - r.sx, pos.z - r.sz))), v = Math.max(900, speed);
   if (nextCp < checkpoints.length) {
     const ci = checkpoints[nextCp];
-    if (aheadCp !== nextCp && lastTouched >= ci - 4 && (cumD[ci] - s) / v < 3.5) { aheadCp = nextCp; Music.trigger('approach', nextCp + 1); } // about 3.5 s out: the phrase-aligned swap then lands within a few seconds of the checkpoint
+    const lead = Music.leadFor(nextCp + 1);
+    if (aheadCp !== nextCp && lastTouched >= ci - (lead > 8 ? 14 : 4) && (cumD[ci] - s) / v < lead) { aheadCp = nextCp; Music.trigger('approach', nextCp + 1); } // about 3.5 s out: the phrase-aligned swap then lands within a few seconds of the checkpoint
   } else if (!aheadFin) {
     const len = Music.lenFor('finish'); if (len && (totalS - s) / v <= len + 0.8) { aheadFin = true; Music.trigger('finishNear'); } // outro length plus the wait for the next bar line
   }
