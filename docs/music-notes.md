@@ -44,7 +44,7 @@ Living notes on how the music works and what Jeffry wants from it. Update the "R
 ## Songs
 - **Chicago** (`5 Chicago Meditation (radio edit)`, 140 BPM, F# minor, bar 1 at about 0.514 s). Journey: intro, moon, atmos, (drive1, drive2), sky, earth. Bridges moon -> atmos via moon_b (moon_c short), sky -> earth via sky_b (sky_c short). Last section `earth` is the 2:31-2:51 arpeggio loop. No outro. Used by Levels 3 and 5.
 - **Bowl** (Fleetwood Mac track, sections calm / groove / peak from bars 49, 25, 105). Used by Level 4 (park). Not yet given the bridge and anticipation treatment.
-- **Fleetwood** (track 6, same file, 140 BPM, bar 1 at about 0.567 s). Start is bar 72 (2:02.3), where the centroid jumps; if 2:03 was meant, bar 73 (2:04.0) is the alternative. Sections follow the original in order: start (72), build (80), lift (88), rise (96), peak (104, 16 bars), peak2 (120, 16 bars, loops). The song's end is 4:00: outro is bars 136-140 (5 bars), plays once on `finish`. Used by Level 2. No custom bridges yet (consecutive sections already continue each other); crossfade only.
+- **Fleetwood** (track 6, same file, 140 BPM, bar 1 at about 0.567 s). Start is bar 88 (2:29.7, "2:30"), end is 4:00. Earlier a 2:02 start was tried and replaced. Short journey: start (88), build (96), lift (104, 16 bars), peak (120, 16 bars, loops). Long journey (5+ checkpoints): start, build, liftA (104), liftB (112), peakA (120), peakB (128, loops). Every step moves to the next bar range of the original, so transitions are the song's own continuation (crossfade only, no bridges). Outro is bars 136-140 (5 bars), plays once on `finish`, ends at 4:00. Used by Level 2.
 
 ## iPhone Safari audio
 - Unlock on pointerdown/up, touchstart/end, click, keydown until the context runs. Play a silent buffer, set `navigator.audioSession.type = 'playback'` (plays through the silent switch), loop a silent `<audio>`.
@@ -61,5 +61,5 @@ Living notes on how the music works and what Jeffry wants from it. Update the "R
 ## Open questions
 - Should Fleetwood get hand-picked bridges instead of straight continuation?
 - Should Level 1 also get a track?
-- Fleetwood start: bar 72 or 73?
+- Fleetwood: is the 5-bar outro right, or should it end on the peak loop like Chicago?
 - Same transition treatment for the bowl song?

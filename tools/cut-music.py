@@ -15,10 +15,12 @@ SONGS = {
       'sky': (69, 8, {}), 'sky_b': (77, 12, {'once': True, 'next': 'earth'}), 'sky_c': (85, 4, {'once': True, 'next': 'earth'}), # the riser and the arrival run through bar 88
       'earth': (89, 12, {})}, # the closing arpeggio, 2:31 to 2:51 of the track; it is the last section and just loops
       triggers=[{'on': 'start', 'section': 'intro', 'respawn': 'moon'}]), # no outro: the track's own ending was discordant, so the last section just keeps playing
-  # Fleetwood Mac (track 6) as a journey: bar 72 (2:02.3, where the sound opens up) is the start; every section after it follows the original in order, so each step into the next one is the track's own continuation
-  'fleetwood': dict(journey=['start', 'build', 'lift', 'rise', 'peak'], journeyLong=['start', 'build', 'lift', 'rise', 'peak', 'peak2'],
+  # Fleetwood Mac (track 6) as a journey: bar 88 (2:29.7, "2:30") is the start and 4:00 is the end; every section follows the original in order, so each step into the next one is the track's own continuation (both journeys only ever move to the next bar range)
+  'fleetwood': dict(journey=['start', 'build', 'lift', 'peak'], journeyLong=['start', 'build', 'liftA', 'liftB', 'peakA', 'peakB'],
       src='6 Fleetwood Mac_electro.wav', grid=0.138 + 60 / BPM, sections={
-      'start': (72, 8, {}), 'build': (80, 8, {}), 'lift': (88, 8, {}), 'rise': (96, 8, {}), 'peak': (104, 16, {}), 'peak2': (120, 16, {}), 'outro': (136, 5, {'once': True})}, # the plateau runs to bar 136 and peak2 loops until you finish; the song's end is 4:00, so the outro is bars 136-140 and plays once when the finish is near
+      'start': (88, 8, {}), 'build': (96, 8, {}), 'lift': (104, 16, {}), 'peak': (120, 16, {}),
+      'liftA': (104, 8, {}), 'liftB': (112, 8, {}), 'peakA': (120, 8, {}), 'peakB': (128, 8, {}), # the long journey uses the eight-bar halves; its last section (peakB) just loops
+      'outro': (136, 5, {'once': True})}, # bars 136-140 end at 4:00; plays once when the finish is near
       triggers=[{'on': 'start', 'section': 'start'}, {'on': 'finish', 'section': 'outro', 'quantize': 'bar'}]),
   'bowl': dict(src='6 Fleetwood Mac_electro.wav', grid=0.138 + 60 / BPM, sections={
       'calm': (49, 16, {}), 'groove': (25, 16, {}), 'peak': (105, 16, {})},

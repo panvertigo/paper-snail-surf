@@ -6,16 +6,15 @@
   "start",
   "build",
   "lift",
-  "rise",
   "peak"
  ],
  "journeyLong": [
   "start",
   "build",
-  "lift",
-  "rise",
-  "peak",
-  "peak2"
+  "liftA",
+  "liftB",
+  "peakA",
+  "peakB"
  ],
  "startOffset": 0.0251,
  "sections": {
@@ -29,19 +28,27 @@
   },
   "lift": {
    "file": "fleetwood_lift.mp3",
-   "bars": 8
-  },
-  "rise": {
-   "file": "fleetwood_rise.mp3",
-   "bars": 8
+   "bars": 16
   },
   "peak": {
    "file": "fleetwood_peak.mp3",
    "bars": 16
   },
-  "peak2": {
-   "file": "fleetwood_peak2.mp3",
-   "bars": 16
+  "liftA": {
+   "file": "fleetwood_liftA.mp3",
+   "bars": 8
+  },
+  "liftB": {
+   "file": "fleetwood_liftB.mp3",
+   "bars": 8
+  },
+  "peakA": {
+   "file": "fleetwood_peakA.mp3",
+   "bars": 8
+  },
+  "peakB": {
+   "file": "fleetwood_peakB.mp3",
+   "bars": 8
   },
   "outro": {
    "file": "fleetwood_outro.mp3",
