@@ -72,7 +72,7 @@
   },
   "sky_b": {
    "file": "chicago_sky_b.mp3",
-   "bars": 8,
+   "bars": 12,
    "once": true,
    "next": "earth"
   },
@@ -84,7 +84,7 @@
   },
   "earth": {
    "file": "chicago_earth.mp3",
-   "bars": 16
+   "bars": 12
   }
  },
  "triggers": [
