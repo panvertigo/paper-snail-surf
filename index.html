@@ -637,7 +637,9 @@ function gridTex(bg, line) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
   return t;
 }
-function rampPaperTex(pencil) { // cream paper: soft mottling, fibres, specks, a faint crease and a wobbly pencil grid
+const _paperCache = {};
+function rampPaperTex(pencil) { return _paperCache[pencil] || (_paperCache[pencil] = rampPaperTexMake(pencil)); } // one shared texture: building one per ramp piece cost seconds at load and tens of MB of GPU memory
+function rampPaperTexMake(pencil) { // cream paper: soft mottling, fibres, specks, a faint crease and a wobbly pencil grid
   const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), R = Math.random;
   x.fillStyle = '#faf6ec'; x.fillRect(0, 0, S, S);
   for (let i = 0; i < 16; i++) { const gx = R() * S, gy = R() * S, g = x.createRadialGradient(gx, gy, 0, gx, gy, 80 + R() * 100); g.addColorStop(0, 'rgba(190,168,138,0.11)'); g.addColorStop(1, 'rgba(190,168,138,0)'); x.fillStyle = g; x.fillRect(0, 0, S, S); }

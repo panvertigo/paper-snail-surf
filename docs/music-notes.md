@@ -63,3 +63,17 @@ Living notes on how the music works and what Jeffry wants from it. Update the "R
 - Should Level 1 also get a track?
 - Fleetwood: is the 5-bar outro right, or should it end on the peak loop like Chicago?
 - Same transition treatment for the bowl song?
+
+## Policy simulation (tools/music-sim.py, v80)
+Question: is adaptive music better than playing the track straight through? Simulated 400 runs per player group on the real expert splits of Levels 2 and 3 (bots: L2 72 s with 2 checkpoints, L3 86 s with 3). Player groups are GUESSES (new 1.9-3.2x the expert time with a 50 percent fall chance per segment, improving 1.35-1.9x, expert 1.0-1.15x, very fast 0.78-0.95x); replace them with logged runs when we have real ones. Song: Fleetwood from bar 88 (about 91 s of content, then the last 8 bars loop).
+
+Policies: straight (play in order, loop the plateau at the end), adaptive journey (what the engine does now: a section per checkpoint, loops until the next), hybrid (play in order, but steer by course progress: replay a phrase when ahead of the course, skip forward when far behind).
+
+Findings (L3, means over runs):
+- Energy at the finish is the same for all (the second half of the track is a uniform plateau, about 0.9 of max), so the climax is not what separates them.
+- Repeated audio: straight 14 percent for experts and 73 percent for new players; adaptive 43 and 82 percent; hybrid 15 and 73 percent. Adaptive repeats the most because each 13.7 s section loops until the next checkpoint.
+- Build-up tracks progress (correlation of intensity with course progress): straight 0.70 expert, 0.41 new; adaptive 0.78 and 0.77; hybrid 0.73 and 0.70.
+- Seams (non-continuations per minute): straight 0.55, adaptive 0.63, hybrid 0.46 for experts; hybrid is lowest or tied everywhere.
+- No policy fixes repetition for new players: a 300 s run needs more than 91 s of music. Fix is more material (a longer track, a calm stem layer, or a rest section after falls), not a smarter policy.
+Verdict: hybrid is never worse than the best of the other two for any group (matches straight for experts, adaptive for newcomers). Adaptive-as-built loses mainly on repetition and seams; its anticipation and riser bridges are still worth keeping for songs that have risers (Chicago).
+Caveats: the model of the current journey is simplified (sections spread evenly across checkpoints); it measures structure, not how a transition sounds; riser bridges make adaptive jumps sound better than a hard skip.
