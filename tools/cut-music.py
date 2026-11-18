@@ -6,16 +6,12 @@ warnings.filterwarnings('ignore')
 MUS = os.path.join(os.path.dirname(__file__), '..', 'music'); SR = 44100; BPM = 140.0; BAR = 240 / BPM
 SONGS = {
   # name: source, time of the beat grid, bar number that starts on a downbeat, sections {id: (first bar, bars, extra)}
-  'chicago': dict(fallback='descent', journey=['moon', 'atmos', 'sky', 'earth'], journeyLong=['moon', 'atmos', 'drive1', 'drive2', 'sky', 'earth'],
-      # bridges: entering `to` from `from` goes through `via`, a stretch of the song that plays once and runs straight into `to` (the riser of the original track), so builds are never cut off mid-rise
-      bridges=[{'from': 'moon', 'to': 'atmos', 'via': 'moon_b', 'short': 'moon_c'}, {'from': 'sky', 'to': 'earth', 'via': 'sky_b', 'short': 'sky_c'}], # short: only the last four bars of the riser, used when the checkpoint is too close for the full one (fast runs)
+  # Chicago, hybrid (linear) policy. The song is cut into consecutive 4-bar phrases k01..k22 (bars 1-88) plus the closing arpeggio `earth` (89-100, loops). Short order (Level 3, about 86 s): the build (bars 1-36), then straight to the sky riser (69-88), then earth; the drive sections (37-68) are skipped.
+  # Long order (5+ checkpoints, Level 5): the whole song in order. Riser phrases (13-20 and 77-88) are never replayed. No outro (the track's own ending was discordant): the last section just keeps playing.
+  'chicago': dict(fallback='descent', linear=['k%02d' % i for i in list(range(1, 10)) + list(range(18, 23))] + ['earth'], linearLong=['k%02d' % i for i in range(1, 23)] + ['earth'], noHold=['k04', 'k05', 'k20', 'k21', 'k22'],
       src='5 Chicago Meditation (radio edit).mp3', grid=0.085 + 60 / BPM, sections={
-      'intro': (1, 4, {'once': True, 'next': 'moon'}),
-      'moon': (5, 8, {}), 'moon_b': (13, 8, {'once': True, 'next': 'atmos'}), 'moon_c': (17, 4, {'once': True, 'next': 'atmos'}),
-      'atmos': (21, 16, {}), 'drive1': (37, 16, {}), 'drive2': (53, 16, {}),
-      'sky': (69, 8, {}), 'sky_b': (77, 12, {'once': True, 'next': 'earth'}), 'sky_c': (85, 4, {'once': True, 'next': 'earth'}), # the riser and the arrival run through bar 88
-      'earth': (89, 12, {})}, # the closing arpeggio, 2:31 to 2:51 of the track; it is the last section and just loops
-      triggers=[{'on': 'start', 'section': 'intro', 'respawn': 'moon'}]), # no outro: the track's own ending was discordant, so the last section just keeps playing
+      **{'k%02d' % i: ((i - 1) * 4 + 1, 4, {'once': True}) for i in range(1, 23)}, 'earth': (89, 12, {})}, # earth is the 2:31-2:51 arpeggio of the track
+      triggers=[{'on': 'start', 'section': 'k01'}]),
   # Fleetwood Mac (track 6), hybrid policy: the song plays in order from bar 89 (2:31.4; the vocal sample just before it is cut out) to 4:00, one 4-bar phrase at a time, steered by course progress (see music.js linearNext).
   # Seven lead-in bars (89-95) finish the original's phrase, then every phrase starts on the original's 8-bar grid (96, 100, ...). The plateau (128-135) loops; the outro (136-140) ends at 4:00 and plays once on finish.
   'fleetwood': dict(tame=dict(), linear=['start', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'peak'],
@@ -53,7 +49,7 @@ for name, S in SONGS.items():
     if y.ndim == 1: y = np.vstack([y, y])
     BPM_S = S.get('bpm', BPM); BAR_S = 240 / BPM_S
     if 'tame' in S: before = band_share(y); y = tame(y, **S['tame']); print(name, 'harsh-band share %.1f%% -> %.1f%%, peak %.2f' % (before, band_share(y), np.abs(y).max()))
-    man = {'bpm': BPM_S, 'beatsPerBar': 4, 'quantize': 'phrase', **({'journey': S['journey']} if S.get('journey') else {}), **({'journeyLong': S['journeyLong']} if S.get('journeyLong') else {}), **({'linear': S['linear']} if S.get('linear') else {}), **({'bridges': S['bridges']} if S.get('bridges') else {}), 'startOffset': 0.0251, 'sections': {}, 'triggers': S['triggers'], **({'fallback': S['fallback']} if S.get('fallback') else {})}
+    man = {'bpm': BPM_S, 'beatsPerBar': 4, 'quantize': 'phrase', **({'journey': S['journey']} if S.get('journey') else {}), **({'journeyLong': S['journeyLong']} if S.get('journeyLong') else {}), **({'linear': S['linear']} if S.get('linear') else {}), **({'linearLong': S['linearLong']} if S.get('linearLong') else {}), **({'noHold': S['noHold']} if S.get('noHold') else {}), **({'bridges': S['bridges']} if S.get('bridges') else {}), 'startOffset': 0.0251, 'sections': {}, 'triggers': S['triggers'], **({'fallback': S['fallback']} if S.get('fallback') else {})}
     for sid, (b0, n, extra) in S['sections'].items():
         t0 = S['grid'] + (b0 - 1) * BAR_S; i0 = int(round(t0 * SR)); i1 = int(round((t0 + n * BAR_S) * SR))
         fn = '%s_%s.mp3' % (name, sid); open(os.path.join(MUS, fn), 'wb').write(enc(y[:, i0:i1]))

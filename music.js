@@ -55,7 +55,7 @@
       for (const [id, s] of Object.entries(c.sections)) {
         const files = [s.file, ...((s.layers || []).map(l => l.file))], layers = [], tails = [];
         for (const f of files) {
-          const b = await decode((c.base || '') + f + '?v=66'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
+          const b = await decode((c.base || '') + f + '?v=67'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
           layers.push(r.body); tails.push(r.tail);
         }
         bufs[id] = { layers, tails };
@@ -70,7 +70,7 @@
     loading = (async () => {
       let fb = null;
       try {
-        const r = await fetch('music/' + name + '.json?v=66'); if (!r.ok) return false;
+        const r = await fetch('music/' + name + '.json?v=67'); if (!r.ok) return false;
         cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; fb = cfg.fallback; ensureCtx(); bufs = {};
         await prepare(cfg); if (deferredAt !== null) { const p = deferredAt; deferredAt = null; Music.at(p); }
         return true;
@@ -116,11 +116,12 @@
   }
 
   // linear (hybrid) policy: the song plays in order, phrase by phrase, steered by course progress (0..1). Ahead of the course: replay the phrase. Far behind: jump to where the course is. The last entry loops.
+  function order() { return (cfg.linearLong && events.filter(e => e.ev === 'checkpoint').length >= 5 && cfg.linearLong) || cfg.linear; } // a long level (5+ checkpoints) plays the full song order
   function linearNext() {
-    const o = cfg.linear, i = o.indexOf(cur.id); if (i < 0) return cur.next || null; if (i >= o.length - 1) return null;
-    const target = clamp(Math.round(progress * (o.length - 1)), 0, o.length - 1), nx = i + 1;
-    if (i >= 1 && nx > target + (cfg.hold ?? 1)) return o[i];
-    if (nx < target - (cfg.skip ?? 2)) return o[Math.max(1, target)];
+    const o = order(), i = o.indexOf(cur.id), nh = cfg.noHold || []; if (i < 0) return cur.next || null; if (i >= o.length - 1) return null;
+    let target = clamp(Math.round(progress * (o.length - 1)), 0, o.length - 1); const nx = i + 1;
+    if (i >= 1 && nx > target + (cfg.hold ?? 1) && !nh.includes(o[i])) return o[i]; // ahead of the course: replay this phrase (never a riser: it only makes sense played once)
+    if (nx < target - (cfg.skip ?? 2)) { while (target > 1 && nh.includes(o[target]) && nh.includes(o[target - 1])) target--; return o[Math.max(1, target)]; } // far behind: jump to where the course is (to the start of a riser, never into its middle)
     return o[nx];
   }
   // journey: the song's sections in order. Checkpoint n of C picks entry round(n * (L - 1) / C), so the last checkpoint always reaches the last entry and a longer level just stretches the song.
@@ -159,7 +160,7 @@
     },
     at(piece, o) { // the section in force when you are at piece i (used on start and after a respawn)
       if (!cfg || !ready) { deferredAt = piece; return; }
-      if (cfg.linear) { const playing = cur && cfg.linear.includes(cur.id); if (o && o.respawn && playing) return; Music.goto(cfg.linear[0], { quantize: 'beat', restart: true }); return; } // a splat does not restart the song; a new run does
+      if (cfg.linear) { const playing = cur && (cfg.linear.includes(cur.id) || (cfg.linearLong || []).includes(cur.id)); if (o && o.respawn && playing) return; Music.goto(order()[0], { quantize: 'beat', restart: true }); return; } // a splat does not restart the song; a new run does
       if (cfg.journey) { let n = 0; for (const e of events) if (e.ev === 'checkpoint' && e.at <= piece) n++; if (n > 0) { Music.goto(journeySection(n), o || { quantize: 'beat' }); return; } }
       const match = e => (cfg.triggers || []).find(x => x.on === e.ev && (e.ev === 'checkpoint' ? x.n === e.n : x.theme === e.theme));
       let ev = null; for (const e of events) if (e.at <= piece && match(e)) ev = e; // only events this song reacts to (a manifest may ignore portals)

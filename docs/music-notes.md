@@ -54,6 +54,8 @@ Behaviour (node check): very fast run 0 replays, expert 1, improving 11, new 27 
 ## Mastering (cut-music.py `tame`)
 Measured loudness: every cut loop sits near -9 dBFS RMS, so Fleetwood was not louder than Chicago. What differed was the 2.5-7 kHz band (the distorted, harsh parts): 6-7 percent of Fleetwood's energy versus 0.4-2.8 percent for Chicago. `tame` (per-song option) turns that band down 3 dB and compresses it 4:1 when loud, trims 1.5 dB, and soft-limits at 0.89. Fleetwood result: harsh share 6.0 -> 3.3 percent (c3), 7.3 -> 4.0 (peak), peak level 0.96 -> 0.66, about 2.4 dB quieter. This is a mix-level fix (we only have the stereo mix, no stems); a synth rebuild would be a cover, not the song.
 
+- **Chicago is now linear too (v83).** Cut into consecutive 4-bar phrases `k01`..`k22` (bars 1-88) plus `earth` (the 2:31-2:51 arpeggio, loops). `linear` (Level 3, about 86 s): `k01`-`k09` (bars 1-36), then `k18`-`k22` (bars 69-88, the sky riser and arrival), then `earth`; the drive sections (37-68) are skipped with one crossfaded jump. `linearLong` (5+ checkpoints, Level 5, about 165 s): the whole song in order. `noHold` lists the riser phrases (13-20, 77-88): they are never replayed and a skip never lands in their middle. No outro. Node check: Level 3 expert reaches `earth` about 10 s after the finish (the arrival riser plays through the finish); Level 5 expert about 15 s before it. The old riser-bridge and anticipation code is still in the engine but unused.
+
 
 ## iPhone Safari audio
 - Unlock on pointerdown/up, touchstart/end, click, keydown until the context runs. Play a silent buffer, set `navigator.audioSession.type = 'playback'` (plays through the silent switch), loop a silent `<audio>`.
@@ -64,7 +66,6 @@ Measured loudness: every cut loop sits near -9 dBFS RMS, so Fleetwood was not lo
 - At 4k u/s the song progresses faster than its sections; options: map music to progress distance, or skip sections on very fast runs.
 - Bar-exact start of Chicago's arpeggio was picked by timestamp and never confirmed by ear.
 - Risk of seams where a section's loop tail (reverb) is cut; the cutter does not export tails.
-- Chicago still uses the adaptive journey with riser bridges (Levels 3 and 5); only Fleetwood (Level 2) and Salt (Level 1) use the linear policy.
 - Bowl song has no bridges, no anticipation, and could move to the linear policy too.
 - Not verified on a real iPhone: the latest audio unlock hardening (user still heard silence at last report).
 

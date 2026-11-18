@@ -2,85 +2,166 @@
  "bpm": 140.0,
  "beatsPerBar": 4,
  "quantize": "phrase",
- "journey": [
-  "moon",
-  "atmos",
-  "sky",
+ "linear": [
+  "k01",
+  "k02",
+  "k03",
+  "k04",
+  "k05",
+  "k06",
+  "k07",
+  "k08",
+  "k09",
+  "k18",
+  "k19",
+  "k20",
+  "k21",
+  "k22",
   "earth"
  ],
- "journeyLong": [
-  "moon",
-  "atmos",
-  "drive1",
-  "drive2",
-  "sky",
+ "linearLong": [
+  "k01",
+  "k02",
+  "k03",
+  "k04",
+  "k05",
+  "k06",
+  "k07",
+  "k08",
+  "k09",
+  "k10",
+  "k11",
+  "k12",
+  "k13",
+  "k14",
+  "k15",
+  "k16",
+  "k17",
+  "k18",
+  "k19",
+  "k20",
+  "k21",
+  "k22",
   "earth"
  ],
- "bridges": [
-  {
-   "from": "moon",
-   "to": "atmos",
-   "via": "moon_b",
-   "short": "moon_c"
-  },
-  {
-   "from": "sky",
-   "to": "earth",
-   "via": "sky_b",
-   "short": "sky_c"
-  }
+ "noHold": [
+  "k04",
+  "k05",
+  "k20",
+  "k21",
+  "k22"
  ],
  "startOffset": 0.0251,
  "sections": {
-  "intro": {
-   "file": "chicago_intro.mp3",
+  "k01": {
+   "file": "chicago_k01.mp3",
    "bars": 4,
-   "once": true,
-   "next": "moon"
+   "once": true
   },
-  "moon": {
-   "file": "chicago_moon.mp3",
-   "bars": 8
-  },
-  "moon_b": {
-   "file": "chicago_moon_b.mp3",
-   "bars": 8,
-   "once": true,
-   "next": "atmos"
-  },
-  "moon_c": {
-   "file": "chicago_moon_c.mp3",
+  "k02": {
+   "file": "chicago_k02.mp3",
    "bars": 4,
-   "once": true,
-   "next": "atmos"
+   "once": true
   },
-  "atmos": {
-   "file": "chicago_atmos.mp3",
-   "bars": 16
-  },
-  "drive1": {
-   "file": "chicago_drive1.mp3",
-   "bars": 16
-  },
-  "drive2": {
-   "file": "chicago_drive2.mp3",
-   "bars": 16
-  },
-  "sky": {
-   "file": "chicago_sky.mp3",
-   "bars": 8
-  },
-  "sky_b": {
-   "file": "chicago_sky_b.mp3",
-   "bars": 12,
-   "once": true,
-   "next": "earth"
-  },
-  "sky_c": {
-   "file": "chicago_sky_c.mp3",
+  "k03": {
+   "file": "chicago_k03.mp3",
    "bars": 4,
-   "once": true,
-   "next": "earth"
+   "once": true
+  },
+  "k04": {
+   "file": "chicago_k04.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k05": {
+   "file": "chicago_k05.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k06": {
+   "file": "chicago_k06.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k07": {
+   "file": "chicago_k07.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k08": {
+   "file": "chicago_k08.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k09": {
+   "file": "chicago_k09.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k10": {
+   "file": "chicago_k10.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k11": {
+   "file": "chicago_k11.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k12": {
+   "file": "chicago_k12.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k13": {
+   "file": "chicago_k13.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k14": {
+   "file": "chicago_k14.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k15": {
+   "file": "chicago_k15.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k16": {
+   "file": "chicago_k16.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k17": {
+   "file": "chicago_k17.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k18": {
+   "file": "chicago_k18.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k19": {
+   "file": "chicago_k19.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k20": {
+   "file": "chicago_k20.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k21": {
+   "file": "chicago_k21.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k22": {
+   "file": "chicago_k22.mp3",
+   "bars": 4,
+   "once": true
   },
   "earth": {
    "file": "chicago_earth.mp3",
@@ -90,8 +171,7 @@
  "triggers": [
   {
    "on": "start",
-   "section": "intro",
-   "respawn": "moon"
+   "section": "k01"
   }
  ],
  "fallback": "descent"
