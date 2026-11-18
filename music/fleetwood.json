@@ -2,52 +2,67 @@
  "bpm": 140.0,
  "beatsPerBar": 4,
  "quantize": "phrase",
- "journey": [
+ "linear": [
   "start",
-  "build",
-  "lift",
+  "c0",
+  "c1",
+  "c2",
+  "c3",
+  "c4",
+  "c5",
+  "c6",
+  "c7",
   "peak"
- ],
- "journeyLong": [
-  "start",
-  "build",
-  "liftA",
-  "liftB",
-  "peakA",
-  "peakB"
  ],
  "startOffset": 0.0251,
  "sections": {
   "start": {
    "file": "fleetwood_start.mp3",
-   "bars": 8
+   "bars": 7,
+   "once": true
   },
-  "build": {
-   "file": "fleetwood_build.mp3",
-   "bars": 8
+  "c0": {
+   "file": "fleetwood_c0.mp3",
+   "bars": 4,
+   "once": true
   },
-  "lift": {
-   "file": "fleetwood_lift.mp3",
-   "bars": 16
+  "c1": {
+   "file": "fleetwood_c1.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "c2": {
+   "file": "fleetwood_c2.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "c3": {
+   "file": "fleetwood_c3.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "c4": {
+   "file": "fleetwood_c4.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "c5": {
+   "file": "fleetwood_c5.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "c6": {
+   "file": "fleetwood_c6.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "c7": {
+   "file": "fleetwood_c7.mp3",
+   "bars": 4,
+   "once": true
   },
   "peak": {
    "file": "fleetwood_peak.mp3",
-   "bars": 16
-  },
-  "liftA": {
-   "file": "fleetwood_liftA.mp3",
-   "bars": 8
-  },
-  "liftB": {
-   "file": "fleetwood_liftB.mp3",
-   "bars": 8
-  },
-  "peakA": {
-   "file": "fleetwood_peakA.mp3",
-   "bars": 8
-  },
-  "peakB": {
-   "file": "fleetwood_peakB.mp3",
    "bars": 8
   },
   "outro": {
@@ -64,7 +79,7 @@
   {
    "on": "finish",
    "section": "outro",
-   "quantize": "bar"
+   "quantize": "phrase"
   }
  ]
 }

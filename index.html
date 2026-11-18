@@ -67,7 +67,7 @@ canvas{display:block;touch-action:none}
 <div id="msg"></div>
 <div id="flash"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="music.js?v=65"></script>
+<script src="music.js?v=66"></script>
 <script src="racers.js"></script>
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
@@ -1564,7 +1564,7 @@ const sHist = []; // recent (time, course position) samples: the pace you are re
 function musicAhead(speed) {
   if (state !== 'run' || !stageMeta.music || stageMeta.park || !Music.ready) { sHist.length = 0; return; }
   const r = ramps[lastTouched], s = cumD[lastTouched] + Math.max(0, Math.min(r.L, Math.hypot(pos.x - r.sx, pos.z - r.sz))), tn = performance.now() / 1000;
-  sHist.push([tn, s]); while (sHist.length > 2 && tn - sHist[0][0] > 8) sHist.shift();
+  Music.setProgress(totalS > 0 ? s / totalS : 0); sHist.push([tn, s]); while (sHist.length > 2 && tn - sHist[0][0] > 8) sHist.shift();
   const h0 = sHist[0], vMeas = tn - h0[0] > 3 ? Math.max(0, (s - h0[1]) / (tn - h0[0])) : 0;
   const v = Math.max(speed, vMeas, 1800) * 1.08; // judge by the faster of now and the last 8 s (a run at 3-4k stays there), never below 1800, a little optimistic so the music is early rather than late
   if (nextCp < checkpoints.length) {
@@ -1573,7 +1573,7 @@ function musicAhead(speed) {
     if (aheadCp !== nextCp && lastTouched >= ci - 30 && eta < Music.waitFor('phrase') + br + 0.6 * Music.phrase()) { aheadCp = nextCp; Music.trigger('approach', nextCp + 1, eta); }
   } else if (!aheadFin) {
     const len = Music.lenFor('finish'), eta = (totalS - s) / v;
-    if (len && eta <= Music.waitFor('bar') + len + 1.7) { aheadFin = true; Music.trigger('finishNear'); } // the outro ends as the stage does
+    if (len && eta <= Music.waitFor(Music.finishQ()) + len + 1.7) { aheadFin = true; Music.trigger('finishNear'); } // the outro ends as the stage does
   }
 }
 function resetRun() {

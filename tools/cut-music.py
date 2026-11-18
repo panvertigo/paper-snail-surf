@@ -15,13 +15,13 @@ SONGS = {
       'sky': (69, 8, {}), 'sky_b': (77, 12, {'once': True, 'next': 'earth'}), 'sky_c': (85, 4, {'once': True, 'next': 'earth'}), # the riser and the arrival run through bar 88
       'earth': (89, 12, {})}, # the closing arpeggio, 2:31 to 2:51 of the track; it is the last section and just loops
       triggers=[{'on': 'start', 'section': 'intro', 'respawn': 'moon'}]), # no outro: the track's own ending was discordant, so the last section just keeps playing
-  # Fleetwood Mac (track 6) as a journey: bar 88 (2:29.7, "2:30") is the start and 4:00 is the end; every section follows the original in order, so each step into the next one is the track's own continuation (both journeys only ever move to the next bar range)
-  'fleetwood': dict(journey=['start', 'build', 'lift', 'peak'], journeyLong=['start', 'build', 'liftA', 'liftB', 'peakA', 'peakB'],
+  # Fleetwood Mac (track 6), hybrid policy: the song plays in order from bar 89 (2:31.4; the vocal sample just before it is cut out) to 4:00, one 4-bar phrase at a time, steered by course progress (see music.js linearNext).
+  # Seven lead-in bars (89-95) finish the original's phrase, then every phrase starts on the original's 8-bar grid (96, 100, ...). The plateau (128-135) loops; the outro (136-140) ends at 4:00 and plays once on finish.
+  'fleetwood': dict(linear=['start', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'peak'],
       src='6 Fleetwood Mac_electro.wav', grid=0.138 + 60 / BPM, sections={
-      'start': (88, 8, {}), 'build': (96, 8, {}), 'lift': (104, 16, {}), 'peak': (120, 16, {}),
-      'liftA': (104, 8, {}), 'liftB': (112, 8, {}), 'peakA': (120, 8, {}), 'peakB': (128, 8, {}), # the long journey uses the eight-bar halves; its last section (peakB) just loops
-      'outro': (136, 5, {'once': True})}, # bars 136-140 end at 4:00; plays once when the finish is near
-      triggers=[{'on': 'start', 'section': 'start'}, {'on': 'finish', 'section': 'outro', 'quantize': 'bar'}]),
+      'start': (89, 7, {'once': True}), **{'c%d' % i: (96 + 4 * i, 4, {'once': True}) for i in range(8)},
+      'peak': (128, 8, {}), 'outro': (136, 5, {'once': True})},
+      triggers=[{'on': 'start', 'section': 'start'}, {'on': 'finish', 'section': 'outro', 'quantize': 'phrase'}]),
   'bowl': dict(src='6 Fleetwood Mac_electro.wav', grid=0.138 + 60 / BPM, sections={
       'calm': (49, 16, {}), 'groove': (25, 16, {}), 'peak': (105, 16, {})},
       triggers=[{'on': 'start', 'section': 'calm'}]),
@@ -33,7 +33,7 @@ for name, S in SONGS.items():
     if len(sys.argv) > 1 and name not in sys.argv[1:]: continue
     y, _ = librosa.load(os.path.join(MUS, S['src']), sr=SR, mono=False)
     if y.ndim == 1: y = np.vstack([y, y])
-    man = {'bpm': BPM, 'beatsPerBar': 4, 'quantize': 'phrase', **({'journey': S['journey']} if S.get('journey') else {}), **({'journeyLong': S['journeyLong']} if S.get('journeyLong') else {}), **({'bridges': S['bridges']} if S.get('bridges') else {}), 'startOffset': 0.0251, 'sections': {}, 'triggers': S['triggers'], **({'fallback': S['fallback']} if S.get('fallback') else {})}
+    man = {'bpm': BPM, 'beatsPerBar': 4, 'quantize': 'phrase', **({'journey': S['journey']} if S.get('journey') else {}), **({'journeyLong': S['journeyLong']} if S.get('journeyLong') else {}), **({'linear': S['linear']} if S.get('linear') else {}), **({'bridges': S['bridges']} if S.get('bridges') else {}), 'startOffset': 0.0251, 'sections': {}, 'triggers': S['triggers'], **({'fallback': S['fallback']} if S.get('fallback') else {})}
     for sid, (b0, n, extra) in S['sections'].items():
         t0 = S['grid'] + (b0 - 1) * BAR; i0 = int(round(t0 * SR)); i1 = int(round((t0 + n * BAR) * SR))
         fn = '%s_%s.mp3' % (name, sid); open(os.path.join(MUS, fn), 'wb').write(enc(y[:, i0:i1]))

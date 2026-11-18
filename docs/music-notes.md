@@ -27,6 +27,10 @@ Living notes on how the music works and what Jeffry wants from it. Update the "R
 - `goto` ignores a request if a bridge is already heading there or the same id is already pending.
 - Fixed tick-based physics is untouched by music; music only reads state.
 
+## Linear (hybrid) policy (music.js `linearNext`, v81)
+Manifest `linear: [ids in song order]`; the last entry loops, earlier ones are `once`. The song plays in order, one phrase at a time. At each phrase end the engine compares the entry about to play with `target = round(progress * (N-1))` (progress = distance fraction of the course, from `Music.setProgress`): if it is more than `hold` (default 1) entries ahead of the course, replay the current phrase; if it is more than `skip` (default 2) behind, jump to the target; otherwise continue. Checkpoint and portal triggers are ignored. A splat does not restart the song; a new run does. `finish` plays the `outro` at the next phrase line (`Music.finishQ()` is `phrase` for linear songs so `finishNear` accounts for it).
+Behaviour (node check): very fast run 0 replays, expert 1, improving 11, new 27 (each phrase 5 times); no jumps in any of them. New players still hear a lot of repetition: that needs more material, not a rule.
+
 ## Anticipation (`musicAhead` in index.html)
 - Keeps 8 s of course-position history; `v = max(speed, measured pace, 1800) * 1.08`.
 - Fires `approach` when `eta < waitFor('phrase') + bridgeLen + 0.6 * phrase`, only if `lastTouched >= checkpoint - 30`.
@@ -44,7 +48,7 @@ Living notes on how the music works and what Jeffry wants from it. Update the "R
 ## Songs
 - **Chicago** (`5 Chicago Meditation (radio edit)`, 140 BPM, F# minor, bar 1 at about 0.514 s). Journey: intro, moon, atmos, (drive1, drive2), sky, earth. Bridges moon -> atmos via moon_b (moon_c short), sky -> earth via sky_b (sky_c short). Last section `earth` is the 2:31-2:51 arpeggio loop. No outro. Used by Levels 3 and 5.
 - **Bowl** (Fleetwood Mac track, sections calm / groove / peak from bars 49, 25, 105). Used by Level 4 (park). Not yet given the bridge and anticipation treatment.
-- **Fleetwood** (track 6, same file, 140 BPM, bar 1 at about 0.567 s). Start is bar 88 (2:29.7, "2:30"), end is 4:00. Earlier a 2:02 start was tried and replaced. Short journey: start (88), build (96), lift (104, 16 bars), peak (120, 16 bars, loops). Long journey (5+ checkpoints): start, build, liftA (104), liftB (112), peakA (120), peakB (128, loops). Every step moves to the next bar range of the original, so transitions are the song's own continuation (crossfade only, no bridges). Outro is bars 136-140 (5 bars), plays once on `finish`, ends at 4:00. Used by Level 2.
+- **Fleetwood** (track 6, same file, 140 BPM, bar 1 at about 0.567 s). First song on the **linear (hybrid) policy** (manifest key `linear`, see below). Start is bar 89 (2:31.4); the bar before it holds a short vocal sample that is cut out (the mid band is high from 2:29.7 to 2:30.9, drops at 2:31.0-2:31.2, and bar 89 begins on the strongest onset). End is 4:00. Entries in order: `start` (bars 89-95, once, finishes the original's phrase), `c0`..`c7` (4-bar phrases from bar 96 to 127, each once), `peak` (128-135, loops). `outro` (136-140, 5 bars) plays once on finish at the next phrase line. Used by Level 2. Bar lines checked against the kick: within about 10 ms of the downbeat.
 
 ## iPhone Safari audio
 - Unlock on pointerdown/up, touchstart/end, click, keydown until the context runs. Play a silent buffer, set `navigator.audioSession.type = 'playback'` (plays through the silent switch), loop a silent `<audio>`.
@@ -55,7 +59,7 @@ Living notes on how the music works and what Jeffry wants from it. Update the "R
 - At 4k u/s the song progresses faster than its sections; options: map music to progress distance, or skip sections on very fast runs.
 - Bar-exact start of Chicago's arpeggio was picked by timestamp and never confirmed by ear.
 - Risk of seams where a section's loop tail (reverb) is cut; the cutter does not export tails.
-- Bowl song has no bridges, no anticipation.
+- Bowl song has no bridges, no anticipation, and could move to the linear policy too.
 - Not verified on a real iPhone: the latest audio unlock hardening (user still heard silence at last report).
 
 ## Open questions

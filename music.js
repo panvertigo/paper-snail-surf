@@ -5,7 +5,7 @@
 (function () {
   const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
   let ctx = null, master = null, sfxBus = null, cfg = null, bufs = {}, ready = false, loading = null;
-  let cur = null, pending = null, wanted = null, groups = [], timer = null, speed = 0, events = [], deferredAt = null;
+  let cur = null, pending = null, wanted = null, groups = [], timer = null, speed = 0, events = [], deferredAt = null, progress = 0;
   let musicVol = 0.7, sfxVol = 0.8;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -55,7 +55,7 @@
       for (const [id, s] of Object.entries(c.sections)) {
         const files = [s.file, ...((s.layers || []).map(l => l.file))], layers = [], tails = [];
         for (const f of files) {
-          const b = await decode((c.base || '') + f + '?v=65'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
+          const b = await decode((c.base || '') + f + '?v=66'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
           layers.push(r.body); tails.push(r.tail);
         }
         bufs[id] = { layers, tails };
@@ -70,7 +70,7 @@
     loading = (async () => {
       let fb = null;
       try {
-        const r = await fetch('music/' + name + '.json?v=65'); if (!r.ok) return false;
+        const r = await fetch('music/' + name + '.json?v=66'); if (!r.ok) return false;
         cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; fb = cfg.fallback; ensureCtx(); bufs = {};
         await prepare(cfg); if (deferredAt !== null) { const p = deferredAt; deferredAt = null; Music.at(p); }
         return true;
@@ -110,11 +110,19 @@
     const now = ctx.currentTime; groups = groups.filter(g => !g.dead && g.end + 6 > now);
     if (!cur) { if (wanted && cfg.sections[wanted]) startSection(wanted, now + 0.1); else return; }
     if (pending) { const tb = boundary(pending.quant, Math.max(now + 0.12, pending.tmin || 0)); if (tb < now + 0.5) commit(tb); }
-    if (cur && cur.once && cur.iters >= 1 && cur.next && cfg.sections[cur.next] && cur.nextStart < now + 0.5) startSection(cur.next, cur.nextStart); // an intro hands over to its loop with no gap
+    if (cur && cur.once && cur.iters >= 1 && cur.nextStart < now + 0.5) { const nx = cfg.linear ? linearNext() : cur.next; if (nx && cfg.sections[nx]) startSection(nx, cur.nextStart); } // an intro hands over to its loop with no gap; a linear song picks its next phrase here
     while (cur && cur.nextStart < now + 0.5 && !(cur.once && cur.iters >= 1)) { scheduleIter(cur.id, cur.nextStart); cur.nextStart += cur.loopLen; cur.iters++; } // once: play the section a single time (an outro), then silence
     for (const g of groups) if (!g.dead && g.start < now + 0.5 && g.end > now) g.gains.forEach((n, i) => n.gain.setTargetAtTime(layerTarget(g.sec, i), now, 0.35)); // speed layers
   }
 
+  // linear (hybrid) policy: the song plays in order, phrase by phrase, steered by course progress (0..1). Ahead of the course: replay the phrase. Far behind: jump to where the course is. The last entry loops.
+  function linearNext() {
+    const o = cfg.linear, i = o.indexOf(cur.id); if (i < 0) return cur.next || null; if (i >= o.length - 1) return null;
+    const target = clamp(Math.round(progress * (o.length - 1)), 0, o.length - 1), nx = i + 1;
+    if (i >= 1 && nx > target + (cfg.hold ?? 1)) return o[i];
+    if (nx < target - (cfg.skip ?? 2)) return o[Math.max(1, target)];
+    return o[nx];
+  }
   // journey: the song's sections in order. Checkpoint n of C picks entry round(n * (L - 1) / C), so the last checkpoint always reaches the last entry and a longer level just stretches the song.
   function journeySection(n) { const C = Math.max(1, events.filter(e => e.ev === 'checkpoint').length), J = (C >= 5 && cfg.journeyLong) || cfg.journey, L = J.length; return J[Math.min(L - 1, Math.round(n * (L - 1) / C))]; } // a long level gets the long version of the song
   function bridgeFor(target, eta) { const b = (cfg.bridges || []).find(x => x.to === target && cur && (cur.id === x.from || (cur.once && cur.next === x.from))); if (!b) return null; const long = cfg.sections[b.via]; return b.short && eta !== undefined && long && eta < long.loopLen + 4 ? b.short : b.via; } // the stretch of the song that leads into `target` from where we are
@@ -141,6 +149,7 @@
     trigger(ev0, arg, eta) {
       if (!cfg) return;
       try {
+        if (cfg.linear && ev0 !== 'finish' && ev0 !== 'finishNear') return; // a linear song ignores checkpoints and portals: it follows progress
         const early = ev0 === 'approach' || ev0 === 'finishNear', ev = ev0 === 'approach' ? 'checkpoint' : ev0 === 'finishNear' ? 'finish' : ev0; // 'approach' / 'finishNear' fire just before the real event, when the snail is on pace for it
         const lead = early || ev === 'finish' ? 0 : (cfg.lead ?? 2); // a real checkpoint or portal: let the old section play on a couple of bars first; anticipated ones are already early; finish: the outro lands right away
         if (ev === 'checkpoint' && cfg.journey) { const to = journeySection(arg); Music.goto(bridgeFor(to, eta) || to, { quantize: cfg.transition || 'phrase', lead }); return; } // song order spread over however many checkpoints the level has
@@ -150,6 +159,7 @@
     },
     at(piece, o) { // the section in force when you are at piece i (used on start and after a respawn)
       if (!cfg || !ready) { deferredAt = piece; return; }
+      if (cfg.linear) { const playing = cur && cfg.linear.includes(cur.id); if (o && o.respawn && playing) return; Music.goto(cfg.linear[0], { quantize: 'beat', restart: true }); return; } // a splat does not restart the song; a new run does
       if (cfg.journey) { let n = 0; for (const e of events) if (e.ev === 'checkpoint' && e.at <= piece) n++; if (n > 0) { Music.goto(journeySection(n), o || { quantize: 'beat' }); return; } }
       const match = e => (cfg.triggers || []).find(x => x.on === e.ev && (e.ev === 'checkpoint' ? x.n === e.n : x.theme === e.theme));
       let ev = null; for (const e of events) if (e.at <= piece && match(e)) ev = e; // only events this song reacts to (a manifest may ignore portals)
@@ -157,6 +167,8 @@
       if (t) Music.goto((t.on === 'start' && o && o.respawn && t.respawn) || t.section, o || { quantize: 'beat' }); // respawn: don't replay the intro after a splat
     },
     setSpeed(v) { speed = v; },
+    setProgress(p) { progress = p; },
+    finishQ() { return cfg && cfg.linear ? 'phrase' : 'bar'; },
     setVolume(v) { musicVol = v; if (master) master.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     setSfxVolume(v) { sfxVol = v; if (sfxBus) sfxBus.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     stop(fade = 0.6) { wanted = null; pending = null; if (!ctx) return; const t = ctx.currentTime + fade; for (const g of groups) fadeStop(g, t); cur = null; },
