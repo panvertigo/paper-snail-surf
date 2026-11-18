@@ -1,4 +1,6 @@
-# Paper Snail Surf: decisions and state (2026-11-16)
+# Paper Snail Surf: decisions and state (2026-11-17)
+
+Start with docs/roadmap.md for the current state, next steps and open questions. This file is the long-term design record.
 
 Reference model: Trackmania. Effort in weekends (wk). Prototype: index.html (v15) + verifier/.
 
@@ -11,7 +13,7 @@ Reference model: Trackmania. Effort in weekends (wk). Prototype: index.html (v15
 - Ramps: base half-width 460 (was 400), H = 1.25 W; finales still narrow to 310. Wide early = forgiving, tight late = mastery.
 - Stages are hand-built data: STAGES list in index.html, one entry per ramp. Level 1 "cruise" (wide 700, long runs, The Big One jump: 2200 drop onto a 1000-wide ramp). Level 2 "gauntlet" (Sweep 180, Plunge, Strafe Gap, narrowing slalom, leap of faith finish).
 - Strafe Gap (Level 2, ramp 18, gap 1350, drop 320): keep as a hard air-control check until Jeffry playtests it.
-- Lean / second input: cut.
+- Lean / second input: cut. (It came back briefly as an air pitch control and was retired again on 2026-11-17: now the snail's nose follows its flight path on its own; the unused physics code stays.)
 - Art scale: WHOLE HOUSE. Courses span rooms (start on the kitchen island, drop to the floor, finish e.g. in the dog bed). Falling from counter to floor gives the overall downhill speed the physics needs.
 - Story: premise C ("Going home": the only creature that carries its house is touring yours, looking for the garden outside) with undertones of A ("Someone made you": the snail is a child's paper craft; fridge drawings and photos age across stages; late stages hint at moving boxes). Wordless, environmental only; never interrupt a run; story lives in backgrounds and between runs. The flower garden becomes the destination/finale, not stage 1.
 - Feel (v15): squash/stretch springs on landing/launch; edge zoom blur + tunnel vignette above ~900 u/s (max 7%; Jeffry says it is not what he pictured, see open decisions); wind audio tried and REMOVED (Jeffry disliked it); first person eye height 120; game speed slider (default 107%, lock before leaderboards).
@@ -63,3 +65,11 @@ Monetization lean: premium upfront ($3-5) over F2P at friend scale; cosmetics on
 - Level editor v1: index.html#edit (see editor.js). Piece palette, inspector, rings, live 3D with the good bot's path (colour = speed), per-piece entry speeds, Full check (300 ms + sloppy bots), Play / Play from selected piece (section practice), undo/redo, JSON import/export, autosave.
 - Adaptive music engine (music.js): bar-quantised section switching on checkpoint/portal triggers, seamless loops with tails, speed layers, generated demo song; synthesised SFX (landing, launch, hoop, portal, checkpoint, splat, finish) quantised to the beat. Your songs: see music/README.md.
 - Still open: real songs, camera roll in loops, mobile editing, Capacitor wrap, ghosts/leaderboards.
+
+## 2026-11-17: decisions and changes
+- Look: the game now reads as an earth view with painted skies, mountains, clouds and islands; sky colour drifts by course progress (twilight, sunset, golden hour, morning, pink dawn). Levels 3 and 5 are night levels (golden hour into purple dusk), with moon, stars, headlights, a ferris wheel and one sprawling town. This moved away from the "whole house" art scale above; see the open question in roadmap.md.
+- Speed look: tiny-to-wide particle cone from 2k u/s, black ink specks, FOV stretch at 3k+. No screen overlays (edge blur, ring, vignette) any more.
+- Controls: lean retired (nose follows flight automatically). Camera distance and FOV are settings (defaults 60% and 0).
+- Hitbox forgiveness strip past a ramp's outer edge: 160 -> 40 u.
+- Music: each level has a song (L1 Salt for Mushroom Field, L2 Fleetwood Mac, L3 and L5 Chicago, L4 bowl). The default policy is "linear (hybrid)": play the song in order, steered by progress; Jeffry likes it. Details and rules in docs/music-notes.md. The sample-music preference rules (never swap immediately, no cuts, finish on the climax, no discordant ending) are logged there.
+- Performance: ?perf, ?lite and per-feature URL switches exist to measure on the phone; see docs/performance-notes.md.

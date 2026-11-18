@@ -41,3 +41,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - v44: sky now drifts through twilight, sunset, golden hour, morning, pink dawn by course progress; portals no longer change the scene (cosmetic hoop only). No physics change; golden L1-L4 OK.
 - v45: painted art (art/web) for mountains, clouds, floating islands; fusion look drops the moon and planet (every level is an earth view). No physics change; golden OK.
 - v73: EDGE 160 -> 40 (the invisible landing strip past the visible outer base shrinks to 40 u). Golden L1-L4 unchanged; sim L1-L3 results identical to EDGE 160 (bots never used the strip). Revert by setting EDGE back to 160.
+- v46-v72 (look and music only, physics untouched): speed particles, firefly gates, birds, night levels, headlights, towns, hybrid music prep. Golden L1-L4 OK each time.
+- v75-v85 (no physics change): town sprawl, paper ramp texture, camera and FOV settings, lean retired (cmd.pitch stays in physics, now always 0 from input), hybrid (linear) music policy on all songs, mastering, perf tools, hoop messages removed. Golden L1-L4 OK each time.

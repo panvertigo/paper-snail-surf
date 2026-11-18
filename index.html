@@ -1543,7 +1543,7 @@ const prevPos = new THREE.Vector3();
 function onRing(g, off) {
   const o = ringObjs[rings.indexOf(g)]; if (o) o.fx = 1;
   if (g.kind === 'portal') { if (!FUSION) { setThemeOld(g.theme); fovKick += 16; toast('Portal'); Sfx.portal(); } Music.trigger('portal', g.theme); } // in the fusion look portals are invisible and do nothing
-  else { flowGain(off < 0.25 ? 300 : 120, off < 0.25 ? 0.15 : 0.08); toast((off < 0.25 ? 'Perfect hoop  +' : 'Hoop  +') + Math.round(g.boost * (1 - off * off) * (off < 0.25 ? 1.5 : 1))); Sfx.hoop(1 - off * off); }
+  else { flowGain(off < 0.25 ? 300 : 120, off < 0.25 ? 0.15 : 0.08); Sfx.hoop(1 - off * off); }
 }
 let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;

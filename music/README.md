@@ -1,5 +1,7 @@
 # Adding your songs
 
+See docs/music-notes.md for the full rules and the hybrid (linear) policy; built-in songs are cut with `python tools/cut-music.py <name>`. This file describes the manifest format.
+
 A stage names its song with `music: "<name>"` (built-in Level 3 uses `music/descent.json`, currently a generated demo). The game loads `music/<name>.json`.
 
 ## What to export from your DAW
