@@ -1039,19 +1039,21 @@ if (!/^#edit/.test(location.hash)) {
     const body = new THREE.Mesh(bg, mat), wl = new THREE.Mesh(wg, mat), wr = new THREE.Mesh(wg, mat); wr.scale.x = -1;
     const pl = new THREE.Group(), pr = new THREE.Group(); pl.add(wl); pr.add(wr); grp.add(body, pl, pr);
     const span = 110 + rn() * 90; grp.scale.setScalar(span); scene.add(grp);
-    birds.push({ grp, pl, pr, base: -300 + rn() * 2200, amp: 250 + rn() * 600, w: 0.00012 + rn() * 0.0002, ph: rn() * 6.28, lat: (rn() < 0.5 ? -1 : 1) * (350 + rn() * 1500), latA: 200 + rn() * 400, h: 150 + rn() * 900, hA: 60 + rn() * 140, fl: 0.003 + rn() * 0.003 });
+    birds.push({ span, grp, pl, pr, base: -300 + rn() * 2200, amp: 250 + rn() * 600, w: 0.00012 + rn() * 0.0002, ph: rn() * 6.28, lat: (rn() < 0.5 ? -1 : 1) * (350 + rn() * 1500), latA: 200 + rn() * 400, h: 150 + rn() * 900, hA: 60 + rn() * 140, fl: 0.003 + rn() * 0.003 });
   }
 }
 const _bf = new THREE.Vector3(), _br = new THREE.Vector3(), _bp = new THREE.Vector3();
-function updateBirds(now) {
+let birdK = 0;
+function updateBirds(now, speed) { // the flock only joins you at very high speed, fading in from about 2600 u/s
   if (!birds.length) return;
+  birdK += (Math.max(0, Math.min(1, (speed - 2600) / 700)) - birdK) * 0.03; if (birdK < 0.02) { for (const b of birds) b.grp.visible = false; return; }
   const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx;
   for (const b of birds) {
     const s = b.base + b.amp * Math.sin(now * b.w + b.ph), l = b.lat + b.latA * Math.sin(now * b.w * 0.7 + b.ph * 2), h = b.h + b.hA * Math.sin(now * b.w * 1.3 + b.ph * 3);
     _bp.set(rp.x + fx * s + rx * l, rp.y + h, rp.z + fz * s + rz * l); b.grp.position.copy(_bp);
     b.grp.rotation.set(0, yaw, 0);
     const burst = Math.max(0, Math.sin(now / 2300 + b.ph * 5)), fl = Math.sin(now * b.fl + b.ph) * (0.15 + 0.6 * burst); // flap in bursts, then glide
-    b.pl.rotation.z = fl; b.pr.rotation.z = -fl; b.grp.visible = !intro.on;
+    b.pl.rotation.z = fl; b.pr.rotation.z = -fl; b.grp.visible = !intro.on; b.grp.scale.setScalar(b.span * birdK);
   }
 }
 function updateNpcs(now) {
@@ -1204,12 +1206,12 @@ let dNext = 0, dAcc = 0, dLast = performance.now(), dPhase = 0;
 const dLat = new THREE.Vector3(), dV = new THREE.Vector3();
 function updateDrops(speed) {
   const now = performance.now(), dt = Math.min(0.05, (now - dLast) / 1000); dLast = now;
-  const t = Math.max(0, Math.min(1, (speed - 500) / 2600)); // 0 at a crawl, 1 around 3100 u/s
-  if (state === 'run' && speed > 250) {
+  const t = Math.max(0, Math.min(1, (speed - 2000) / 1600)); // nothing below 2000 u/s, full effect around 3600
+  if (state === 'run' && speed > 2000) {
     dV.set(vel.x, vel.y, vel.z); dLat.crossVectors(dV, sUp); if (dLat.lengthSq() < 1e-6) dLat.set(1, 0, 0); dLat.normalize();
-    dAcc += speed * dt / 60 * (0.3 + t * 1.1 + Math.random() * 0.5) * fxAmt;
+    dAcc += speed * dt / 60 * (0.5 + t * 1.2 + Math.random() * 0.5) * fxAmt;
     while (dAcc >= 1) {
-      dAcc -= 1; const i = dNext = (dNext + 1) % ND, o = i * 3, helix = t > 0.3 && Math.random() < 0.3 + t * 0.4, star = t > 0.55 && Math.random() < 0.08;
+      dAcc -= 1; const i = dNext = (dNext + 1) % ND, o = i * 3, helix = t > 0.2 && Math.random() < 0.35 + t * 0.4, star = t > 0.5 && Math.random() < 0.1;
       if (helix) { // two strands wound round the path: each bead sits on a circle round the line of travel, so the trail reads as a spiral
         dPhase += 0.55; const r = 26 + 46 * t, ph = dPhase + (i & 1) * Math.PI, c = Math.cos(ph) * r, sn = Math.sin(ph) * r;
         dPos[o] = snail.position.x + dLat.x * c + sUp.x * (sn + 14); dPos[o + 1] = snail.position.y + dLat.y * c + sUp.y * (sn + 14); dPos[o + 2] = snail.position.z + dLat.z * c + sUp.z * (sn + 14);
@@ -1221,8 +1223,8 @@ function updateDrops(speed) {
       }
     }
   }
-  spC.copy(SP_CREAM).lerp(SP_AQUA, Math.min(1, t * 2.2)); if (t > 0.5) spC.lerp(SP_MINT, (t - 0.5) * 1.2); if (t > 0.85) spC.lerp(SP_ICE, (t - 0.85) * 5); // the whole sparkle palette warms-to-cool with speed
-  dMesh.material.size = 28 + 18 * t;
+  spC.copy(SP_CREAM).lerp(SP_AQUA, Math.min(1, t * 3)); if (t > 0.5) spC.lerp(SP_MINT, (t - 0.5) * 1.4); if (t > 0.85) spC.lerp(SP_ICE, (t - 0.85) * 5); // the whole sparkle palette warms-to-cool with speed
+  dMesh.material.size = 34 + 22 * t;
   for (let i = 0; i < ND; i++) {
     const o = i * 3;
     if (dLife[i] <= 0) { dCol[o] = dCol[o + 1] = dCol[o + 2] = 0; continue; }
@@ -1232,6 +1234,26 @@ function updateDrops(speed) {
     dCol[o] = Math.min(1, spC.r + j * 0.2) * a; dCol[o + 1] = Math.min(1, spC.g) * a; dCol[o + 2] = Math.min(1, spC.b + j * 0.2) * a;
   }
   dGeo.attributes.position.needsUpdate = dGeo.attributes.color.needsUpdate = true;
+}
+// Ink specks: tiny dark flecks flung back at high speed, like scraps of black paper. Normal blending so they read against the bright sky.
+const NK = 140, kPos = new Float32Array(NK * 3), kVel = new Float32Array(NK * 3), kLife = new Float32Array(NK), kMax = new Float32Array(NK), kA = new Float32Array(NK);
+const kGeo = new THREE.BufferGeometry(); kGeo.setAttribute('position', new THREE.BufferAttribute(kPos, 3));
+const kTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'); x.fillStyle = '#1a1030'; x.beginPath(); x.moveTo(16, 3); x.lineTo(28, 15); x.lineTo(19, 29); x.lineTo(6, 20); x.lineTo(8, 9); x.closePath(); x.fill(); return new THREE.CanvasTexture(c); })(); // a ragged little scrap
+const kMesh = new THREE.Points(kGeo, new THREE.PointsMaterial({ size: 26, map: kTex, transparent: true, opacity: 0.85, depthWrite: false, sizeAttenuation: true, fog: false, alphaTest: 0.05 }));
+kMesh.frustumCulled = false; scene.add(kMesh); for (let i = 0; i < NK; i++) kPos[i * 3 + 1] = -1e6;
+let kNext = 0, kAcc = 0;
+function updateSpecks(speed, dt) {
+  const t = Math.max(0, Math.min(1, (speed - 2300) / 1500));
+  if (state === 'run' && t > 0) {
+    kAcc += speed * dt / 120 * (0.3 + t) * fxAmt;
+    while (kAcc >= 1) { kAcc -= 1; const i = kNext = (kNext + 1) % NK, o = i * 3;
+      kPos[o] = snail.position.x + (Math.random() - 0.5) * 120; kPos[o + 1] = snail.position.y + 10 + Math.random() * 90; kPos[o + 2] = snail.position.z + (Math.random() - 0.5) * 120;
+      kVel[o] = vel.x * 0.03 + (Math.random() - 0.5) * 180; kVel[o + 1] = (Math.random() - 0.4) * 260; kVel[o + 2] = vel.z * 0.03 + (Math.random() - 0.5) * 180; kMax[i] = kLife[i] = 0.8 + Math.random() * 0.9; }
+  }
+  let live = false;
+  for (let i = 0; i < NK; i++) { const o = i * 3; if (kLife[i] <= 0) { kPos[o + 1] = -1e6; continue; } live = true; kLife[i] -= dt; kVel[o + 1] -= 120 * dt; kPos[o] += kVel[o] * dt; kPos[o + 1] += kVel[o + 1] * dt; kPos[o + 2] += kVel[o + 2] * dt; }
+  if (live || t > 0) kGeo.attributes.position.needsUpdate = true;
+  kMesh.material.size = 22 + 16 * t;
 }
 // Warp: past about 3000 u/s the edges of the screen blur and streak outward and the view stretches wider, so top speed feels like it bends the world.
 const warpEl = (() => { const d = document.createElement('div'); d.id = 'warp'; const m = 'radial-gradient(ellipse at 50% 60%, transparent 34%, #000 88%)';
@@ -1620,7 +1642,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick + warpK * 9; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
-  updateFlow(dt); drawFlow(); updateNpcs(now); updateBirds(now); updateDrops(speed); updateWarp(speed, now); musicAhead(speed); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  updateFlow(dt); drawFlow(); updateNpcs(now); updateBirds(now, speed); updateDrops(speed); updateSpecks(speed, dt); updateWarp(speed, now); musicAhead(speed); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';
