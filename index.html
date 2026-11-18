@@ -175,11 +175,11 @@ function face(r, sd, y, L) { // signed distance to face sd (+1 right, -1 left) a
 const ramps = [], checkpoints = [], rings = [];
 let fin, stageMeta = {};
 const STAGE_META = {
-  1: { pull: 0.3, fall: 0.5, riskRings: [ // risk hoops: small, worth +200 (+50% dead centre); sit outside and inside the safe line, so you pick them by where you leave the ramp
+  1: { music: 'salt', pull: 0.3, fall: 0.5, riskRings: [ // risk hoops: small, worth +200 (+50% dead centre); sit outside and inside the safe line, so you pick them by where you leave the ramp
     { piece: 13, d: 1850, s: -700, y: 40, R: 190, boost: 200 },
     { piece: 13, d: 3390, s: -210, y: -760, R: 190, boost: 200 }
   ] },
-  2: { music: 'fleetwood' }, // track 2: Fleetwood Mac, journey from 2:30 to the 4:00 end
+  2: { music: 'fleetwood' }, // track 2: Fleetwood Mac, linear from 2:31 to 4:00
   5: { scenery: 'descent', music: 'chicago', night: true, pull: 0.3, fall: 0.1 },
   3: { scenery: 'descent', music: 'chicago', night: true, pull: 0.3, fall: 0.1, riskRings: [
     { piece: 1, d: 1030, s: 600, y: 90, R: 190, boost: 200 },

@@ -49,6 +49,11 @@ Behaviour (node check): very fast run 0 replays, expert 1, improving 11, new 27 
 - **Chicago** (`5 Chicago Meditation (radio edit)`, 140 BPM, F# minor, bar 1 at about 0.514 s). Journey: intro, moon, atmos, (drive1, drive2), sky, earth. Bridges moon -> atmos via moon_b (moon_c short), sky -> earth via sky_b (sky_c short). Last section `earth` is the 2:31-2:51 arpeggio loop. No outro. Used by Levels 3 and 5.
 - **Bowl** (Fleetwood Mac track, sections calm / groove / peak from bars 49, 25, 105). Used by Level 4 (park). Not yet given the bridge and anticipation treatment.
 - **Fleetwood** (track 6, same file, 140 BPM, bar 1 at about 0.567 s). First song on the **linear (hybrid) policy** (manifest key `linear`, see below). Start is bar 89 (2:31.4); the bar before it holds a short vocal sample that is cut out (the mid band is high from 2:29.7 to 2:30.9, drops at 2:31.0-2:31.2, and bar 89 begins on the strongest onset). End is 4:00. Entries in order: `start` (bars 89-95, once, finishes the original's phrase), `c0`..`c7` (4-bar phrases from bar 96 to 127, each once), `peak` (128-135, loops). `outro` (136-140, 5 bars) plays once on finish at the next phrase line. Used by Level 2. Bar lines checked against the kick: within about 10 ms of the downbeat.
+- **Salt for Mushroom Field** (track 7, `7 Salt for Mushroom Field.mp3`, 3:04). Exactly 90 BPM. The grid is anchored on the drop at 45.35 s (bar 18); the second climax at 130.69 s is 32.004 bars later and the song starts 17 bars before the drop, so one grid covers the whole song (bar 1 at 0.017 s). Structure: 17-bar quiet build, drop at bar 18, main groove to bar 49, second climax bars 50-64, fade to 2:50.7. Level 1 uses a short linear order: `start` (bars 1-5), `i0`, `i1`, `i2` (4 bars each, the build), `m0` (18-21, the drop), `m1`, `peak` (26-33, loops). Outro is bars 62-64 (the song's own fade). At 63 s an expert reaches the drop at about 71 percent progress, which is where the song puts it. Bar phase was set by the energy step, not by ear. Level 1 only; second climax not used yet.
+
+## Mastering (cut-music.py `tame`)
+Measured loudness: every cut loop sits near -9 dBFS RMS, so Fleetwood was not louder than Chicago. What differed was the 2.5-7 kHz band (the distorted, harsh parts): 6-7 percent of Fleetwood's energy versus 0.4-2.8 percent for Chicago. `tame` (per-song option) turns that band down 3 dB and compresses it 4:1 when loud, trims 1.5 dB, and soft-limits at 0.89. Fleetwood result: harsh share 6.0 -> 3.3 percent (c3), 7.3 -> 4.0 (peak), peak level 0.96 -> 0.66, about 2.4 dB quieter. This is a mix-level fix (we only have the stereo mix, no stems); a synth rebuild would be a cover, not the song.
+
 
 ## iPhone Safari audio
 - Unlock on pointerdown/up, touchstart/end, click, keydown until the context runs. Play a silent buffer, set `navigator.audioSession.type = 'playback'` (plays through the silent switch), loop a silent `<audio>`.
@@ -59,6 +64,7 @@ Behaviour (node check): very fast run 0 replays, expert 1, improving 11, new 27 
 - At 4k u/s the song progresses faster than its sections; options: map music to progress distance, or skip sections on very fast runs.
 - Bar-exact start of Chicago's arpeggio was picked by timestamp and never confirmed by ear.
 - Risk of seams where a section's loop tail (reverb) is cut; the cutter does not export tails.
+- Chicago still uses the adaptive journey with riser bridges (Levels 3 and 5); only Fleetwood (Level 2) and Salt (Level 1) use the linear policy.
 - Bowl song has no bridges, no anticipation, and could move to the linear policy too.
 - Not verified on a real iPhone: the latest audio unlock hardening (user still heard silence at last report).
 

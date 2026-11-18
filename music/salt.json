@@ -1,0 +1,67 @@
+{
+ "bpm": 90.0,
+ "beatsPerBar": 4,
+ "quantize": "phrase",
+ "linear": [
+  "start",
+  "i0",
+  "i1",
+  "i2",
+  "m0",
+  "m1",
+  "peak"
+ ],
+ "startOffset": 0.0251,
+ "sections": {
+  "start": {
+   "file": "salt_start.mp3",
+   "bars": 5,
+   "once": true
+  },
+  "i0": {
+   "file": "salt_i0.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "i1": {
+   "file": "salt_i1.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "i2": {
+   "file": "salt_i2.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "m0": {
+   "file": "salt_m0.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "m1": {
+   "file": "salt_m1.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "peak": {
+   "file": "salt_peak.mp3",
+   "bars": 8
+  },
+  "outro": {
+   "file": "salt_outro.mp3",
+   "bars": 3,
+   "once": true
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "start"
+  },
+  {
+   "on": "finish",
+   "section": "outro",
+   "quantize": "phrase"
+  }
+ ]
+}
