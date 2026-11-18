@@ -1,0 +1,109 @@
+{
+ "bpm": 120.0,
+ "beatsPerBar": 4,
+ "quantize": "phrase",
+ "linear": [
+  "k01",
+  "k02",
+  "k03",
+  "k04",
+  "k05",
+  "k06",
+  "k07",
+  "k08",
+  "k17",
+  "k18",
+  "k19",
+  "k20",
+  "k21",
+  "peak"
+ ],
+ "startOffset": 0.0251,
+ "sections": {
+  "k01": {
+   "file": "stairwell_k01.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k02": {
+   "file": "stairwell_k02.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k03": {
+   "file": "stairwell_k03.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k04": {
+   "file": "stairwell_k04.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k05": {
+   "file": "stairwell_k05.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k06": {
+   "file": "stairwell_k06.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k07": {
+   "file": "stairwell_k07.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k08": {
+   "file": "stairwell_k08.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k17": {
+   "file": "stairwell_k17.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k18": {
+   "file": "stairwell_k18.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k19": {
+   "file": "stairwell_k19.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k20": {
+   "file": "stairwell_k20.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k21": {
+   "file": "stairwell_k21.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "peak": {
+   "file": "stairwell_peak.mp3",
+   "bars": 8
+  },
+  "outro": {
+   "file": "stairwell_outro.mp3",
+   "bars": 5,
+   "once": true
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "k01"
+  },
+  {
+   "on": "finish",
+   "section": "outro",
+   "quantize": "phrase"
+  }
+ ]
+}

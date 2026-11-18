@@ -1,3 +1,12 @@
 [
- { "file": "first-steps", "name": "First steps", "author": "Paper Snail Surf" }
+ {
+  "file": "first-steps",
+  "name": "First steps",
+  "author": "Paper Snail Surf"
+ },
+ {
+  "file": "kitchen",
+  "name": "Kitchen (draft, not tuned)",
+  "author": "Paper Snail Surf"
+ }
 ]

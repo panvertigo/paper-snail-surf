@@ -1,0 +1,73 @@
+{
+ "bpm": 105.0,
+ "beatsPerBar": 4,
+ "quantize": "phrase",
+ "linear": [
+  "k01",
+  "k02",
+  "k03",
+  "k04",
+  "k05",
+  "k06",
+  "k07",
+  "peak"
+ ],
+ "startOffset": 0.0251,
+ "sections": {
+  "k01": {
+   "file": "boxfort_k01.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k02": {
+   "file": "boxfort_k02.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k03": {
+   "file": "boxfort_k03.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k04": {
+   "file": "boxfort_k04.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k05": {
+   "file": "boxfort_k05.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k06": {
+   "file": "boxfort_k06.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k07": {
+   "file": "boxfort_k07.mp3",
+   "bars": 2,
+   "once": true
+  },
+  "peak": {
+   "file": "boxfort_peak.mp3",
+   "bars": 8
+  },
+  "outro": {
+   "file": "boxfort_outro.mp3",
+   "bars": 4,
+   "once": true
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "k01"
+  },
+  {
+   "on": "finish",
+   "section": "outro",
+   "quantize": "phrase"
+  }
+ ]
+}

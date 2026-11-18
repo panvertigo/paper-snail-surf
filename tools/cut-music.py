@@ -26,6 +26,19 @@ SONGS = {
       'start': (1, 5, {'once': True}), 'i0': (6, 4, {'once': True}), 'i1': (10, 4, {'once': True}), 'i2': (14, 4, {'once': True}), 'm0': (18, 4, {'once': True}), 'm1': (22, 4, {'once': True}),
       'peak': (26, 8, {}), 'outro': (62, 3, {'once': True})},
       triggers=[{'on': 'start', 'section': 'start'}, {'on': 'finish', 'section': 'outro', 'quantize': 'phrase'}]),
+  # --- the three new maps (specs in levels/*.md). Songs picked by tempo and feel; all linear (hybrid) policy; grids are exact (BPM fitted on the onsets). ---
+  # Kitchen: "1 Luxury" (90 BPM, warm, quiet 8-bar intro; spec says about 86 BPM, so the cadence target is 4 beats = 2.667 s). Bar 1 on the beat grid at 0.375 s.
+  'kitchen': dict(bpm=90.0, linear=['k%02d' % i for i in range(1, 8)] + ['peak'], src='1 Luxury.mp3', grid=0.375, sections={
+      **{'k%02d' % i: ((i - 1) * 4 + 1, 4, {'once': True}) for i in range(1, 8)}, 'peak': (29, 8, {}), 'outro': (37, 4, {'once': True})},
+      triggers=[{'on': 'start', 'section': 'k01'}, {'on': 'finish', 'section': 'outro', 'quantize': 'phrase'}]),
+  # Stairwell: "2 Inevitable Worm" (exactly 120 BPM, driving, steady plateau, big rise at 2:08 = bar 65, the money ramp). The long flat plateau (bars 33-64) is skipped with one jump.
+  'stairwell': dict(bpm=120.0, tame=dict(), linear=['k%02d' % i for i in list(range(1, 9)) + list(range(17, 22))] + ['peak'], src='2 Inevitable Worm (radio edit).wav', grid=0.0, sections={
+      **{'k%02d' % i: ((i - 1) * 4 + 1, 4, {'once': True}) for i in list(range(1, 9)) + list(range(17, 22))}, 'peak': (85, 8, {}), 'outro': (93, 5, {'once': True})},
+      triggers=[{'on': 'start', 'section': 'k01'}, {'on': 'finish', 'section': 'outro', 'quantize': 'phrase'}]),
+  # Box Fort: "3 IoAldoSdtk" (exactly 105 BPM, tight and percussive, builds with clean 8-bar steps at 0:23 / 0:46 / 0:59). Muffled-inside filter is a later engine feature.
+  'boxfort': dict(bpm=105.0, tame=dict(), linear=['k%02d' % i for i in range(1, 8)] + ['peak'], src='3 IoAldoSdtk.wav', grid=0.0, sections={
+      **{'k%02d' % i: ((i - 1) * 4 + 1, 4, {'once': True}) for i in range(1, 7)}, 'k07': (25, 2, {'once': True}), 'peak': (27, 8, {}), 'outro': (35, 4, {'once': True})},
+      triggers=[{'on': 'start', 'section': 'k01'}, {'on': 'finish', 'section': 'outro', 'quantize': 'phrase'}]),
   'bowl': dict(src='6 Fleetwood Mac_electro.wav', grid=0.138 + 60 / BPM, sections={
       'calm': (49, 16, {}), 'groove': (25, 16, {}), 'peak': (105, 16, {})},
       triggers=[{'on': 'start', 'section': 'calm'}]),
