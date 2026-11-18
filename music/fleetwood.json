@@ -1,0 +1,63 @@
+{
+ "bpm": 140.0,
+ "beatsPerBar": 4,
+ "quantize": "phrase",
+ "journey": [
+  "start",
+  "build",
+  "lift",
+  "rise",
+  "peak"
+ ],
+ "journeyLong": [
+  "start",
+  "build",
+  "lift",
+  "rise",
+  "peak",
+  "peak2"
+ ],
+ "startOffset": 0.0251,
+ "sections": {
+  "start": {
+   "file": "fleetwood_start.mp3",
+   "bars": 8
+  },
+  "build": {
+   "file": "fleetwood_build.mp3",
+   "bars": 8
+  },
+  "lift": {
+   "file": "fleetwood_lift.mp3",
+   "bars": 8
+  },
+  "rise": {
+   "file": "fleetwood_rise.mp3",
+   "bars": 8
+  },
+  "peak": {
+   "file": "fleetwood_peak.mp3",
+   "bars": 16
+  },
+  "peak2": {
+   "file": "fleetwood_peak2.mp3",
+   "bars": 16
+  },
+  "outro": {
+   "file": "fleetwood_outro.mp3",
+   "bars": 5,
+   "once": true
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "start"
+  },
+  {
+   "on": "finish",
+   "section": "outro",
+   "quantize": "bar"
+  }
+ ]
+}

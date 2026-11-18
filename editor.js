@@ -331,7 +331,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const t0 = document.createElement('select'); ['moon', 'atmosphere', 'sky', 'Earth'].forEach((o, i) => { const op = document.createElement('option'); op.value = i; op.textContent = 'start: ' + o; t0.appendChild(op); }); t0.value = stage.theme0 || 0;
     t0.onchange = () => { stage.theme0 = +t0.value; change(); }; sr.appendChild(t0); top.appendChild(sr);
     const fr = document.createElement('div'); fr.className = 'row'; fr.innerHTML = '<label>Music</label>';
-    const ms = document.createElement('select'); for (const o of ['', 'chicago', 'bowl', 'descent']) { const op = document.createElement('option'); op.value = o; op.textContent = o || 'none'; ms.appendChild(op); } ms.value = stage.music || '';
+    const ms = document.createElement('select'); for (const o of ['', 'chicago', 'fleetwood', 'bowl', 'descent']) { const op = document.createElement('option'); op.value = o; op.textContent = o || 'none'; ms.appendChild(op); } ms.value = stage.music || '';
     ms.onchange = () => { if (ms.value) stage.music = ms.value; else delete stage.music; snapshot(); }; fr.appendChild(ms); top.appendChild(fr);
     const fr2 = document.createElement('div'); fr2.className = 'row'; fr2.innerHTML = '<label>Downhill pull</label><small>0 to 1, adds speed on ramps</small>';
     const pn = document.createElement('input'); pn.type = 'number'; pn.step = '0.05'; pn.min = '0'; pn.max = '1'; pn.value = stage.pull ?? 0; pn.onchange = () => { stage.pull = +pn.value || 0; if (!stage.pull) delete stage.pull; change(); }; fr2.prepend(pn); top.appendChild(fr2);
