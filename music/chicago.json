@@ -85,11 +85,6 @@
   "earth": {
    "file": "chicago_earth.mp3",
    "bars": 16
-  },
-  "outro": {
-   "file": "chicago_outro.mp3",
-   "bars": 12,
-   "once": true
   }
  },
  "triggers": [
@@ -97,11 +92,6 @@
    "on": "start",
    "section": "intro",
    "respawn": "moon"
-  },
-  {
-   "on": "finish",
-   "section": "outro",
-   "quantize": "bar"
   }
  ],
  "fallback": "descent"

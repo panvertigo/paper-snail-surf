@@ -175,8 +175,8 @@ const STAGE_META = {
     { piece: 13, d: 1850, s: -700, y: 40, R: 190, boost: 200 },
     { piece: 13, d: 3390, s: -210, y: -760, R: 190, boost: 200 }
   ] },
-  5: { scenery: 'descent', music: 'chicago', pull: 0.3, fall: 0.1 },
-  3: { scenery: 'descent', music: 'chicago', pull: 0.3, fall: 0.1, riskRings: [
+  5: { scenery: 'descent', music: 'chicago', night: true, pull: 0.3, fall: 0.1 },
+  3: { scenery: 'descent', music: 'chicago', night: true, pull: 0.3, fall: 0.1, riskRings: [
     { piece: 1, d: 1030, s: 600, y: 90, R: 190, boost: 200 },
     { piece: 1, d: 1770, s: 70, y: -560, R: 190, boost: 200 },
     { piece: 3, d: 1870, s: 600, y: -40, R: 190, boost: 200 },
@@ -693,16 +693,22 @@ const DAY = [
   { t: 0.8,  top: 0x6fa0e0, mid: 0xb5d8f0, bot: 0xfde3c8, gnd: 0x5a7a60 }, // morning
   { t: 1,    top: 0x8fb4ee, mid: 0xf6c4c0, bot: 0xffe9d0, gnd: 0x6a8a70 }, // pink dawn
 ].map(k => ({ t: k.t, top: new THREE.Color(k.top), mid: new THREE.Color(k.mid), bot: new THREE.Color(k.bot), gnd: new THREE.Color(k.gnd) }));
+const NIGHT = [ // the night levels: a burnt-orange dusk that sinks through twilight into deep blue night
+  { t: 0,    top: 0x2b2160, mid: 0x8a4a8c, bot: 0xe8845a, gnd: 0x2a1c3a },
+  { t: 0.35, top: 0x1a1a52, mid: 0x4a3a86, bot: 0x9a5a8a, gnd: 0x1e1838 },
+  { t: 0.7,  top: 0x0b0f2e, mid: 0x1c2858, bot: 0x3a3f7a, gnd: 0x141a38 },
+  { t: 1,    top: 0x060820, mid: 0x121a44, bot: 0x262d66, gnd: 0x0e1230 },
+].map(k => ({ t: k.t, top: new THREE.Color(k.top), mid: new THREE.Color(k.mid), bot: new THREE.Color(k.bot), gnd: new THREE.Color(k.gnd) }));
 const dayNow = { top: new THREE.Color(), mid: new THREE.Color(), bot: new THREE.Color(), gnd: new THREE.Color() };
 let dayP = 0, dayTarget = 0;
-function daySample(p) { let i = 0; while (i < DAY.length - 2 && p > DAY[i + 1].t) i++; const a = DAY[i], b = DAY[i + 1], f = Math.max(0, Math.min(1, (p - a.t) / (b.t - a.t))); for (const k of ['top', 'mid', 'bot', 'gnd']) dayNow[k].copy(a[k]).lerp(b[k], f); }
+function daySample(p) { const D = stageMeta.night ? NIGHT : DAY; let i = 0; while (i < D.length - 2 && p > D[i + 1].t) i++; const a = D[i], b = D[i + 1], f = Math.max(0, Math.min(1, (p - a.t) / (b.t - a.t))); for (const k of ['top', 'mid', 'bot', 'gnd']) dayNow[k].copy(a[k]).lerp(b[k], f); }
 function dayProgress() { return ramps.length > 1 ? Math.min(1, lastTouched / (ramps.length - 1)) : 0; }
 function setTheme(i, instant) { if (instant) { dayP = dayTarget = dayProgress(); } } // portals no longer pick a scene; this just snaps the sky to the current progress (start, respawn)
 function tickTheme(dt) {
   if (!FUSION) { tickThemeOld(dt); return; }
   dayTarget = /^#edit/.test(location.hash) ? 0.3 : (stageMeta.park ? 0.28 : dayProgress()); dayP += (dayTarget - dayP) * (1 - Math.exp(-dt * 0.5)); daySample(dayP);
   theme.bg.copy(dayNow.bot); theme.fog.copy(dayNow.bot); theme.sky.copy(dayNow.mid).lerp(_tc.set(0xffffff), 0.35); theme.gnd.copy(dayNow.gnd);
-  theme.stars = themesOn ? Math.max(0, 1 - dayP / 0.3) : 0; applyTheme(); stars.position.copy(camera.position);
+  theme.stars = stageMeta.night ? Math.max(0, Math.min(0.95, (dayP - 0.15) / 0.5)) : (themesOn ? Math.max(0, 1 - dayP / 0.3) : 0); sun.intensity = stageMeta.night ? 0.75 - 0.45 * Math.min(1, dayP * 1.3) : 0.75; hemi.intensity = stageMeta.night ? 0.75 - 0.2 * Math.min(1, dayP * 1.3) : 0.75; applyTheme(); stars.position.copy(camera.position);
 }
 function applyScenery(on) {
   on = on && !FUSION; themesOn = on; FOG_FAR = on ? 600000 : 70000; CAM_FAR = on ? 4e6 : 90000;
@@ -790,8 +796,9 @@ function updateSky(dt, now) {
   if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); }
   else if (T) { const d = T.dome || [T.bg, T.bg, T.bg]; skyU.top.value.lerp(_tc.set(d[0]), k); skyU.mid.value.lerp(_tc.set(d[1]), k); skyU.bot.value.lerp(_tc.set(d[2]), k); }
   mountains.visible = show; mountains.position.set(camera.position.x, camera.position.y - 3800, camera.position.z);
-  if (show) for (const m of mtnLayers) { m.material.uniforms.tint.value.setRGB(1, 1, 1).lerp(dayNow.mid, m.userData.tint); m.material.uniforms.bg.value.copy(dayNow.bot); }
-  for (const g of scenicClouds) { g.visible = show; if (show) { g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; if (g.userData.bob) g.position.y += Math.sin(now / 1500 + g.userData.sp * 20) * dt * 40; } }
+  const nt = stageMeta.night ? Math.min(0.55, 0.15 + 0.5 * dayP) : 0; // night: hills and clouds sink into the sky colour
+  if (show) for (const m of mtnLayers) { m.material.uniforms.tint.value.setRGB(1, 1, 1).lerp(dayNow.mid, Math.min(0.92, m.userData.tint + nt)); m.material.uniforms.bg.value.copy(dayNow.bot); }
+  for (const g of scenicClouds) { g.visible = show; if (show) { if (nt) g.children[0].material.color.setRGB(1, 1, 1).lerp(dayNow.mid, 0.25 + nt); g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; if (g.userData.bob) g.position.y += Math.sin(now / 1500 + g.userData.sp * 20) * dt * 40; } }
 }
 { // vignette + paper grain over the canvas (plain alpha layers: cheap, no blend modes)
   const c = document.createElement('canvas'); c.width = c.height = 160; const x = c.getContext('2d'), d = x.createImageData(160, 160);
@@ -989,6 +996,18 @@ function buildSnail(snailInner, eyes, eyeParts, shellColor, shellMap) { // round
   }
 }
 buildSnail(snailInner, eyes, eyeParts, 0xe8735a, shellTex);
+// Headlights: two soft beams from the eyes along the direction of travel, plus a glint at each lamp. They fade up as the sky darkens (always a little on).
+const beams = [];
+{ const Lh = 900, Rb = 230, g = new THREE.ConeGeometry(Rb, Lh, 20, 1, true); g.translate(0, -Lh / 2, 0); g.rotateX(Math.PI / 2); g.rotateX(0.1); // apex at the lamp, opening forward and a touch down
+  const col = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < g.attributes.position.count; i++) { const z = -g.attributes.position.getZ(i) / Lh, k = Math.max(0, 1 - Math.min(1, z)) ** 1.6; col[i * 3] = 1 * k; col[i * 3 + 1] = 0.93 * k; col[i * 3 + 2] = 0.72 * k; }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  for (const sx of [-1, 1]) {
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    m.position.set(sx * 7, 22, -32); snailInner.add(m);
+    const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: 0xfff1c8, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); gl.scale.set(46, 46, 1); gl.position.set(sx * 7, 22, -34); snailInner.add(gl);
+    beams.push(m, gl);
+  } }
+function updateBeams() { const k = stageMeta.night ? 0.35 + 0.65 * Math.min(1, dayP * 1.6) : 0; for (let i = 0; i < beams.length; i++) { beams[i].material.opacity = (i & 1 ? 0.9 : 0.55) * k; beams[i].visible = k > 0.01 && snail.visible; } }
 
 // ---------- Company: racer snails (recorded bots, see tools/make-racers.js) and commuter snails crawling along ridges. Cosmetic only, never touch the sim. ----------
 const npcs = { racers: [], commuters: [] };
@@ -1659,7 +1678,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovKick + warpK * 9; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
-  updateFlow(dt); drawFlow(); updateNpcs(now); updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateWarp(speed, now); musicAhead(speed); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  updateFlow(dt); drawFlow(); updateNpcs(now); updateBirds(now, speed, dt); updateBeams(); updateDrops(speed); updateSpecks(speed, dt); updateWarp(speed, now); musicAhead(speed); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
   speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>';

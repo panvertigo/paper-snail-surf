@@ -13,9 +13,8 @@ SONGS = {
       'moon': (5, 8, {}), 'moon_b': (13, 8, {'once': True, 'next': 'atmos'}), 'moon_c': (17, 4, {'once': True, 'next': 'atmos'}),
       'atmos': (21, 16, {}), 'drive1': (37, 16, {}), 'drive2': (53, 16, {}),
       'sky': (69, 8, {}), 'sky_b': (77, 8, {'once': True, 'next': 'earth'}), 'sky_c': (81, 4, {'once': True, 'next': 'earth'}),
-      'earth': (85, 16, {}), 'outro': (101, 12, {'once': True})},
-      triggers=[{'on': 'start', 'section': 'intro', 'respawn': 'moon'},
-                {'on': 'finish', 'section': 'outro', 'quantize': 'bar'}]),
+      'earth': (85, 16, {})},
+      triggers=[{'on': 'start', 'section': 'intro', 'respawn': 'moon'}]), # no outro: the track's own ending was discordant, so the last section just keeps playing
   'bowl': dict(src='6 Fleetwood Mac_electro.wav', grid=0.138 + 60 / BPM, sections={
       'calm': (49, 16, {}), 'groove': (25, 16, {}), 'peak': (105, 16, {})},
       triggers=[{'on': 'start', 'section': 'calm'}]),
