@@ -697,11 +697,12 @@ const DAY = [
   { t: 0.8,  top: 0x6fa0e0, mid: 0xb5d8f0, bot: 0xfde3c8, gnd: 0x5a7a60 }, // morning
   { t: 1,    top: 0x8fb4ee, mid: 0xf6c4c0, bot: 0xffe9d0, gnd: 0x6a8a70 }, // pink dawn
 ].map(k => ({ t: k.t, top: new THREE.Color(k.top), mid: new THREE.Color(k.mid), bot: new THREE.Color(k.bot), gnd: new THREE.Color(k.gnd) }));
-const NIGHT = [ // the night levels: a burnt-orange dusk that sinks through twilight into deep blue night
-  { t: 0,    top: 0x2b2160, mid: 0x8a4a8c, bot: 0xe8845a, gnd: 0x2a1c3a },
-  { t: 0.35, top: 0x1a1a52, mid: 0x4a3a86, bot: 0x9a5a8a, gnd: 0x1e1838 },
-  { t: 0.7,  top: 0x0b0f2e, mid: 0x1c2858, bot: 0x3a3f7a, gnd: 0x141a38 },
-  { t: 1,    top: 0x060820, mid: 0x121a44, bot: 0x262d66, gnd: 0x0e1230 },
+const NIGHT = [ // the night levels: golden hour, into sunset, then a stylized purple dusk that deepens to violet (never plain black)
+  { t: 0,    top: 0x7a6cc0, mid: 0xf2a65e, bot: 0xffe0a0, gnd: 0x6a4a40 }, // golden hour
+  { t: 0.22, top: 0x4a3490, mid: 0xe0577a, bot: 0xffa070, gnd: 0x4a2a44 }, // sunset
+  { t: 0.5,  top: 0x2a1f6e, mid: 0x8a3f9c, bot: 0xd8648a, gnd: 0x2e1f4a }, // purple dusk
+  { t: 0.78, top: 0x1c1458, mid: 0x4a2f8a, bot: 0x8a4a9c, gnd: 0x241a48 }, // moody violet
+  { t: 1,    top: 0x140c42, mid: 0x32207a, bot: 0x6a3a96, gnd: 0x1c1440 }, // deep purple night
 ].map(k => ({ t: k.t, top: new THREE.Color(k.top), mid: new THREE.Color(k.mid), bot: new THREE.Color(k.bot), gnd: new THREE.Color(k.gnd) }));
 const dayNow = { top: new THREE.Color(), mid: new THREE.Color(), bot: new THREE.Color(), gnd: new THREE.Color() };
 let dayP = 0, dayTarget = 0;
@@ -712,7 +713,7 @@ function tickTheme(dt) {
   if (!FUSION) { tickThemeOld(dt); return; }
   dayTarget = /^#edit/.test(location.hash) ? 0.3 : (stageMeta.park ? 0.28 : dayProgress()); dayP += (dayTarget - dayP) * (1 - Math.exp(-dt * 0.5)); daySample(dayP);
   theme.bg.copy(dayNow.bot); theme.fog.copy(dayNow.bot); theme.sky.copy(dayNow.mid).lerp(_tc.set(0xffffff), 0.35); theme.gnd.copy(dayNow.gnd);
-  theme.stars = stageMeta.night ? Math.max(0, Math.min(0.95, (dayP - 0.15) / 0.5)) : (themesOn ? Math.max(0, 1 - dayP / 0.3) : 0); sun.intensity = stageMeta.night ? 0.75 - 0.45 * Math.min(1, dayP * 1.3) : 0.75; hemi.intensity = stageMeta.night ? 0.75 - 0.2 * Math.min(1, dayP * 1.3) : 0.75; applyTheme(); stars.position.copy(camera.position);
+  theme.stars = stageMeta.night ? Math.max(0, Math.min(0.95, (dayP - 0.2) / 0.5)) : (themesOn ? Math.max(0, 1 - dayP / 0.3) : 0); sun.intensity = stageMeta.night ? 0.8 - 0.4 * Math.min(1, dayP * 1.3) : 0.75; hemi.intensity = stageMeta.night ? 0.8 - 0.15 * Math.min(1, dayP * 1.3) : 0.75; applyTheme(); stars.position.copy(camera.position);
 }
 function applyScenery(on) {
   on = on && !FUSION; themesOn = on; FOG_FAR = on ? 600000 : 70000; CAM_FAR = on ? 4e6 : 90000;
@@ -789,34 +790,87 @@ function buildClouds() {
     grp.position.set(r.sx + rt[0] * side * off, (r.oy || 0) + (island ? 2200 : 1400) + rn() * 3200, r.sz + rt[2] * side * off); grp.userData.sp = 0.1 + rn() * 0.2; grp.userData.bob = island; scene.add(grp); scenicClouds.push(grp);
   }
 }
-let townPts = null, townMeta = null, nightGround = null;
-function buildTowns() { // night levels: a dark ground far below with little towns whose lights switch on one by one as the evening deepens
-  if (townPts) { scene.remove(townPts); townPts.geometry.dispose(); townPts = null; } if (nightGround) { scene.remove(nightGround); nightGround.geometry.dispose(); nightGround = null; }
+let townPatches = [], townPts = null, townLines = null, townMeta = null, nightGround = null, wheel = null, nightSky = null, lampP = -9, moonAz = 0;
+function buildNightSky() { // stars and a moon on a camera-following shell (inside the far plane, drawn right after the dome and before the hills)
+  if (nightSky) return; nightSky = new THREE.Group(); const D = 40000;
+  const mk = (n, bias, size, map) => { const p = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const a = Math.random() * 6.2832, z = Math.pow(Math.random(), bias) * 0.92, r = Math.sqrt(1 - z * z); p[i * 3] = Math.cos(a) * r * D; p[i * 3 + 1] = z * D; p[i * 3 + 2] = Math.sin(a) * r * D; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    const m = new THREE.PointsMaterial({ color: 0xfff4e0, size, map, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false, blending: THREE.AdditiveBlending });
+    const pts = new THREE.Points(g, m); pts.frustumCulled = false; pts.renderOrder = -29; nightSky.add(pts); return m; };
+  nightSky.userData.small = mk(1100, 1.6, 2.4, null); nightSky.userData.big = mk(70, 1.3, 9, glowTexA());
+  const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), h = x.createRadialGradient(128, 128, 40, 128, 128, 128); h.addColorStop(0, 'rgba(255,240,205,0.5)'); h.addColorStop(0.35, 'rgba(255,225,170,0.14)'); h.addColorStop(1, 'rgba(255,225,170,0)'); x.fillStyle = h; x.fillRect(0, 0, 256, 256);
+  x.fillStyle = '#fff1cf'; x.beginPath(); x.arc(128, 128, 44, 0, 6.2832); x.fill(); x.fillStyle = 'rgba(214,190,140,0.5)'; [[112, 116, 9], [140, 132, 12], [126, 146, 6], [146, 108, 6], [108, 138, 5]].forEach(q => { x.beginPath(); x.arc(q[0], q[1], q[2], 0, 6.2832); x.fill(); });
+  x.strokeStyle = 'rgba(70,40,30,0.55)'; x.lineWidth = 2.5; x.beginPath(); x.arc(128, 128, 44, 0, 6.2832); x.stroke(); // ink outline like the rest of the paper look
+  const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false })); moon.scale.set(9600, 9600, 1); moon.renderOrder = -28; nightSky.add(moon); nightSky.userData.moon = moon;
+  nightSky.userData.D = D; scene.add(nightSky); moonAz = yaw + 0.5;
+}
+function updateNightSky(dt, now) {
+  if (!nightSky) return; const nk = Math.max(0, Math.min(1, (dayP - 0.2) / 0.4)), u = nightSky.userData, D = u.D;
+  nightSky.visible = nk > 0.01; if (!nightSky.visible) return; nightSky.position.copy(camera.position);
+  moonAz += (yaw + 0.5 - moonAz) * Math.min(1, dt * 0.25); const el = 0.2; // the moon drifts gently in view as you turn, so it is never lost
+  u.moon.position.set(-Math.sin(moonAz) * D * Math.cos(el), D * Math.sin(el), -Math.cos(moonAz) * D * Math.cos(el)); u.moon.material.opacity = nk;
+  u.small.opacity = 0.85 * nk; u.big.opacity = nk * (0.6 + 0.3 * Math.sin(now / 700));
+}
+function buildTowns() { // night levels: little towns far below, street grids lined with amber houses and lamps that switch on as the evening deepens, plus a lit ferris wheel as a landmark
+  for (const o of townPatches) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); } townPatches = [];
+  for (const o of [townPts, townLines, nightGround, wheel]) if (o) { scene.remove(o); o.traverse(c => { if (c.geometry) c.geometry.dispose(); }); }
+  townPts = townLines = nightGround = wheel = null;
   if (!FUSION || !stageMeta.night || !ramps.length || /^#edit/.test(location.hash)) return;
+  buildNightSky();
   let minY = 0; for (const r of ramps) minY = Math.min(minY, r.oy, r.ey); const fy = minY - 2500;
   nightGround = new THREE.Mesh(new THREE.CircleGeometry(95000, 48), new THREE.MeshBasicMaterial({ color: 0x141a38, fog: true })); nightGround.rotation.x = -Math.PI / 2; nightGround.position.y = fy; nightGround.renderOrder = -26; nightGround.material.depthWrite = false; scene.add(nightGround);
-  let sd = 4141; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, gs = () => (rn() + rn() + rn() - 1.5) * 1.3; // roughly gaussian
-  const pts = [], th = [], tones = [[1, 0.78, 0.4], [1, 0.62, 0.32], [1, 0.9, 0.62], [0.95, 0.7, 0.55]], col = [];
-  const nT = 16, step = Math.max(1, Math.floor(ramps.length / nT));
+  let sd = 4141; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const pp = [], pt = [], pc = [], lp = [], lt = [], lc = [], warm = () => { const k = rn(); return k < 0.5 ? [1, 0.72, 0.34] : k < 0.8 ? [1, 0.58, 0.24] : k < 0.93 ? [1, 0.86, 0.55] : [0.95, 0.5, 0.28]; };
+  const patch = (x, z, rad, y) => { const m = new THREE.Mesh(new THREE.CircleGeometry(rad, 28), new THREE.MeshBasicMaterial({ color: 0x20163a, fog: false, transparent: true, opacity: 0.92, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = -25; scene.add(m); townPatches.push(m); };
+  const nT = 24, step = Math.max(1, Math.floor(ramps.length / nT)), cen = []; let ax = 0, az = 0; for (const r of ramps) { ax += r.sx; az += r.sz; } ax /= ramps.length; az /= ramps.length;
   for (let i = 0, k = 0; i < ramps.length; i += step, k++) {
-    const r = ramps[i], rt = rightOf(r.h0), side = k % 2 ? 1 : -1, off = side * (1500 + rn() * 7000), cx = r.sx + rt[0] * off + (rn() - 0.5) * 3000, cz = r.sz + rt[2] * off + (rn() - 0.5) * 3000, R = 1800 + rn() * 3000, n = 120 + (rn() * 160 | 0), t0 = 0.12 + rn() * 0.5;
-    for (let j = 0; j < n; j++) { const a = rn() * 6.283, d = Math.abs(gs()) * R; pts.push(cx + Math.cos(a) * d, fy + 20, cz + Math.sin(a) * d); th.push(t0 + rn() * 0.28); const c = tones[(rn() * tones.length) | 0]; col.push(c[0], c[1], c[2]); } // lights start round the middle of each town
-    for (let j = 0; j < 4; j++) { const a = rn() * 6.283, d = R * (0.6 + rn() * 1.2); for (let q = 0; q < 8; q++) { pts.push(cx + Math.cos(a) * (d + q * 260), fy + 20, cz + Math.sin(a) * (d + q * 260)); th.push(t0 + 0.1 + rn() * 0.3); col.push(1, 0.8, 0.5); } } // a lit road leading out
+    const r = ramps[i], rt = rightOf(r.h0), side = k % 2 ? 1 : -1, off = side * (1800 + rn() * 4200), cx = r.sx + rt[0] * off + (rn() - 0.5) * 2500, cz = r.sz + rt[2] * off + (rn() - 0.5) * 2500, R = 1300 + rn() * 1300, t0 = 0.28 + rn() * 0.3, ang = rn() * 3.14159, ca = Math.cos(ang), sa = Math.sin(ang), bs = 330 + rn() * 120;
+    let lo = Infinity; for (let q = i; q < Math.min(ramps.length, i + step + 1); q++) lo = Math.min(lo, ramps[q].oy, ramps[q].ey); const ty = lo - 2400 - rn() * 900; // each town sits a little below the stretch of course it belongs to
+    cen.push([cx, cz, t0, ty]); patch(cx, cz, R * 1.2, ty);
+    for (let dir = 0; dir < 2; dir++) for (let u = -R; u <= R; u += bs * (0.8 + rn() * 0.4)) {
+      const half = Math.sqrt(Math.max(0, R * R - u * u)) * (0.72 + rn() * 0.28); if (half < 350) continue;
+      const W = (s, v) => { const lx = dir ? v : s, lz = dir ? s : v; return [cx + lx * ca - lz * sa, cz + lx * sa + lz * ca]; };
+      const thAt = (s, v) => t0 + Math.min(1, Math.hypot(s, v) / R) * 0.28;
+      for (let s = -half; s < half; s += 300) { const e = Math.min(half, s + 300), a = W(s, u), b = W(e, u), t = thAt(s, u); lp.push(a[0], ty + 10, a[1], b[0], ty + 10, b[1]); lt.push(t, t); lc.push(1, 0.62, 0.28, 1, 0.62, 0.28); } // the street itself glows faintly
+      for (let s = -half; s < half; s += 150) { const q = W(s, u); pp.push(q[0], ty + 20, q[1]); pt.push(thAt(s, u) + rn() * 0.04); pc.push(1, 0.82, 0.45); } // street lamps
+      for (let s = -half; s < half; s += 95 + rn() * 30) for (const sg of [-1, 1]) if (rn() < 0.58) { const q = W(s + (rn() - 0.5) * 40, u + sg * (55 + rn() * 35)), c = warm(), b = 0.5 + rn() * 0.4; pp.push(q[0], ty + 20, q[1]); pt.push(thAt(s, u) + rn() * 0.16); pc.push(c[0] * b, c[1] * b, c[2] * b); } // houses with warm windows
+    }
   }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); const cArr = new Float32Array(pts.length); g.setAttribute('color', new THREE.BufferAttribute(cArr, 3));
-  townPts = new THREE.Points(g, new THREE.PointsMaterial({ size: 6, map: glowTexA(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: false, fog: false })); townPts.frustumCulled = false; townPts.renderOrder = -24; scene.add(townPts);
-  townMeta = { th: Float32Array.from(th), base: Float32Array.from(col), n: th.length, tick: 0 };
+  for (let i = 0; i + 1 < cen.length; i++) { const a = cen[i], b = cen[i + 1], d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.floor(d / 260); for (let j = 1; j < n; j++) { const f = j / n; pp.push(a[0] + (b[0] - a[0]) * f, a[3] + (b[3] - a[3]) * f + 20, a[1] + (b[1] - a[1]) * f); pt.push(a[2] + (b[2] - a[2]) * f + 0.05); pc.push(1, 0.78, 0.4); } } // a lit road from town to town
+  const mkSet = (pos, th, col, lines) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col.length), 3)); return { g, th: Float32Array.from(th), base: Float32Array.from(col), n: th.length, k: lines ? 0.3 : 0.85 }; };
+  const sp = mkSet(pp, pt, pc, false), sl = mkSet(lp, lt, lc, true);
+  townPts = new THREE.Points(sp.g, new THREE.PointsMaterial({ size: 70, map: glowTexA(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, fog: false })); townPts.frustumCulled = false; townPts.renderOrder = -24; scene.add(townPts);
+  townLines = new THREE.LineSegments(sl.g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); townLines.frustumCulled = false; townLines.renderOrder = -24; scene.add(townLines);
+  townMeta = { sets: [sp, sl], tick: 0 }; lampP = -9;
+  { // ferris wheel: fixed, face-on to the middle of the course, a colourful reference point
+    const r = ramps[Math.floor(ramps.length * 0.45)], rt = rightOf(r.h0), wx = r.sx + rt[0] * 7000, wz = r.sz + rt[2] * 7000, Rw = 2000, wy = Math.min(ramps[Math.floor(ramps.length * 0.45)].oy, ramps[Math.floor(ramps.length * 0.45)].ey) - 3400, hy = wy + Rw * 1.15, nx = ax - wx, nz = az - wz, nl = Math.hypot(nx, nz) || 1, px = -nz / nl, pz = nx / nl; // plane axis
+    wheel = new THREE.Group(); const P = (phi, rr) => [wx + px * Math.cos(phi) * rr, hy + Math.sin(phi) * rr, wz + pz * Math.cos(phi) * rr], wp = [], wl = [], N = 56, G = 14, ox = nx / nl * 45, oz = nz / nl * 45;
+    for (let i = 0; i < N; i++) { const a = P(i / N * 6.2832, Rw), b = P((i + 1) / N * 6.2832, Rw); for (const s of [-1, 1]) wl.push(a[0] + ox * s, a[1], a[2] + oz * s, b[0] + ox * s, b[1], b[2] + oz * s); wp.push(a[0], a[1], a[2]); }
+    for (let i = 0; i < G; i++) { const a = P(i / G * 6.2832 + 0.26, Rw); wl.push(wx, hy, wz, a[0], a[1], a[2]); wp.push(a[0], a[1] - 90, a[2]); } // spokes, and a gondola hanging at each tip
+    for (const s of [-1, 1]) wl.push(wx + ox * s, hy, wz + oz * s, wx + px * 650 * s, wy, wz + pz * 650 * s); // the A-frame legs
+    for (let i = 0; i < 14; i++) { const a = i / 14 * 6.2832, d = 900 + rn() * 500; wp.push(wx + Math.cos(a) * d, wy + 20, wz + Math.sin(a) * d); } // fairground lights round the base
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); wg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(wp.length), 3));
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(wl, 3));
+    const pts = new THREE.Points(wg, new THREE.PointsMaterial({ size: 300, map: glowTexA(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })), lns = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xffb3d0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    pts.frustumCulled = lns.frustumCulled = false; pts.renderOrder = lns.renderOrder = -22; wheel.add(lns); wheel.add(pts); wheel.userData = { pts, lns, n: wp.length / 3, N, G }; scene.add(wheel); patch(wx, wz, 2000, wy);
+  }
 }
+const _wc = new THREE.Color();
 function updateTowns(now) {
-  if (!townPts) return; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd).multiplyScalar(0.8); }
-  if (++townMeta.tick % 3) return; const arr = townPts.geometry.attributes.color.array, m = townMeta;
-  for (let i = 0; i < m.n; i++) { const x = (dayP - m.th[i]) / 0.07, on = x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x), tw = 0.8 + 0.2 * Math.sin(now * 0.0017 + i * 12.9898), k = on * tw; arr[i * 3] = m.base[i * 3] * k; arr[i * 3 + 1] = m.base[i * 3 + 1] * k; arr[i * 3 + 2] = m.base[i * 3 + 2] * k; }
-  townPts.geometry.attributes.color.needsUpdate = true;
+  if (!townPts) return; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd).multiplyScalar(0.8); } for (const m of townPatches) m.material.color.copy(dayNow.gnd).multiplyScalar(0.7);
+  if (Math.abs(dayP - lampP) > 0.002) { lampP = dayP; // only re-light the towns when the evening has moved on
+    for (const s of townMeta.sets) { const arr = s.g.attributes.color.array; for (let i = 0; i < s.n; i++) { const x = (dayP - s.th[i]) / 0.06, k = (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)) * s.k; arr[i * 3] = s.base[i * 3] * k; arr[i * 3 + 1] = s.base[i * 3 + 1] * k; arr[i * 3 + 2] = s.base[i * 3 + 2] * k; } s.g.attributes.color.needsUpdate = true; }
+  }
+  if (wheel && ++townMeta.tick % 3 === 0) { // the wheel's bulbs chase through colours once the lights come on
+    const w = wheel.userData, on = Math.max(0, Math.min(1, (dayP - 0.3) / 0.1)), arr = w.pts.geometry.attributes.color.array, t = now / 1000;
+    for (let i = 0; i < w.n; i++) { const hue = i < w.N ? (i / w.N * 2 + t * 0.12) % 1 : i < w.N + w.G ? (i / w.G * 0.7 + 0.05) % 1 : 0.1; _wc.setHSL(hue, 1, i < w.N + w.G ? 0.5 : 0.6); const f = on * (i < w.N ? 0.55 + 0.45 * Math.sin(t * 3 + i * 1.7) : 1) * (i < w.N + w.G ? 1 : 0.6); arr[i * 3] = _wc.r * f; arr[i * 3 + 1] = _wc.g * f; arr[i * 3 + 2] = _wc.b * f; }
+    w.pts.geometry.attributes.color.needsUpdate = true; w.lns.material.opacity = on * 0.3; wheel.visible = on > 0.01;
+  }
 }
 let floorGrid = null;
 let skyWarm = 4; // the first frames draw the mountains and clouds even in space levels, so their shaders and buffers are uploaded at load, not at the sky portal mid-run
 function updateSky(dt, now) {
-  skyDome.position.copy(camera.position); updateTowns(now);
+  skyDome.position.copy(camera.position); updateTowns(now); updateNightSky(dt, now);
   if (floorGrid) { floorGrid.position.x = Math.round(camera.position.x / 1000) * 1000; floorGrid.position.z = Math.round(camera.position.z / 1000) * 1000; }
   const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && (plain || dayP > 0.3 || skyWarm-- > 0); // in the space levels the mountains and clouds only appear once you reach the sky
   const T = (plain || FUSION) ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
@@ -824,9 +878,9 @@ function updateSky(dt, now) {
   if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); }
   else if (T) { const d = T.dome || [T.bg, T.bg, T.bg]; skyU.top.value.lerp(_tc.set(d[0]), k); skyU.mid.value.lerp(_tc.set(d[1]), k); skyU.bot.value.lerp(_tc.set(d[2]), k); }
   mountains.visible = show; mountains.position.set(camera.position.x, camera.position.y - 3800, camera.position.z);
-  const nt = stageMeta.night ? Math.min(0.55, 0.15 + 0.5 * dayP) : 0; // night: hills and clouds sink into the sky colour
+  const nt = stageMeta.night ? Math.min(0.5, 0.6 * dayP) : 0; // night: hills and clouds sink into the sky colour
   if (show) for (const m of mtnLayers) { m.material.uniforms.tint.value.setRGB(1, 1, 1).lerp(dayNow.mid, Math.min(0.92, m.userData.tint + nt)); m.material.uniforms.bg.value.copy(dayNow.bot); }
-  for (const g of scenicClouds) { g.visible = show; if (show) { if (nt) g.children[0].material.color.setRGB(1, 1, 1).lerp(dayNow.mid, 0.25 + nt); g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; if (g.userData.bob) g.position.y += Math.sin(now / 1500 + g.userData.sp * 20) * dt * 40; } }
+  for (const g of scenicClouds) { g.visible = show; if (show) { if (nt) g.children[0].material.color.setRGB(1, 1, 1).lerp(dayNow.mid, 0.1 + nt); g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; if (g.userData.bob) g.position.y += Math.sin(now / 1500 + g.userData.sp * 20) * dt * 40; } }
 }
 { // vignette + paper grain over the canvas (plain alpha layers: cheap, no blend modes)
   const c = document.createElement('canvas'); c.width = c.height = 160; const x = c.getContext('2d'), d = x.createImageData(160, 160);
@@ -974,7 +1028,7 @@ buildScene();
 
 // ---------- Paper snail ----------
 const CAM_BACK = 700, CAM_UP = 850, CAM_AHEAD = 600, FP_EYE = 120;
-let zoomD = +(store.get('surf_zoom') || 100) / 100, fovOff = +(store.get('surf_fov') || 0);
+let zoomD = +(store.get('surf_zoom') || 60) / 100, fovOff = +(store.get('surf_fov') || 0);
 let camMode = +(store.get('surf_cam') || 3), gameSpeed = +(store.get('surf_speed') || 1.07);
 let musicVol = store.get('surf_music') === null ? 0.7 : +store.get('surf_music'), sfxVol = store.get('surf_sfx') === null ? 0.8 : +store.get('surf_sfx');
 let fxAmt = store.get('surf_fx') === null ? 1 : +store.get('surf_fx'); // speed-effects intensity (ribbons, clouds, edge shimmer, camera lag, long stalks); 0 = off
@@ -1038,7 +1092,7 @@ const beams = [];
   } }
 let lampOn = 0, lampT = 0, lampState = false;
 function updateBeams(dt) { // on when the sky is dark enough
-  const dark = !!stageMeta.night && dayP > 0.4; if (dark && !lampState) { lampState = true; lampT = 0; } else if (!dark && lampState) { lampState = false; lampT = 0; }
+  const dark = !!stageMeta.night && dayP > 0.5; if (dark && !lampState) { lampState = true; lampT = 0; } else if (!dark && lampState) { lampState = false; lampT = 0; }
   lampT += dt; const flick = lampState ? (lampT < 0.07 ? 0 : lampT < 0.14 ? 1 : lampT < 0.2 ? 0.1 : 1) : 0; lampOn += (flick - lampOn) * Math.min(1, dt * 30);
   for (let i = 0; i < beams.length; i++) { beams[i].material.opacity = (i & 1 ? 0.95 : 0.4) * lampOn; beams[i].visible = lampOn > 0.01 && snail.visible; } }
 
