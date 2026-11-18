@@ -12,11 +12,24 @@
   function ensureCtx() {
     if (!AC) return null;
     if (!ctx) { ctx = new AC(); master = ctx.createGain(); master.gain.value = musicVol; master.connect(ctx.destination); sfxBus = ctx.createGain(); sfxBus.gain.value = sfxVol; sfxBus.connect(ctx.destination); }
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state !== 'running') { try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } // 'suspended' at first; iOS can also report 'interrupted'
     return ctx;
   }
-  function unlock() { if (!ensureCtx()) return; if (!timer) timer = setInterval(tick, 50); }
-  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => addEventListener(ev, unlock, { capture: true, passive: true }));
+  // iPhone Safari needs more than a first touch: audio only unlocks on touchend / click (not touchstart), the ring/silent switch mutes Web Audio unless the page plays
+  // media-session audio, and the context can fall back asleep. So: keep trying on every gesture until the context really runs, play a silent buffer inside the gesture,
+  // switch the audio session to 'playback', and loop a silent <audio> element (which makes iOS treat the page as media, so the silent switch no longer mutes it).
+  let silentEl = null, unlocked = false, lastErr = '';
+  function unlock() {
+    if (!ensureCtx()) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    try { const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0); } catch (e) {}
+    if (!silentEl) { try { silentEl = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='); silentEl.loop = true; silentEl.volume = 0.01; silentEl.setAttribute('playsinline', ''); } catch (e) {} }
+    if (silentEl) { const p = silentEl.play(); if (p && p.catch) p.catch(() => {}); }
+    if (!timer) timer = setInterval(tick, 50);
+    if (ctx.state === 'running') unlocked = true;
+  }
+  ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown'].forEach(ev => addEventListener(ev, () => { if (!unlocked || (ctx && ctx.state !== 'running')) unlock(); }, { capture: true, passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && ctx && ctx.state !== 'running') unlocked = false; });
 
   // ---------- loading ----------
   async function decode(url) {
@@ -42,7 +55,7 @@
       for (const [id, s] of Object.entries(c.sections)) {
         const files = [s.file, ...((s.layers || []).map(l => l.file))], layers = [], tails = [];
         for (const f of files) {
-          const b = await decode((c.base || '') + f + '?v=64'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
+          const b = await decode((c.base || '') + f + '?v=65'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
           layers.push(r.body); tails.push(r.tail);
         }
         bufs[id] = { layers, tails };
@@ -57,11 +70,11 @@
     loading = (async () => {
       let fb = null;
       try {
-        const r = await fetch('music/' + name + '.json?v=64'); if (!r.ok) return false;
+        const r = await fetch('music/' + name + '.json?v=65'); if (!r.ok) return false;
         cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; fb = cfg.fallback; ensureCtx(); bufs = {};
         await prepare(cfg); if (deferredAt !== null) { const p = deferredAt; deferredAt = null; Music.at(p); }
         return true;
-      } catch (e) { console.warn('music: could not load', name, e); if (fb) { loading = null; cfg = null; return load(fb); } return false; } // fallback: a manifest whose audio is missing (e.g. songs kept out of the public repo) hands over to another one
+      } catch (e) { lastErr = String(e && e.message || e); console.warn('music: could not load', name, e); if (fb) { loading = null; cfg = null; return load(fb); } return false; } // fallback: a manifest whose audio is missing (e.g. songs kept out of the public repo) hands over to another one
     })();
     return loading;
   }
@@ -148,6 +161,7 @@
     setSfxVolume(v) { sfxVol = v; if (sfxBus) sfxBus.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     stop(fade = 0.6) { wanted = null; pending = null; if (!ctx) return; const t = ctx.currentTime + fade; for (const g of groups) fadeStop(g, t); cur = null; },
     get debug() { return ctx && cur ? { now: ctx.currentTime, origin: cur.origin, id: cur.id, bar: cfg.bar, pending: pending && pending.id, groups: groups.length } : null; },
+    get status() { return 'ctx:' + (ctx ? ctx.state : 'none') + ' cfg:' + (cfg ? 'y' : 'n') + ' ready:' + (ready ? 'y' : 'n') + ' sec:' + (cur ? cur.id : '-') + (lastErr ? ' err:' + lastErr : ''); },
     get playing() { return !!cur; }, get section() { return cur && cur.id; }, get ready() { return ready; },
     nextBeat(res = 0.5) { if (!cur || !ctx) return 0; const u = cfg.beat * res, now = ctx.currentTime + 0.01; return cur.origin + Math.ceil((now - cur.origin) / u) * u; },
   };
