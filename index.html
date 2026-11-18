@@ -51,6 +51,10 @@ canvas{display:block;touch-action:none}
   <input id="sens" type="range" min="4" max="30" step="1">
   <label>Camera</label>
   <div class="row" id="cam"><button data-c="3">third<br>person</button><button data-c="1">first<br>person</button></div>
+  <label>Camera distance <span id="zmv"></span></label>
+  <input id="zoomd" type="range" min="50" max="200" step="5">
+  <label>Field of view <span id="fvv"></span></label>
+  <input id="fovo" type="range" min="-15" max="25" step="1">
   <label>Game speed <span id="gsv"></span></label>
   <input id="gspeed" type="range" min="100" max="115" step="1">
   <label>Speed effects <span id="fxv"></span></label>
@@ -970,6 +974,7 @@ buildScene();
 
 // ---------- Paper snail ----------
 const CAM_BACK = 700, CAM_UP = 850, CAM_AHEAD = 600, FP_EYE = 120;
+let zoomD = +(store.get('surf_zoom') || 100) / 100, fovOff = +(store.get('surf_fov') || 0);
 let camMode = +(store.get('surf_cam') || 3), gameSpeed = +(store.get('surf_speed') || 1.07);
 let musicVol = store.get('surf_music') === null ? 0.7 : +store.get('surf_music'), sfxVol = store.get('surf_sfx') === null ? 0.8 : +store.get('surf_sfx');
 let fxAmt = store.get('surf_fx') === null ? 1 : +store.get('surf_fx'); // speed-effects intensity (ribbons, clouds, edge shimmer, camera lag, long stalks); 0 = off
@@ -1550,6 +1555,8 @@ function syncSettings() {
   document.querySelectorAll('#aa button').forEach(b => b.classList.toggle('on', +b.dataset.v === P.airaccel));
   $('sens').value = Math.round(P.sens * 1000); $('sv').textContent = Math.round(P.sens * 1000);
   document.querySelectorAll('#cam button').forEach(b => b.classList.toggle('on', +b.dataset.c === camMode));
+  $('zoomd').value = Math.round(zoomD * 100); $('zmv').textContent = Math.round(zoomD * 100) + '%';
+  $('fovo').value = fovOff; $('fvv').textContent = (fovOff > 0 ? '+' : '') + fovOff + '°';
   $('gspeed').value = Math.round(gameSpeed * 100); $('gsv').textContent = Math.round(gameSpeed * 100) + '%';
   $('fx').value = Math.round(fxAmt * 100); $('fxv').textContent = Math.round(fxAmt * 100) + '%';
   $('mus').value = Math.round(musicVol * 100); $('musv').textContent = Math.round(musicVol * 100) + '%';
@@ -1558,6 +1565,8 @@ function syncSettings() {
 document.querySelectorAll('#lvl button').forEach(b => { b.classList.toggle('on', +b.dataset.l === LEVEL); b.onclick = () => { if (+b.dataset.l !== LEVEL) { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; location.reload(); } }; });
 document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airaccel = +b.dataset.v; store.set('surf_aa', P.airaccel); syncSettings(); });
 $('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
+$('zoomd').oninput = e => { zoomD = +e.target.value / 100; store.set('surf_zoom', e.target.value); syncSettings(); };
+$('fovo').oninput = e => { fovOff = +e.target.value; store.set('surf_fov', fovOff); syncSettings(); };
 document.querySelectorAll('#cam button').forEach(b => b.onclick = () => { camMode = +b.dataset.c; store.set('surf_cam', camMode); syncSettings(); });
 $('mus').oninput = e => { musicVol = e.target.value / 100; store.set('surf_music', musicVol); Music.setVolume(musicVol); syncSettings(); };
 $('sfx').oninput = e => { sfxVol = e.target.value / 100; store.set('surf_sfx', sfxVol); Music.setSfxVolume(sfxVol); Sfx.checkpoint(); syncSettings(); };
@@ -1683,7 +1692,7 @@ function frame(now) {
   updateSnail(dt, now, speed);
   const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
   const k = 1 - Math.exp(-dt * 14);
-  camOff.x += (-fx * CAM_BACK - camOff.x) * k; camOff.y += (CAM_UP - camOff.y) * k; camOff.z += (-fz * CAM_BACK - camOff.z) * k;
+  camOff.x += (-fx * CAM_BACK * zoomD - camOff.x) * k; camOff.y += (CAM_UP * zoomD - camOff.y) * k; camOff.z += (-fz * CAM_BACK * zoomD - camOff.z) * k;
   const shake = Math.max(0, (speed - 1800) / 1700) * 5; // faint buzz at high speed
   if (camMode === 1) { // first person: eye height, looking along yaw, slightly down at the ramp
     folPos.set(rp.x + (Math.random() - 0.5) * shake, rp.y + FP_EYE + (Math.random() - 0.5) * shake, rp.z);
@@ -1707,7 +1716,7 @@ function frame(now) {
     scene.fog.far = FOG_FAR; camera.far = CAM_FAR;
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
-  camera.fov = baseFov + fovKick + warpK * 9; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
+  camera.fov = baseFov + fovOff + fovKick + warpK * 9; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
   updateFlow(dt); drawFlow(); updateNpcs(now); updateBirds(now, speed, dt); updateBeams(dt); updateDrops(speed); updateSpecks(speed, dt); updateWarp(speed, now); musicAhead(speed); updateStreaks(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`;
