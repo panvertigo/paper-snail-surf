@@ -732,14 +732,14 @@ const NIGHT = [ // the night levels: golden hour, into sunset, then a stylized p
   { t: 1,    top: 0x140c42, mid: 0x32207a, bot: 0x6a3a96, gnd: 0x1c1440 }, // deep purple night
 ].map(k => ({ t: k.t, top: new THREE.Color(k.top), mid: new THREE.Color(k.mid), bot: new THREE.Color(k.bot), gnd: new THREE.Color(k.gnd) }));
 const dayNow = { top: new THREE.Color(), mid: new THREE.Color(), bot: new THREE.Color(), gnd: new THREE.Color() };
-let dayP = 0, dayTarget = 0;
+let dayP = 0, dayTarget = 0, dayGk = 0; // dayGk: how far the ground (and haze) has darkened toward night
 function daySample(p) { const D = stageMeta.night ? NIGHT : DAY; let i = 0; while (i < D.length - 2 && p > D[i + 1].t) i++; const a = D[i], b = D[i + 1], f = Math.max(0, Math.min(1, (p - a.t) / (b.t - a.t))); for (const k of ['top', 'mid', 'bot', 'gnd']) dayNow[k].copy(a[k]).lerp(b[k], f); }
 function dayProgress() { return ramps.length > 1 ? Math.min(1, lastTouched / (ramps.length - 1)) : 0; }
 function setTheme(i, instant) { if (instant) { dayP = dayTarget = dayProgress(); } } // portals no longer pick a scene; this just snaps the sky to the current progress (start, respawn)
 function tickTheme(dt) {
   if (!FUSION) { tickThemeOld(dt); return; }
   dayTarget = /^#edit/.test(location.hash) ? 0.3 : (stageMeta.park ? 0.28 : dayProgress()); dayP += (dayTarget - dayP) * (1 - Math.exp(-dt * 0.5)); daySample(dayP);
-  theme.bg.copy(dayNow.bot); theme.fog.copy(dayNow.bot); theme.sky.copy(dayNow.mid).lerp(_tc.set(0xffffff), 0.35); theme.gnd.copy(dayNow.gnd);
+  dayGk = stageMeta.night ? Math.min(1, Math.max(0, (dayP - 0.1) / 0.5)) : 0; theme.bg.copy(dayNow.bot); theme.fog.copy(dayNow.bot).lerp(dayNow.gnd, 0.85 * dayGk); theme.sky.copy(dayNow.mid).lerp(_tc.set(0xffffff), 0.35); theme.gnd.copy(dayNow.gnd);
   theme.stars = stageMeta.night ? Math.max(0, Math.min(0.95, (dayP - 0.2) / 0.5)) : (themesOn ? Math.max(0, 1 - dayP / 0.3) : 0); sun.intensity = stageMeta.night ? 0.8 - 0.4 * Math.min(1, dayP * 1.3) : 0.75; hemi.intensity = stageMeta.night ? 0.8 - 0.15 * Math.min(1, dayP * 1.3) : 0.75; applyTheme(); stars.position.copy(camera.position);
 }
 function applyScenery(on) {
@@ -786,10 +786,10 @@ function inkEdges(g, r) { // the hard edges of a mesh as thin square tubes: read
   eg.dispose(); const og = new THREE.BufferGeometry(); og.setAttribute('position', new THREE.BufferAttribute(out.slice(0, o), 3));
   const m = new THREE.Mesh(og, new THREE.MeshBasicMaterial({ color: 0x1b1740, side: THREE.DoubleSide })); m.frustumCulled = false; return m;
 }
-const skyU = { top: { value: new THREE.Color(0x3b2f7a) }, mid: { value: new THREE.Color(0x8a6bc0) }, bot: { value: new THREE.Color(0xf0b08c) }, op: { value: FUSION ? 1 : 0 } };
+const skyU = { top: { value: new THREE.Color(0x3b2f7a) }, mid: { value: new THREE.Color(0x8a6bc0) }, bot: { value: new THREE.Color(0xf0b08c) }, gnd: { value: new THREE.Color(0x1c1440) }, gk: { value: 0 }, op: { value: FUSION ? 1 : 0 } };
 const skyDome = new THREE.Mesh(new THREE.SphereGeometry(1000, 24, 14), new THREE.ShaderMaterial({ uniforms: skyU, side: THREE.BackSide, depthWrite: false, depthTest: false, transparent: false, fog: false,
   vertexShader: 'varying float h; void main(){ h = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bot; uniform float op; varying float h; void main(){ vec3 c = mix(bot, mid, smoothstep(0.0, 0.35, h)); c = mix(c, top, smoothstep(0.3, 0.9, h)); gl_FragColor = vec4(c, 1.0); }' }));
+  fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bot; uniform vec3 gnd; uniform float gk; uniform float op; varying float h; void main(){ vec3 c = mix(bot, mid, smoothstep(0.0, 0.35, h)); c = mix(c, top, smoothstep(0.3, 0.9, h)); c = mix(c, gnd, gk * smoothstep(0.0, -0.2, h)); gl_FragColor = vec4(c, 1.0); }' }));
 skyDome.renderOrder = -30; skyDome.frustumCulled = false; scene.add(skyDome);
 const DUSK = { top: 0x3b2f7a, mid: 0x8a6bc0, bot: 0xf0b08c, fog: 0xe6a98f, bg: 0xe6a98f };
 const mountains = new THREE.Group(); // painted paper ridgelines (art/web) wrapped round the camera, far to near; tinted each frame by the time of day
@@ -913,7 +913,7 @@ function buildTowns() { // night levels: one lakeside town (inspired by Tiny Gla
 }
 const _wc = new THREE.Color();
 function updateTowns(now) {
-  if (!townPts) return; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd).multiplyScalar(0.8); } for (const m of townPatches) m.material.color.copy(dayNow.gnd).multiplyScalar(0.7); if (town) { const u = town.userData; u.bldMat.color.copy(dayNow.mid).lerp(_wc.setRGB(1, 1, 1), 0.5).multiplyScalar(0.85); u.land.material.color.copy(dayNow.gnd).multiplyScalar(0.9); }
+  if (!townPts) return; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd); } for (const m of townPatches) m.material.color.copy(dayNow.gnd); if (town) { const u = town.userData; u.bldMat.color.copy(dayNow.mid).lerp(_wc.setRGB(1, 1, 1), 0.5).multiplyScalar(0.85); u.land.material.color.copy(dayNow.gnd); }
   if (Math.abs(dayP - lampP) > 0.002) { lampP = dayP; // only re-light the towns when the evening has moved on
     for (const s of townMeta.sets) { const arr = s.g.attributes.color.array; for (let i = 0; i < s.n; i++) { const x = (dayP - s.th[i]) / 0.06, k = (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)) * s.k; arr[i * 3] = s.base[i * 3] * k; arr[i * 3 + 1] = s.base[i * 3 + 1] * k; arr[i * 3 + 2] = s.base[i * 3 + 2] * k; } s.g.attributes.color.needsUpdate = true; }
   }
@@ -931,11 +931,11 @@ function updateSky(dt, now) {
   const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && (plain || dayP > 0.3 || skyWarm-- > 0); // in the space levels the mountains and clouds only appear once you reach the sky
   const T = (plain || FUSION) ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
   skyDome.visible = FUSION;
-  if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); }
+  if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); skyU.gnd.value.copy(dayNow.gnd); skyU.gk.value = dayGk; }
   else if (T) { const d = T.dome || [T.bg, T.bg, T.bg]; skyU.top.value.lerp(_tc.set(d[0]), k); skyU.mid.value.lerp(_tc.set(d[1]), k); skyU.bot.value.lerp(_tc.set(d[2]), k); }
   mountains.visible = show; mountains.position.set(camera.position.x, camera.position.y - 3800, camera.position.z);
   const nt = stageMeta.night ? Math.min(0.5, 0.6 * dayP) : 0; // night: hills and clouds sink into the sky colour
-  if (show) for (const m of mtnLayers) { m.material.uniforms.tint.value.setRGB(1, 1, 1).lerp(dayNow.mid, Math.min(0.92, m.userData.tint + nt)); m.material.uniforms.bg.value.copy(dayNow.bot); }
+  if (show) for (const m of mtnLayers) { m.material.uniforms.tint.value.setRGB(1, 1, 1).lerp(dayNow.mid, Math.min(0.92, m.userData.tint + nt)); m.material.uniforms.bg.value.copy(theme.fog); }
   for (const g of scenicClouds) { g.visible = show; if (show) { if (nt) g.children[0].material.color.setRGB(1, 1, 1).lerp(dayNow.mid, 0.1 + nt); g.position.x += Math.sin(now / 4000 + g.userData.sp * 9) * g.userData.sp * dt * 60; if (g.userData.bob) g.position.y += Math.sin(now / 1500 + g.userData.sp * 20) * dt * 40; } }
 }
 { // vignette + paper grain over the canvas (plain alpha layers: cheap, no blend modes)
@@ -1561,7 +1561,7 @@ let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
 const $ = id => document.getElementById(id);
 const msg = $('msg');
 function showMsg(html) { msg.innerHTML = html; msg.style.display = html ? 'block' : 'none'; }
-function toast(t) { const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.opacity = 0, 1200); }
+function toast(t) { if (!stageMeta.park && !/^Checkpoint/.test(t)) return; /* score pop-ups (Air, Clean, Spin, Loop, flow) only where the style bar is shown */ const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.opacity = 0, 1200); }
 function hud() {
   $('best').textContent = LEVEL_LABEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');
   $('prog').textContent = stageMeta.park ? 'Free skate' : 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
