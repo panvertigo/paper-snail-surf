@@ -959,10 +959,10 @@ function updateRings(dt, now) {
   for (const g of gates) { const u = g.userData, n = u.ph.length; for (let k = 0; k < n; k++) { const p = u.ph[k]; u.arr[k * 3] = u.base[k * 3] + Math.sin(now / 1300 + p) * 40; u.arr[k * 3 + 1] = u.base[k * 3 + 1] + Math.sin(now / 1700 + p * 2) * 55 + now % 1 * 0; u.arr[k * 3 + 2] = u.base[k * 3 + 2] + Math.cos(now / 1500 + p) * 30; } u.geo.attributes.position.needsUpdate = true; }
   for (let i = 0; i < rings.length; i++) {
     const g = rings[i], o = ringObjs[i]; o.fx = Math.max(0, o.fx - dt * 1.5);
-    o.grp.scale.setScalar(g.hit ? 1 + o.fx * 0.9 : 1 + 0.03 * Math.sin(now / 280 + i));
+    o.grp.scale.setScalar(g.hit ? 1 + o.fx * 0.25 : 1 + 0.03 * Math.sin(now / 280 + i));
     o.torus.material.color.setHex(g.hit ? 0xa8f0c8 : o.base);
     o.disc.material.opacity = g.hit ? 0.3 + 0.7 * o.fx : (o.portal ? 0.5 : 0.35) + 0.08 * Math.sin(now / 500 + i); o.halo.rotation.z = now / 2600 + i; // calm pulse, lights circling
-    o.grp.visible = !(g.hit && o.portal) || o.fx > 0.01;
+    o.grp.visible = o.portal ? !FUSION && (!g.hit || o.fx > 0.01) : true;
   }
 }
 
@@ -1254,44 +1254,46 @@ function updateTrail(speed) {
 }
 // Speed sparkles: what the snail leaves behind. Slow: a few cream motes. Faster: cool aqua glints. Faster still: two spiralling strands plus bursts of big stars, icy white at the top end.
 // Cool aqua / mint on purpose: it contrasts the warm peach and violet sky instead of blending in. Cosmetic only.
-const ND = 300, dPos = new Float32Array(ND * 3), dCol = new Float32Array(ND * 3), dVel = new Float32Array(ND * 3), dLife = new Float32Array(ND), dMax = new Float32Array(ND), dHue = new Float32Array(ND);
-const dGeo = new THREE.BufferGeometry(); dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3)); dGeo.setAttribute('color', new THREE.BufferAttribute(dCol, 3));
+const ND = 360, dPos = new Float32Array(ND * 3), dCol = new Float32Array(ND * 3), dVel = new Float32Array(ND * 3), dLife = new Float32Array(ND), dMax = new Float32Array(ND), dHue = new Float32Array(ND), dSize = new Float32Array(ND), dK = new Float32Array(ND);
+const dGeo = new THREE.BufferGeometry(); dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3)); dGeo.setAttribute('aColor', new THREE.BufferAttribute(dCol, 3)); dGeo.setAttribute('aSize', new THREE.BufferAttribute(dSize, 1));
 const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, '#fff'); g.addColorStop(0.35, 'rgba(255,255,255,0.8)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
-const dMesh = new THREE.Points(dGeo, new THREE.PointsMaterial({ size: 30, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: false }));
+const dU = { map: { value: dotTex }, scale: { value: 400 } };
+const dMesh = new THREE.Points(dGeo, new THREE.ShaderMaterial({ uniforms: dU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: 'attribute vec3 aColor; attribute float aSize; uniform float scale; varying vec3 vC; void main(){ vC = aColor; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * scale / max(60.0, -mv.z); gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'uniform sampler2D map; varying vec3 vC; void main(){ float a = texture2D(map, gl_PointCoord).a; gl_FragColor = vec4(vC, a); }' })); // per-bead size, so each one can grow as it ages
 dMesh.frustumCulled = false; scene.add(dMesh); for (let i = 0; i < ND; i++) dPos[i * 3 + 1] = -1e6;
 const SP_CREAM = new THREE.Color(1, 0.93, 0.8), SP_AQUA = new THREE.Color(0.25, 0.92, 1), SP_MINT = new THREE.Color(0.45, 1, 0.8), SP_ICE = new THREE.Color(0.85, 1, 1), spC = new THREE.Color();
 let dNext = 0, dAcc = 0, dLast = performance.now(), dPhase = 0;
 const dLat = new THREE.Vector3(), dV = new THREE.Vector3();
 function updateDrops(speed) {
   const now = performance.now(), dt = Math.min(0.05, (now - dLast) / 1000); dLast = now;
+  dU.scale.value = renderer.domElement.height * 0.5 / Math.tan(camera.fov * Math.PI / 360); // pixels per world unit at distance 1
   const t = Math.max(0, Math.min(1, (speed - 2000) / 1600)); // nothing below 2000 u/s, full effect around 3600
   if (state === 'run' && speed > 2000) {
     dV.set(vel.x, vel.y, vel.z); dLat.crossVectors(dV, sUp); if (dLat.lengthSq() < 1e-6) dLat.set(1, 0, 0); dLat.normalize();
+    const tanA = 0.015 + 0.2 * t; // half-angle of the cone behind you: a narrow thread at first, then it opens wide
     dAcc += speed * dt / 60 * (0.5 + t * 1.2 + Math.random() * 0.5) * fxAmt;
     while (dAcc >= 1) {
       dAcc -= 1; const i = dNext = (dNext + 1) % ND, o = i * 3, helix = t > 0.2 && Math.random() < 0.35 + t * 0.4, star = t > 0.5 && Math.random() < 0.1;
-      if (helix) { // two strands wound round the path: each bead sits on a circle round the line of travel, so the trail reads as a spiral
-        dPhase += 0.55; const r = 26 + 46 * t, ph = dPhase + (i & 1) * Math.PI, c = Math.cos(ph) * r, sn = Math.sin(ph) * r;
-        dPos[o] = snail.position.x + dLat.x * c + sUp.x * (sn + 14); dPos[o + 1] = snail.position.y + dLat.y * c + sUp.y * (sn + 14); dPos[o + 2] = snail.position.z + dLat.z * c + sUp.z * (sn + 14);
-        dVel[o] = vel.x * 0.04; dVel[o + 1] = 20; dVel[o + 2] = vel.z * 0.04; dMax[i] = dLife[i] = 0.7 + t * 0.8; dHue[i] = 0.3 + Math.random() * 0.2;
-      } else {
-        dPos[o] = snail.position.x + (Math.random() - 0.5) * 30; dPos[o + 1] = snail.position.y + 6 + Math.random() * 14; dPos[o + 2] = snail.position.z + (Math.random() - 0.5) * 30;
-        dVel[o] = vel.x * 0.05 + (Math.random() - 0.5) * 260; dVel[o + 1] = 60 + Math.random() * 380 + (star ? 260 : 0); dVel[o + 2] = vel.z * 0.05 + (Math.random() - 0.5) * 260;
-        dMax[i] = dLife[i] = (star ? 1.5 : 0.45) + Math.random() * 0.7; dHue[i] = Math.random() * 0.5;
-      }
+      // every bead is born at the snail and drifts outward sideways: its lateral speed is speed * tan(cone angle), so the trail it leaves behind is a cone of that angle
+      dPos[o] = snail.position.x + (Math.random() - 0.5) * 8; dPos[o + 1] = snail.position.y + 8 + Math.random() * 6; dPos[o + 2] = snail.position.z + (Math.random() - 0.5) * 8;
+      let ca, sa; if (helix) { dPhase += 0.55; const ph = dPhase + (i & 1) * Math.PI; ca = Math.cos(ph); sa = Math.sin(ph); } else { const ph = Math.random() * 6.283, r = Math.sqrt(Math.random()); ca = Math.cos(ph) * r; sa = Math.sin(ph) * r; }
+      const lv = speed * tanA * (helix ? 0.85 : 0.6 + Math.random() * 0.5);
+      dVel[o] = vel.x * 0.04 + (dLat.x * ca + sUp.x * sa) * lv; dVel[o + 1] = vel.y * 0.04 + (dLat.y * ca + sUp.y * sa) * lv + 20; dVel[o + 2] = vel.z * 0.04 + (dLat.z * ca + sUp.z * sa) * lv;
+      dMax[i] = dLife[i] = (star ? 1.4 : 0.6) + Math.random() * 0.6 + t * 0.5; dHue[i] = Math.random() * 0.5; dK[i] = star ? 1.6 : 1;
     }
   }
-  spC.copy(SP_CREAM).lerp(SP_AQUA, Math.min(1, t * 3)); if (t > 0.5) spC.lerp(SP_MINT, (t - 0.5) * 1.4); if (t > 0.85) spC.lerp(SP_ICE, (t - 0.85) * 5); // the whole sparkle palette warms-to-cool with speed
-  dMesh.material.size = 34 + 22 * t;
+  spC.copy(SP_CREAM).lerp(SP_AQUA, Math.min(1, t * 3)); if (t > 0.5) spC.lerp(SP_MINT, (t - 0.5) * 1.4); if (t > 0.85) spC.lerp(SP_ICE, (t - 0.85) * 5); // warm cream to cool aqua, mint and icy white with speed
   for (let i = 0; i < ND; i++) {
     const o = i * 3;
-    if (dLife[i] <= 0) { dCol[o] = dCol[o + 1] = dCol[o + 2] = 0; continue; }
-    dLife[i] -= dt; if (dVel[o + 1] > -200) dVel[o + 1] -= 500 * dt;
+    if (dLife[i] <= 0) { dCol[o] = dCol[o + 1] = dCol[o + 2] = 0; dSize[i] = 0; continue; }
+    dLife[i] -= dt; dVel[o + 1] -= 60 * dt;
     dPos[o] += dVel[o] * dt; dPos[o + 1] += dVel[o + 1] * dt; dPos[o + 2] += dVel[o + 2] * dt;
-    const k = Math.max(0, dLife[i] / dMax[i]), a = k * (0.55 + 0.45 * Math.sin(now / 38 + i * 7.3)), j = dHue[i] * 0.25; // twinkle as they fade; a little variation per bead
+    const age = 1 - Math.max(0, dLife[i] / dMax[i]), k = 1 - Math.pow(age, 1.8), a = k * (0.65 + 0.35 * Math.sin(now / 38 + i * 7.3)), j = dHue[i] * 0.25; // twinkle as they fade
+    dSize[i] = (12 + 120 * Math.pow(age, 0.7)) * (0.6 + 1.0 * t) * dK[i]; // tiny at the snail, blooming as they drift back and out
     dCol[o] = Math.min(1, spC.r + j * 0.2) * a; dCol[o + 1] = Math.min(1, spC.g) * a; dCol[o + 2] = Math.min(1, spC.b + j * 0.2) * a;
   }
-  dGeo.attributes.position.needsUpdate = dGeo.attributes.color.needsUpdate = true;
+  dGeo.attributes.position.needsUpdate = dGeo.attributes.aColor.needsUpdate = dGeo.attributes.aSize.needsUpdate = true;
 }
 // Ink specks: tiny dark flecks flung back at high speed, like scraps of black paper. Normal blending so they read against the bright sky.
 const NK = 140, kPos = new Float32Array(NK * 3), kVel = new Float32Array(NK * 3), kLife = new Float32Array(NK), kMax = new Float32Array(NK), kA = new Float32Array(NK);
@@ -1437,7 +1439,7 @@ function updateStreaks(speed) {
 const prevPos = new THREE.Vector3();
 function onRing(g, off) {
   const o = ringObjs[rings.indexOf(g)]; if (o) o.fx = 1;
-  if (g.kind === 'portal') { if (!FUSION) setThemeOld(g.theme); fovKick += 16; toast('Portal'); Sfx.portal(); Music.trigger('portal', g.theme); }
+  if (g.kind === 'portal') { if (!FUSION) { setThemeOld(g.theme); fovKick += 16; toast('Portal'); Sfx.portal(); } Music.trigger('portal', g.theme); } // in the fusion look portals are invisible and do nothing
   else { flowGain(off < 0.25 ? 300 : 120, off < 0.25 ? 0.15 : 0.08); toast((off < 0.25 ? 'Perfect hoop  +' : 'Hoop  +') + Math.round(g.boost * (1 - off * off) * (off < 0.25 ? 1.5 : 1))); Sfx.hoop(1 - off * off); }
 }
 let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
