@@ -20,12 +20,14 @@
   {
    "from": "moon",
    "to": "atmos",
-   "via": "moon_b"
+   "via": "moon_b",
+   "short": "moon_c"
   },
   {
    "from": "sky",
    "to": "earth",
-   "via": "sky_b"
+   "via": "sky_b",
+   "short": "sky_c"
   }
  ],
  "startOffset": 0.0251,
@@ -43,6 +45,12 @@
   "moon_b": {
    "file": "chicago_moon_b.mp3",
    "bars": 8,
+   "once": true,
+   "next": "atmos"
+  },
+  "moon_c": {
+   "file": "chicago_moon_c.mp3",
+   "bars": 4,
    "once": true,
    "next": "atmos"
   },
@@ -65,6 +73,12 @@
   "sky_b": {
    "file": "chicago_sky_b.mp3",
    "bars": 8,
+   "once": true,
+   "next": "earth"
+  },
+  "sky_c": {
+   "file": "chicago_sky_c.mp3",
+   "bars": 4,
    "once": true,
    "next": "earth"
   },

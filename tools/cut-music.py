@@ -7,12 +7,12 @@ SONGS = {
   # name: source, time of the beat grid, bar number that starts on a downbeat, sections {id: (first bar, bars, extra)}
   'chicago': dict(fallback='descent', journey=['moon', 'atmos', 'sky', 'earth'], journeyLong=['moon', 'atmos', 'drive1', 'drive2', 'sky', 'earth'],
       # bridges: entering `to` from `from` goes through `via`, a stretch of the song that plays once and runs straight into `to` (the riser of the original track), so builds are never cut off mid-rise
-      bridges=[{'from': 'moon', 'to': 'atmos', 'via': 'moon_b'}, {'from': 'sky', 'to': 'earth', 'via': 'sky_b'}],
+      bridges=[{'from': 'moon', 'to': 'atmos', 'via': 'moon_b', 'short': 'moon_c'}, {'from': 'sky', 'to': 'earth', 'via': 'sky_b', 'short': 'sky_c'}], # short: only the last four bars of the riser, used when the checkpoint is too close for the full one (fast runs)
       src='5 Chicago Meditation (radio edit).mp3', grid=0.085 + 60 / BPM, sections={
       'intro': (1, 4, {'once': True, 'next': 'moon'}),
-      'moon': (5, 8, {}), 'moon_b': (13, 8, {'once': True, 'next': 'atmos'}),
+      'moon': (5, 8, {}), 'moon_b': (13, 8, {'once': True, 'next': 'atmos'}), 'moon_c': (17, 4, {'once': True, 'next': 'atmos'}),
       'atmos': (21, 16, {}), 'drive1': (37, 16, {}), 'drive2': (53, 16, {}),
-      'sky': (69, 8, {}), 'sky_b': (77, 8, {'once': True, 'next': 'earth'}),
+      'sky': (69, 8, {}), 'sky_b': (77, 8, {'once': True, 'next': 'earth'}), 'sky_c': (81, 4, {'once': True, 'next': 'earth'}),
       'earth': (85, 16, {}), 'outro': (101, 12, {'once': True})},
       triggers=[{'on': 'start', 'section': 'intro', 'respawn': 'moon'},
                 {'on': 'finish', 'section': 'outro', 'quantize': 'bar'}]),

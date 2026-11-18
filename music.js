@@ -42,7 +42,7 @@
       for (const [id, s] of Object.entries(c.sections)) {
         const files = [s.file, ...((s.layers || []).map(l => l.file))], layers = [], tails = [];
         for (const f of files) {
-          const b = await decode((c.base || '') + f + '?v=60'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
+          const b = await decode((c.base || '') + f + '?v=62'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
           layers.push(r.body); tails.push(r.tail);
         }
         bufs[id] = { layers, tails };
@@ -57,7 +57,7 @@
     loading = (async () => {
       let fb = null;
       try {
-        const r = await fetch('music/' + name + '.json?v=60'); if (!r.ok) return false;
+        const r = await fetch('music/' + name + '.json?v=62'); if (!r.ok) return false;
         cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; fb = cfg.fallback; ensureCtx(); bufs = {};
         await prepare(cfg); if (deferredAt !== null) { const p = deferredAt; deferredAt = null; Music.at(p); }
         return true;
@@ -89,7 +89,7 @@
     for (const s of g.srcs) { try { s.stop(t1 + 0.03); } catch (e) {} }
   }
   function commit(tb) {
-    for (const g of groups) { if (g.dead) continue; if (g.start >= tb - 1e-6) cancel(g); else if (g.end > tb - 1e-6) fadeStop(g, tb, 0.3); }
+    for (const g of groups) { if (g.dead) continue; if (g.start >= tb - 1e-6) cancel(g); else if (g.end > tb - 1e-6) fadeStop(g, tb, 0.6); }
     startSection(pending.id, tb); pending = null;
   }
   function tick() {
@@ -104,7 +104,7 @@
 
   // journey: the song's sections in order. Checkpoint n of C picks entry round(n * (L - 1) / C), so the last checkpoint always reaches the last entry and a longer level just stretches the song.
   function journeySection(n) { const C = Math.max(1, events.filter(e => e.ev === 'checkpoint').length), J = (C >= 5 && cfg.journeyLong) || cfg.journey, L = J.length; return J[Math.min(L - 1, Math.round(n * (L - 1) / C))]; } // a long level gets the long version of the song
-  function bridgeFor(target) { const b = (cfg.bridges || []).find(x => x.to === target && cur && cur.id === x.from); return b ? b.via : null; } // the stretch of the song that leads into `target` from where we are
+  function bridgeFor(target, eta) { const b = (cfg.bridges || []).find(x => x.to === target && cur && (cur.id === x.from || (cur.once && cur.next === x.from))); if (!b) return null; const long = cfg.sections[b.via]; return b.short && eta !== undefined && long && eta < long.loopLen + 4 ? b.short : b.via; } // the stretch of the song that leads into `target` from where we are
 
   // ---------- public music API ----------
   const Music = globalThis.Music = {
@@ -119,15 +119,18 @@
       if (cur.id === id && pending && pending.id !== id) { pending = null; return; }
       pending = { id, quant: o.quantize || cfg.quantize || 'bar', tmin: ctx.currentTime + (o.lead || 0) * cfg.bar }; // lead: bars the old section keeps playing before the swap can happen
     },
+    waitFor(q) { return cur && ctx ? boundary(q || cfg.quantize || 'phrase', ctx.currentTime + 0.12) - ctx.currentTime : 0; }, // seconds until a change requested now would take effect
+    phrase() { return cfg ? 4 * cfg.bar : 0; },
+    bridgeLen(n, eta) { if (!cfg || !cfg.journey) return 0; const via = bridgeFor(journeySection(n), eta); return via && cfg.sections[via] ? cfg.sections[via].loopLen : 0; }, // length of the riser that must play before checkpoint n's section (0 if none)
     leadFor(n) { // seconds before checkpoint n that its music change should start: longer when a riser has to play first
       if (!cfg || !cfg.journey) return 3.5; const via = bridgeFor(journeySection(n)); return via && cfg.sections[via] ? cfg.sections[via].loopLen + 3.4 : 3.5; },
     lenFor(ev) { const t = cfg && (cfg.triggers || []).find(x => x.on === ev); const sec = t && cfg.sections[t.section]; return sec && sec.loopLen ? sec.loopLen : 0; }, // seconds the section for an event lasts (0 if none)
-    trigger(ev0, arg) {
+    trigger(ev0, arg, eta) {
       if (!cfg) return;
       try {
         const early = ev0 === 'approach' || ev0 === 'finishNear', ev = ev0 === 'approach' ? 'checkpoint' : ev0 === 'finishNear' ? 'finish' : ev0; // 'approach' / 'finishNear' fire just before the real event, when the snail is on pace for it
         const lead = early || ev === 'finish' ? 0 : (cfg.lead ?? 2); // a real checkpoint or portal: let the old section play on a couple of bars first; anticipated ones are already early; finish: the outro lands right away
-        if (ev === 'checkpoint' && cfg.journey) { const to = journeySection(arg); Music.goto(bridgeFor(to) || to, { quantize: cfg.transition || 'phrase', lead }); return; } // song order spread over however many checkpoints the level has
+        if (ev === 'checkpoint' && cfg.journey) { const to = journeySection(arg); Music.goto(bridgeFor(to, eta) || to, { quantize: cfg.transition || 'phrase', lead }); return; } // song order spread over however many checkpoints the level has
         const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
         if (t) Music.goto(t.section, { quantize: t.quantize, lead });
       } catch (e) { console.warn('music trigger failed', ev0, e); } // music must never take the game down
