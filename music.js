@@ -70,7 +70,7 @@
     loading = (async () => {
       let fb = null;
       try {
-        const r = await fetch('music/' + name + '.json?v=67'); if (!r.ok) return false;
+        const r = await fetch('music/' + name + '.json?v=68'); if (!r.ok) return false;
         cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; fb = cfg.fallback; ensureCtx(); bufs = {};
         await prepare(cfg); if (deferredAt !== null) { const p = deferredAt; deferredAt = null; Music.at(p); }
         return true;
