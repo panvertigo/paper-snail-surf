@@ -88,7 +88,7 @@
   }
   // ---------- direct manipulation: click a block, drag it anywhere (hold Alt to lift / lower), drag the white squares to resize it ----------
   // Blocks are stored relative to the block before them, so every move also re-aims the NEXT block: only the blocks you touch change, the rest of the course stays where it is.
-  const HNAME = { wid: 'Corner: drag sideways to make this block wider or narrower', start: 'Start of this block: drag to change where it begins (Alt: up / down)', end: 'End of this block: drag to bend and tilt it (Alt: up / down)' };
+  const HNAME = { rot: 'Orange dot: drag around to rotate this block flat on the ground (it spins about its start)', wid: 'Corner: drag sideways to make this block wider or narrower', start: 'Start of this block: drag to change where it begins (Alt: up / down)', end: 'End of this block: drag to bend and tilt it (Alt: up / down)' };
   let hObjs = [], hDrag = null, lastRb = 0, dirty = false;
   const snap = (v, st) => Math.round(v / st) * st, clampv = (v, a, b) => Math.max(a, Math.min(b, v));
   const ids = () => [...multi].filter(i => i < stage.pieces.length).sort((a, b) => a - b);
@@ -100,12 +100,13 @@
     const r = ramps[sel], p = stage.pieces[sel]; if (!r || !p || r.tube || multi.size > 1) return [];
     const out = [{ k: 'start', p: [r.sx, r.oy + r.H, r.sz] }, { k: 'end', p: [r.ex, r.ey + r.H, r.ez] }];
     for (const u of [0, r.L]) { const c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u), y = r.oy + zOf(r, u); for (const sd of [1, -1]) out.push({ k: 'wid', p: [c[0] + rt[0] * r.W * sd, y, c[1] + rt[2] * r.W * sd], c, rt }); }
+    if (sel > 0) { const u = Math.min(r.L * 0.8, Math.max(400, Math.min(r.L * 0.3, 1500))), c = ridgeAt(r, u); out.push({ k: 'rot', p: [c[0], r.oy + zOf(r, u) + r.H, c[1]] }); }
     return out;
   }
   function drawHandles() {
     disposeObjs(hObjs);
     for (const h of handlePoints()) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: h.k === 'wid' ? 0x8fd0ff : 0xffffff, depthTest: false, transparent: true, opacity: 0.95 }));
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: h.k === 'wid' ? 0x8fd0ff : h.k === 'rot' ? 0xffb347 : 0xffffff, depthTest: false, transparent: true, opacity: 0.95 }));
       m.renderOrder = 12; m.userData = { k: h.k, rec: h, base: h.p }; m.position.set(h.p[0], h.p[1], h.p[2]); scene.add(m); hObjs.push(m);
     }
     placeHandles();
@@ -126,7 +127,7 @@
   }
   function startPos() { const r = ramps[0], sp = stage.spawn; return sp ? [sp.x, sp.y, sp.z] : [r.sx, r.oy + r.H, r.sz]; }
   function placeStart() { if (!startObj || !ramps[0]) return; const q = startPos(); startObj.position.set(q[0], q[1], q[2]); startObj.scale.setScalar(cam.dist * 0.05); startObj.rotation.y = (stage.spawn && stage.spawn.h !== undefined ? stage.spawn.h : ramps[0].h0) + Math.PI / 2; }
-  function placeHandles() { placeStart(); const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(m.userData.k === 'wid' ? hs * 0.75 : hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
+  function placeHandles() { placeStart(); const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(m.userData.k === 'wid' ? hs * 0.75 : m.userData.k === 'rot' ? hs * 0.85 : hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function setRay(e) { const rc = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height * 2 - 1)); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); ray.setFromCamera(ndc, camera); }
   function hitHandle(e) { setRay(e); const hit = ray.intersectObjects(hObjs, false)[0]; return hit ? hit.object.userData.rec : null; }
@@ -136,7 +137,7 @@
   // you ride), Alt-drag to tilt it (sets the climb). Start dot: changes where the block begins (gap, sideways, height) with its end kept in place.
   function startHandle(h, e) {
     const r = ramps[sel], p = stage.pieces[sel], nxt = stage.pieces[sel + 1], rn = ramps[sel + 1], prev = ramps[sel - 1];
-    const D = { k: h.k, c: h.c, rt: h.rt, W0: r.W, p, hp: h.p, oldEnd: [r.ex, r.ey, r.ez], oldStart: [r.sx, r.oy, r.sz], h0: r.h0, h1: r.h1, side: r.side, mode: e.altKey && h.k !== 'wid' ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), comp: true,
+    const D = { k: h.k, c: h.c, rt: h.rt, W0: r.W, p, zig0: !!p.zig, nzig0: !!(nxt && nxt.zig), nextTube: !!(rn && rn.tube), rot0: p.rot || 0, prevEnd: prev ? [prev.ex, prev.ez] : null, Wprev: prev ? prev.W : 0, hp: h.p, oldEnd: [r.ex, r.ey, r.ez], oldStart: [r.sx, r.oy, r.sz], h0: r.h0, h1: r.h1, side: r.side, mode: e.altKey && h.k !== 'wid' ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), comp: true,
       C0: p.C, L0: p.L, g0: p.gap ?? 480, l0: p.lat || 0, d0: p.drop ?? (prev ? (r.tube ? 20 - 0.42 * prev.H : prev.ey - r.oy) : 0), zero: sel === 0, st0: { ...(stage.start || {}) } };
     if (nxt && rn) { D.next = nxt; D.n0 = { hadW: nxt.W !== undefined, zig: !!nxt.zig, sideBefore: nxt.zig ? -rn.side : rn.side, gap: nxt.gap ?? 480, lat: nxt.lat || 0, rot: nxt.rot || 0, drop: nxt.drop ?? (rn.tube ? 20 - 0.42 * r.H : r.ey - rn.oy) }; }
     setRay(e); D.P0 = D.mode === 'v' ? atVert(h.p, D.nx, D.nz) : atY(h.p[1]); return D.P0 ? D : null;
@@ -149,10 +150,11 @@
       return;
     }
     const rot0 = D.n0.rot || 0, hOld = D.h1 + rot0 * Math.PI / 180, dO = dirOf(hOld), rO = rightOf(hOld);
-    const sx = D.oldEnd[0] + D.n0.gap * dO[0] + D.n0.lat * rO[0], sz = D.oldEnd[2] + D.n0.gap * dO[2] + D.n0.lat * rO[2], sy = D.oldEnd[1] - D.n0.drop;
+    const zsOld = D.n0.zig ? D.n0.sideBefore * 0.75 * D.W0 : 0, zsNew = D.next.zig ? r.side * 0.75 * r.W : 0; // a zigzag lands 0.75 W across, toward the face being ridden
+    const sx = D.oldEnd[0] + D.n0.gap * dO[0] + (D.n0.lat + zsOld) * rO[0], sz = D.oldEnd[2] + D.n0.gap * dO[2] + (D.n0.lat + zsOld) * rO[2], sy = D.oldEnd[1] - D.n0.drop;
     const rotN = Math.round((hOld - r.h1) * 5729.58) / 100; if (rotN) D.next.rot = rotN; else delete D.next.rot; // the next block's heading is put back to what it was
     const tx = sx - r.ex, tz = sz - r.ez;
-    D.next.gap = clampv(snap(tx * dO[0] + tz * dO[2], 50), 0, 40000); const lat = clampv(snap(tx * rO[0] + tz * rO[2], 50), -30000, 30000); if (lat) D.next.lat = lat; else delete D.next.lat;
+    D.next.gap = clampv(snap(tx * dO[0] + tz * dO[2], 50), 0, 40000); const lat = clampv(snap(tx * rO[0] + tz * rO[2] - zsNew, 10), -30000, 30000); if (lat) D.next.lat = lat; else delete D.next.lat;
     D.next.drop = clampv(snap(r.ey - sy, 50), -20000, 40000);
   }
   // moving blocks: a run of selected blocks translates as one; the block before the run and the block after it are re-aimed so nothing else moves
@@ -178,6 +180,12 @@
     const D = { body: true, runs: makeRuns(), hit, wasIn, i: hit.i, mode: e.altKey ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw) };
     setRay(e); D.P0 = D.mode === 'v' ? atVert(hit.p, D.nx, D.nz) : atY(hit.p[1]); return D.P0 ? D : null;
   }
+  function applyFlip(D, flip) { // drag the end the "wrong" way: swap faces here (zigzag on / off) and swap back on the next block, so everything after keeps its face
+    const p = D.p, zigNow = flip ? !D.zig0 : D.zig0, sb0 = D.zig0 ? -D.side : D.side, zs = z => z ? sb0 * 0.75 * D.Wprev : 0;
+    if (zigNow) p.zig = true; else delete p.zig;
+    const lat = clampv(snap(D.l0 + zs(D.zig0) - zs(zigNow), 10), -30000, 30000); if (lat) p.lat = lat; else delete p.lat;
+    if (D.next) { if (flip ? !D.nzig0 : D.nzig0) D.next.zig = true; else delete D.next.zig; }
+  }
   function dragHandle(e) {
     const D = hDrag; setRay(e);
     if (D.flag) {
@@ -199,9 +207,19 @@
     if (mode !== D.mode) { D.acc = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; D.cur = [0, 0, 0]; D.P0 = P; D.mode = mode; return; }
     D.cur = mode === 'v' ? [0, P[1] - D.P0[1], 0] : [P[0] - D.P0[0], 0, P[2] - D.P0[2]];
     const d = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]], p = D.p, dir0 = dirOf(D.h0), rt0 = rightOf(D.h0);
+    if (D.k === 'rot') { // spin about the block's start: its start stays, the heading changes, the next block is re-aimed
+      if (!D.prevEnd) return; const a0x = D.P0[0] - D.oldStart[0], a0z = D.P0[2] - D.oldStart[2], P1 = [D.P0[0] + d[0], 0, D.P0[2] + d[2]], a1x = P1[0] - D.oldStart[0], a1z = P1[2] - D.oldStart[2];
+      const g0 = Math.atan2(a0x * rt0[0] + a0z * rt0[2], a0x * dir0[0] + a0z * dir0[2]), g1 = Math.atan2(a1x * rt0[0] + a1z * rt0[2], a1x * dir0[0] + a1z * dir0[2]);
+      let dh = -(g1 - g0); dh = Math.atan2(Math.sin(dh), Math.cos(dh)); const deg = snap(D.rot0 + dh * 57.2958, 0.5); dh = (deg - D.rot0) * 0.0174533; if (deg) p.rot = deg; else delete p.rot;
+      const hN = D.h0 + dh, dN = dirOf(hN), rN = rightOf(hN), tx = D.oldStart[0] - D.prevEnd[0], tz = D.oldStart[2] - D.prevEnd[1], sb = D.zig0 ? -D.side : D.side, zs = D.zig0 ? sb * 0.75 * D.Wprev : 0;
+      p.gap = clampv(snap(tx * dN[0] + tz * dN[2], 10), 0, 40000); const lat = clampv(snap(tx * rN[0] + tz * rN[2] - zs, 10), -30000, 30000); if (lat) p.lat = lat; else delete p.lat;
+      setStatus('Rotated ' + deg + ' deg from where the previous block points'); return;
+    }
     if (D.k === 'end') {
-      const ex = D.oldEnd[0] + d[0] - D.oldStart[0], ez = D.oldEnd[2] + d[2] - D.oldStart[2], A = ex * dir0[0] + ez * dir0[2], B = Math.max(0, (ex * rt0[0] + ez * rt0[2]) * Math.sign(D.side));
+      const ex = D.oldEnd[0] + d[0] - D.oldStart[0], ez = D.oldEnd[2] + d[2] - D.oldStart[2], A = ex * dir0[0] + ez * dir0[2], Braw = ex * rt0[0] + ez * rt0[2];
       if (A < 300) return;
+      const flip = !D.zero && !D.nextTube && !!D.prevEnd && Braw * Math.sign(D.side) < -0.03 * A; applyFlip(D, flip);
+      const B = Math.max(0, Braw * Math.sign(flip ? -D.side : D.side));
       if (B < 0.05 * A) { delete p.turn; delete p.R; p.L = clampv(snap(A, A > 12000 ? 500 : 100), 500, 40000); }
       else { const th = 2 * Math.atan2(B, A) * 57.2958, R = clampv((A * A + B * B) / (2 * B), 1500, 60000); delete p.L; p.turn = clampv(snap(th, 0.5), 10, 360); p.R = snap(R, R < 10000 ? 10 : 100); }
       const len = p.turn ? p.turn * 0.0174533 * p.R : p.L, c = snap(D.oldEnd[1] + d[1] - D.oldStart[1], 50);
@@ -485,7 +503,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Save to file...', () => saveToDisk(true)], ['Open file...', openFromDisk], ['Share link', shareLink]]));
     ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;line-height:1.55';
-    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins; the four <b>blue corner dots</b> make it wider or narrower. The <b>green flag</b> is where the run starts: drag it anywhere (Alt: up / down) to start with a drop. The rest of the course stays where it is.';
+    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins; the four <b>blue corner dots</b> make it wider or narrower; the <b>orange dot</b> spins it flat on the ground. The <b>green flag</b> is where the run starts: drag it anywhere (Alt: up / down) to start with a drop. The rest of the course stays where it is.';
     ed.appendChild(how);
     const bar = document.createElement('div'); bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px'; const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; b.style.cssText = 'margin:0;padding:7px 9px;font-size:13px;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); bar.appendChild(b); };
     bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Top view', toggleTop); bt('Flag back to block 1', () => { delete stage.spawn; change(); });
@@ -588,7 +606,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     css(); stage = load(); if (!stage.id) stage.id = Courses.uid();
     if (Courses.has(stage.id)) savedJ = Courses.json(stage.id); else if (fresh) { Courses.save(stage); savedJ = Courses.json(stage.id); } else { stage.name = stage.name || 'Recovered draft'; Courses.save(stage); savedJ = Courses.json(stage.id); setTimeout(() => setStatus('Your earlier editor work was saved as "' + stage.name + '" in My courses.'), 600); }
     snapshot(); setupInput(); addEventListener('beforeunload', e => { if (unsaved()) { e.preventDefault(); e.returnValue = ''; } });
-    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>click: select · drag: move · Alt-drag: up / down · shift-click: select several · big white dots on the selected block: bend / tilt / re-start it · small blue corner dots: width · green flag: where the run starts · empty-space drag: orbit · right-drag: pan · wheel: zoom · T: top view · Ctrl+Z: undo · Del: delete · Ctrl+C / V: copy / paste'; document.body.appendChild(h);
+    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>click: select · drag: move · Alt-drag: up / down · shift-click: select several · big white dots on the selected block: bend (either way) / tilt / re-start it · orange dot: rotate · small blue corner dots: width · green flag: where the run starts · empty-space drag: orbit · right-drag: pan · wheel: zoom · T: top view · Ctrl+Z: undo · Del: delete · Ctrl+C / V: copy / paste'; document.body.appendChild(h);
     refresh(true);
   }
   // If startup fails (for example a saved draft the editor cannot read), say so on screen and offer a way out instead of freezing
