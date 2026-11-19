@@ -1709,19 +1709,23 @@ const blurMat = new THREE.ShaderMaterial({
     }`,
   depthTest: false, depthWrite: false
 });
+let blurDirty = true;
 const blurScene = new THREE.Scene(), blurCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const blurQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurMat); blurQuad.frustumCulled = false; blurScene.add(blurQuad);
 function renderFrame(speed) {
   const s = Math.max(0, Math.min(1, (speed - 900) / 1800)) * fxAmt;
   if (s < 0.01) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
   blurMat.uniforms.strength.value = s; blurMat.uniforms.time.value = performance.now() / 1000;
+  if (blurDirty) { blurDirty = false; const pr = renderer.getPixelRatio(), bw = Math.round(innerWidth * pr), bh = Math.round(innerHeight * pr); if (blurRT.samples !== undefined) blurRT.samples = bw * bh > 1.5e6 ? 2 : 4; blurRT.setSize(bw, bh); }
   renderer.setRenderTarget(blurRT); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(blurScene, blurCam);
 }
+// Fullscreen on a big or hi-DPI monitor used to allocate a huge canvas plus a 4x multisampled copy of it, which can crash the browser's GPU process. Cap the total pixel count (about 2.6 million, a bit more than a phone screen) and make the speed-effect target lazily, with fewer samples when large.
+const MAXPX = 2.6e6, PR_WANT = parseFloat(Q.get('pr')) || (LITE ? 1.25 : Math.min(devicePixelRatio, 2));
 function resize() {
   const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h); camera.aspect = w / h;
-  const pr = renderer.getPixelRatio(); blurRT.setSize(Math.round(w * pr), Math.round(h * pr));
+  renderer.setPixelRatio(Math.max(0.5, Math.min(PR_WANT, Math.sqrt(MAXPX / (w * h)))));
+  renderer.setSize(w, h); camera.aspect = w / h; blurRT.setSize(1, 1); blurDirty = true;
   baseFov = Math.max(55, Math.min(100, 2 * Math.atan(Math.tan(50 * Math.PI / 180) / camera.aspect) * 180 / Math.PI));
 }
 addEventListener('resize', resize); resize();
