@@ -244,7 +244,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
   function label(p, i) {
     const k = kind(p); let s = k;
     if (k === 'ramp') s += ' L' + p.L + (p.C ? ' climb ' + p.C : '') + (p.zig ? ' zig' : '');
-    else if (k === 'turn') s += ' ' + p.turn + '° R' + p.R + (p.zig ? ' zig' : '');
+    else if (k === 'turn') s += ' ' + p.turn + '° R' + p.R + (p.C ? ' climb ' + p.C : '') + (p.zig ? ' zig' : '');
     else s += ' R' + p.loop.R + (p.loop.turns > 1 ? ' x' + p.loop.turns : '') + (p.loop.bank ? ' bank ' + p.loop.bank : '');
     if (p.cp) s += '  [checkpoint]';
     if (p.W && k !== 'loop' && k !== 'swirl') s += ' W' + p.W;
