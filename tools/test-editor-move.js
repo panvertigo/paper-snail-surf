@@ -4,7 +4,7 @@ const stage0 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'levels', p
 const snap = (v, s) => Math.round(v / s) * s, clampv = (v, a, b) => Math.max(a, Math.min(b, v));
 function build(stage) { globalThis.SURF_LEVEL = 'custom'; globalThis.SURF_STAGE = JSON.parse(JSON.stringify(stage)); Object.keys(require.cache).forEach(k => { if (/harness/.test(k)) delete require.cache[k]; }); const G = require('../verifier/harness.js').load(path.join(__dirname, '..', 'index.html'))(); return G.ramps; }
 const dirOf = h => [-Math.sin(h), 0, -Math.cos(h)], rightOf = h => [Math.cos(h), 0, -Math.sin(h)];
-function setSt(s, gap, lat, drop) { const p = s.p; p.gap = clampv(snap(gap, 50), 0, 40000); const l = clampv(snap(lat, 50), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(drop, 50), -20000, 40000); }
+function setSt(s, gap, lat, drop) { const p = s.p; p.gap = clampv(snap(gap, 1), -30000, 40000); const l = clampv(snap(lat, 1), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(drop, 1), -30000, 40000); }
 let worst = 0, tests = 0;
 for (const [a, b, d] of [[5, 6, [300, 0, 0]], [8, 8, [0, 400, 0]], [10, 12, [-200, -250, 350]], [15, 15, [500, 300, -300]], [3, 4, [0, 0, 600]]]) {
   const stage = JSON.parse(JSON.stringify(stage0)), r0 = build(stage), n = stage.pieces.length;

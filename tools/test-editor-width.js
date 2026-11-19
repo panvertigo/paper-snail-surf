@@ -9,7 +9,7 @@ for (let i = 1; i < stage0.pieces.length - 2 && tested < 6; i++) {
   for (const newW of [300, 700]) {
     const stage = JSON.parse(JSON.stringify(stage0)), r0 = build(stage), r = r0[i], rn = r0[i + 1], p = stage.pieces[i], nx = stage.pieces[i + 1], W0 = r.W;
     const hadW = nx.W !== undefined, sideBefore = rn.side * -1; p.W = newW; if (!hadW) nx.W = W0;
-    const l = clampv(snap((nx.lat || 0) - sideBefore * 0.75 * (newW - W0), 10), -30000, 30000); if (l) nx.lat = l; else delete nx.lat;
+    const l = clampv(snap((nx.lat || 0) - sideBefore * 0.75 * (newW - W0), 1), -30000, 30000); if (l) nx.lat = l; else delete nx.lat;
     const r2 = build(stage); let after = 0; for (let j = i + 1; j < r0.length; j++) after = Math.max(after, Math.abs(r2[j].sx - r0[j].sx), Math.abs(r2[j].sz - r0[j].sz), Math.abs(r2[j].oy - r0[j].oy));
     console.log('block ' + i + ' half-width ' + W0 + ' -> ' + newW + ': later blocks off by ' + after.toFixed(0)); worst = Math.max(worst, after); tested++;
   }

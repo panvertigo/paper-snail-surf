@@ -17,7 +17,7 @@
   };
   const RING_PRESETS = { hoop: { kind: 'hoop', d: 400, y: 380 }, portal: { kind: 'portal', d: 500, y: 380, R: 280, theme: 1 } };
   // field specs: [key, label, min, max, step, tip]
-  const F_COMMON = [['gap', 'Gap before', 0, 4000, 50, 'Distance from the previous piece\'s end'], ['drop', 'Drop', -2000, 9000, 50, 'Height below the previous piece (blank = automatic)'], ['lat', 'Sideways', -3000, 3000, 50, 'Shift left / right (negative = left)'], ['hue', 'Colour (0-1)', 0, 1, 0.01, 'Blank = follows previous']];
+  const F_COMMON = [['gap', 'Gap before', -30000, 40000, 1, 'Distance from the previous piece\'s end'], ['drop', 'Drop', -2000, 9000, 50, 'Height below the previous piece (blank = automatic)'], ['lat', 'Sideways', -3000, 3000, 50, 'Shift left / right (negative = left)'], ['hue', 'Colour (0-1)', 0, 1, 0.01, 'Blank = follows previous']];
   const F_RAMP = [['L', 'Length', 500, 40000, 100], ['W', 'Half-width', 250, 1300, 10, 'Carries on to later ramps'], ['C', 'Climb', -4000, 4000, 50, 'Net climb: positive = uphill, negative = a steeper down ramp']];
   const F_TURN = [['turn', 'Turn (deg)', 10, 360, 5], ['R', 'Radius', 1500, 60000, 100, 'Bigger = a wider, faster sweep'], ['W', 'Half-width', 250, 1300, 10]];
   const F_LOOP = [['R', 'Radius', 500, 3000, 50, 'Bigger = needs more speed'], ['phi', 'Entry angle', 0, 1.2, 0.05, 'Quarter-pipe you drop onto (rad)'], ['phi2', 'Exit angle', 0, 1, 0.05, 'Launch angle (blank: 0.3, banked: 0)'],
@@ -146,7 +146,7 @@
     if (!D.next) return; const i = stage.pieces.indexOf(D.p), r = ramps[i], rn = ramps[i + 1]; if (!r || !rn || r.tube) return;
     if (D.k === 'wid') { // the next block keeps its own width; a zigzag after this block lands 0.75 W across, so re-aim it for the new width
       if (!D.n0.hadW) D.next.W = D.W0;
-      if (D.n0.zig) { const l0 = D.n0.lat, l = clampv(snap(l0 - D.n0.sideBefore * 0.75 * (D.p.W - D.W0), 10), -30000, 30000); if (l) D.next.lat = l; else delete D.next.lat; }
+      if (D.n0.zig) { const l0 = D.n0.lat, l = clampv(snap(l0 - D.n0.sideBefore * 0.75 * (D.p.W - D.W0), 1), -30000, 30000); if (l) D.next.lat = l; else delete D.next.lat; }
       return;
     }
     const rot0 = D.n0.rot || 0, hOld = D.h1 + rot0 * Math.PI / 180, dO = dirOf(hOld), rO = rightOf(hOld);
@@ -154,8 +154,8 @@
     const sx = D.oldEnd[0] + D.n0.gap * dO[0] + (D.n0.lat + zsOld) * rO[0], sz = D.oldEnd[2] + D.n0.gap * dO[2] + (D.n0.lat + zsOld) * rO[2], sy = D.oldEnd[1] - D.n0.drop;
     const rotN = Math.round((hOld - r.h1) * 5729.58) / 100; if (rotN) D.next.rot = rotN; else delete D.next.rot; // the next block's heading is put back to what it was
     const tx = sx - r.ex, tz = sz - r.ez;
-    D.next.gap = clampv(snap(tx * dO[0] + tz * dO[2], 50), 0, 40000); const lat = clampv(snap(tx * rO[0] + tz * rO[2] - zsNew, 10), -30000, 30000); if (lat) D.next.lat = lat; else delete D.next.lat;
-    D.next.drop = clampv(snap(r.ey - sy, 50), -20000, 40000);
+    D.next.gap = clampv(snap(tx * dO[0] + tz * dO[2], 1), -30000, 40000); const lat = clampv(snap(tx * rO[0] + tz * rO[2] - zsNew, 1), -30000, 30000); if (lat) D.next.lat = lat; else delete D.next.lat;
+    D.next.drop = clampv(snap(r.ey - sy, 1), -30000, 40000);
   }
   // moving blocks: a run of selected blocks translates as one; the block before the run and the block after it are re-aimed so nothing else moves
   function makeRuns() {
@@ -168,7 +168,7 @@
       if (R.b + 1 < n && ramps[R.b] && !ramps[R.b].tube && ramps[R.b + 1]) { o.e = st(R.b + 1); o.he = ramps[R.b].h1; }
       return o; });
   }
-  function setSt(s, gap, lat, drop) { const p = s.p; p.gap = clampv(snap(gap, 50), 0, 40000); const l = clampv(snap(lat, 50), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(drop, 50), -20000, 40000); }
+  function setSt(s, gap, lat, drop) { const p = s.p; p.gap = clampv(snap(gap, 1), -30000, 40000); const l = clampv(snap(lat, 1), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(drop, 1), -30000, 40000); }
   function applyRuns(runs, d) {
     for (const o of runs) { if (!o.s) continue;
       let dr = dirOf(o.hs), rt = rightOf(o.hs);
@@ -183,7 +183,7 @@
   function applyFlip(D, flip) { // drag the end the "wrong" way: swap faces here (zigzag on / off) and swap back on the next block, so everything after keeps its face
     const p = D.p, zigNow = flip ? !D.zig0 : D.zig0, sb0 = D.zig0 ? -D.side : D.side, zs = z => z ? sb0 * 0.75 * D.Wprev : 0;
     if (zigNow) p.zig = true; else delete p.zig;
-    const lat = clampv(snap(D.l0 + zs(D.zig0) - zs(zigNow), 10), -30000, 30000); if (lat) p.lat = lat; else delete p.lat;
+    const lat = clampv(snap(D.l0 + zs(D.zig0) - zs(zigNow), 1), -30000, 30000); if (lat) p.lat = lat; else delete p.lat;
     if (D.next) { if (flip ? !D.nzig0 : D.nzig0) D.next.zig = true; else delete D.next.zig; }
   }
   function dragHandle(e) {
@@ -212,7 +212,7 @@
       const g0 = Math.atan2(a0x * rt0[0] + a0z * rt0[2], a0x * dir0[0] + a0z * dir0[2]), g1 = Math.atan2(a1x * rt0[0] + a1z * rt0[2], a1x * dir0[0] + a1z * dir0[2]);
       let dh = -(g1 - g0); dh = Math.atan2(Math.sin(dh), Math.cos(dh)); const deg = snap(D.rot0 + dh * 57.2958, 0.5); dh = (deg - D.rot0) * 0.0174533; if (deg) p.rot = deg; else delete p.rot;
       const hN = D.h0 + dh, dN = dirOf(hN), rN = rightOf(hN), tx = D.oldStart[0] - D.prevEnd[0], tz = D.oldStart[2] - D.prevEnd[1], sb = D.zig0 ? -D.side : D.side, zs = D.zig0 ? sb * 0.75 * D.Wprev : 0;
-      p.gap = clampv(snap(tx * dN[0] + tz * dN[2], 10), 0, 40000); const lat = clampv(snap(tx * rN[0] + tz * rN[2] - zs, 10), -30000, 30000); if (lat) p.lat = lat; else delete p.lat;
+      p.gap = clampv(snap(tx * dN[0] + tz * dN[2], 1), -30000, 40000); const lat = clampv(snap(tx * rN[0] + tz * rN[2] - zs, 1), -30000, 30000); if (lat) p.lat = lat; else delete p.lat;
       setStatus('Rotated ' + deg + ' deg from where the previous block points'); return;
     }
     if (D.k === 'end') {
@@ -228,7 +228,7 @@
     } else {
       const f = d[0] * dir0[0] + d[2] * dir0[2], sd = d[0] * rt0[0] + d[2] * rt0[2];
       if (D.zero) stage.start = { x: snap((D.st0.x || 0) + d[0], 10), y: snap((D.st0.y || 0) + d[1], 10), z: snap((D.st0.z || 0) + d[2], 10) };
-      else { p.gap = clampv(snap(D.g0 + f, 50), 0, 40000); const l = clampv(snap(D.l0 + sd, 50), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(D.d0 - d[1], 50), -20000, 40000); }
+      else { p.gap = clampv(snap(D.g0 + f, 1), -30000, 40000); const l = clampv(snap(D.l0 + sd, 1), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(D.d0 - d[1], 1), -30000, 40000); }
       if (!p.turn && p.L !== undefined) p.L = clampv(snap(D.L0 - f, 100), 500, 40000);
       setStatus('Moving where this block starts');
     }

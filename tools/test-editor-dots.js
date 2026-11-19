@@ -16,7 +16,7 @@ for (const [i, dFwd, dSide, dUp] of [[1, 800, 0, 0], [3, 0, 700, 0], [3, 400, 90
   const nx = stage.pieces[i + 1], rn = r0[i + 1], n0 = { gap: nx.gap ?? 480, lat: nx.lat || 0, rot: nx.rot || 0, drop: nx.drop ?? (rn.tube ? 20 - 0.42 * r.H : r.ey - rn.oy) };
   const r1a = build(stage), r1 = r1a[i], hOld = r.h1 + n0.rot * Math.PI / 180, dO = dirOf(hOld), rO = rightOf(hOld), sx = r.ex + n0.gap * dO[0] + n0.lat * rO[0], sz = r.ez + n0.gap * dO[2] + n0.lat * rO[2], sy = r.ey - n0.drop;
   const rotN = Math.round((hOld - r1.h1) * 5729.58) / 100; if (rotN) nx.rot = rotN; else delete nx.rot; const tx = sx - r1.ex, tz = sz - r1.ez;
-  nx.gap = clampv(snap(tx * dO[0] + tz * dO[2], 50), 0, 40000); const lat = clampv(snap(tx * rO[0] + tz * rO[2], 50), -30000, 30000); if (lat) nx.lat = lat; else delete nx.lat; nx.drop = clampv(snap(r1.ey - sy, 50), -20000, 40000);
+  nx.gap = clampv(snap(tx * dO[0] + tz * dO[2], 1), -30000, 40000); const lat = clampv(snap(tx * rO[0] + tz * rO[2], 1), -30000, 30000); if (lat) nx.lat = lat; else delete nx.lat; nx.drop = clampv(snap(r1.ey - sy, 1), -30000, 40000);
   const r2 = build(stage), endErr = Math.hypot(r2[i].ex - (r.ex + d[0]), r2[i].ez - (r.ez + d[2])), yErr = Math.abs(r2[i].ey - (r.ey + d[1]));
   let after = 0; for (let j = i + 1; j < n; j++) { if (r0[j].tube || !r2[j]) continue; after = Math.max(after, Math.abs(r2[j].sx - r0[j].sx), Math.abs(r2[j].sz - r0[j].sz), Math.abs(r2[j].oy - r0[j].oy)); }
   console.log('block ' + i + ' end dragged [fwd ' + dFwd + ', side ' + dSide + ', up ' + dUp + '] -> ' + (p.turn ? 'arc ' + p.turn + ' deg R' + p.R : 'ramp L' + p.L) + (p.C ? ' C' + p.C : '') + ' : end off by ' + endErr.toFixed(0) + ' (h), ' + yErr.toFixed(0) + ' (v); later blocks off by ' + after.toFixed(0));
