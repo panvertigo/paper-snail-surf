@@ -65,3 +65,10 @@ Dropped: the Quickfolk and Slowfolk split (too Tolkien), quoted one-liners, and 
 - Nobody is disappearing. The archive sent you to check on an old colleague who stopped filing reports. The Works is quiet, not abandoned; the others are out on other lines.
 - You follow their ghost and their marks, level by level. The end: a big empty shell, door open, trail still warm and leading on past the edge of the map. They are alive and ahead. A snail leaving its house is the biggest thing a snail can do, and the shell says it without a word.
 - Open: whose shell is it (the colleague's own home, left behind, or something far older, a first snail's)? And does the player follow the trail, or stop?
+
+## Update 2026-11-19 (3): current frame, a break and a portfolio
+- The player is an archivist on a break at Central Armature Works, paging through the first leylines he ever surveyed (his first portfolio) and remembering a friend and colleague.
+- Stages are the portfolio pages, in career order, which keeps them replayable. The canteen (Kitchen) is the break room and the start. A bell is the deadline: the break ends.
+- The friend is a ghost on the same lines (they surveyed in pairs). Early on the friend leads, mid-career you ride level, near the end you ride alone. Marks and two cups at the table say the rest.
+- Melancholy comes from a friendship that drifted or ended, not from a death shown. Open: gone, moved away, or simply apart?
+- Clay look suits memory: soft, remembered. The break ends in the last stage: back to work, or not.
