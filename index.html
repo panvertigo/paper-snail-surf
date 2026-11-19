@@ -1630,8 +1630,9 @@ function onCheckpoint() { gates[nextCp - 1].material.color.set(0xa8f0c8); gates[
 function fail() {
   falls++; flow.v = 0; flow.on = false; flow.pend = 0; flow.wasAir = false;
   $('flash').style.opacity = .3; setTimeout(() => $('flash').style.opacity = 0, 120);
+  if (nextCp === 0) { tRun = 0; ghostRec = []; ghostTick = 0; } // fell before the first checkpoint: same as pressing reset, so the clock starts again from 0
   aheadCp = -1; aheadFin = false; spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0; setTheme(themeFor(cpRamp), true);
-  Sfx.splat(); Music.at(cpRamp, { quantize: 'beat', respawn: true });
+  Sfx.splat(); if (!Music.playing) Music.at(cpRamp, { quantize: 'beat', respawn: true }); // a splat never touches the song: it keeps playing from where it was
   state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
 }
 let shot = null; // the cannon flight back to the start: scripted arc, you steer where you come down
