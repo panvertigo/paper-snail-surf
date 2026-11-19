@@ -1680,7 +1680,18 @@ function syncSettings() {
   $('mus').value = Math.round(musicVol * 100); $('musv').textContent = Math.round(musicVol * 100) + '%';
   $('sfx').value = Math.round(sfxVol * 100); $('sfxv').textContent = Math.round(sfxVol * 100) + '%';
 }
-document.querySelectorAll('#lvl button').forEach(b => { const f = b.dataset.f; b.classList.toggle('on', f ? globalThis.SURF_COURSE === 'f_' + f : +b.dataset.l === LEVEL); b.onclick = () => { if (f) { if (globalThis.SURF_COURSE !== 'f_' + f) { location.hash = 'file-' + f; location.reload(); } } else if (+b.dataset.l !== LEVEL || globalThis.SURF_COURSE) { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; location.reload(); } }; });
+document.querySelectorAll('#lvl button').forEach(b => { const f = b.dataset.f; b.classList.toggle('on', f ? globalThis.SURF_COURSE === 'f_' + f : +b.dataset.l === LEVEL && !globalThis.SURF_COURSE); });
+// one listener for the whole level row (so a tap anywhere on a button, including its text, works), with feedback on screen
+$('lvl').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; e.stopPropagation();
+  const f = b.dataset.f, name = b.textContent.replace(/\s+/g, ' ').trim();
+  try {
+    if (f ? globalThis.SURF_COURSE === 'f_' + f : (+b.dataset.l === LEVEL && !globalThis.SURF_COURSE)) { $('settings').hidden = true; return; } // already on this level
+    $('msg').textContent = 'Loading ' + name + '...'; $('msg').style.opacity = 1;
+    if (f) location.hash = 'file-' + f; else { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; }
+    setTimeout(() => location.reload(), 30);
+  } catch (err) { $('msg').textContent = 'Could not open that level: ' + err.message; }
+});
 { // courses menu: my saved courses (this browser) and the shared ones listed in levels/index.json
   const sel = $('courses'), add = (label, items) => { if (!items.length) return; const g = document.createElement('optgroup'); g.label = label; for (const it of items) { const o = document.createElement('option'); o.value = it.v; o.textContent = it.t; g.appendChild(o); } sel.appendChild(g); };
   try { add('My courses', Courses.list().map(c => ({ v: 'course-' + c.id, t: c.name }))); } catch (e) {}
