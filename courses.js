@@ -23,7 +23,18 @@
     encode(stage) { const s = clone(stage); delete s.id; return b64(JSON.stringify(s)); },
     decode(t) { const s = JSON.parse(unb64(t)); if (!Courses.valid(s)) throw new Error('not a course'); return s; },
     readFileSync(name) { const x = new XMLHttpRequest(); x.open('GET', 'levels/' + encodeURIComponent(name) + '.json', false); x.send(); if (x.status !== 200 && x.status !== 0) throw new Error('missing course file ' + name); const s = JSON.parse(x.responseText); if (!Courses.valid(s)) throw new Error('bad course file ' + name); return s; },
-    index() { return fetch('levels/index.json').then(r => r.ok ? r.json() : []).catch(() => []); },
+    // The shipped courses: levels/index.json, plus any other .json file the server lists in the levels/ folder (a local server such as python -m http.server shows new files at once;
+    // a static host cannot list folders, so run tools/build-levels-index.js, which also runs on every commit here, to refresh index.json).
+    index() {
+      return fetch('levels/index.json').then(r => r.ok ? r.json() : []).catch(() => []).then(async list => {
+        try {
+          const r = await fetch('levels/'); if (!r.ok) return list; const html = await r.text(), have = new Set(list.map(c => c.file));
+          const names = [...html.matchAll(/href="([^"?#]+)\.json"/g)].map(m => decodeURIComponent(m[1].split('/').pop())).filter(n => n !== 'index' && !have.has(n));
+          for (const n of [...new Set(names)]) { try { const s = await (await fetch('levels/' + encodeURIComponent(n) + '.json')).json(); if (Courses.valid(s)) list.push({ file: n, name: s.name || n, author: s.author || '' }); } catch (e) {} }
+        } catch (e) {}
+        return list;
+      });
+    },
     songs() { return fetch('music/index.json').then(r => r.ok ? r.json() : []).catch(() => []); },
   };
 })();

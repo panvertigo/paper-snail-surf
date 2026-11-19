@@ -393,7 +393,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
   }
   // ---------- course library: new / copy / open / save (built-in levels are never edited, only copied) ----------
   const unsaved = () => savedJ === null || JSON.stringify(stage) !== savedJ;
-  function updateBar() { const pl = $id('edpill'); if (!pl) return; const u = unsaved(); pl.textContent = u ? 'UNSAVED CHANGES: press Save' : 'Saved in My courses'; pl.style.background = u ? '#c2571a' : '#1f7a4a'; }
+  function updateBar() { const pl = $id('edpill'); if (!pl) return; const u = unsaved(); pl.textContent = u ? 'UNSAVED CHANGES: press Save' : (fileHandle ? 'Saved here and to ' + fileHandle.name : 'Saved in My courses'); pl.style.background = u ? '#c2571a' : '#1f7a4a'; }
   function popup(title, body, buttons) {
     const m = document.createElement('div'); m.id = 'edmodal'; const box = document.createElement('div'), h = document.createElement('b'); h.textContent = title; box.appendChild(h);
     if (typeof body === 'string') { const q = document.createElement('p'); q.textContent = body; q.style.margin = '8px 0'; box.appendChild(q); } else if (body) box.appendChild(body);
@@ -407,7 +407,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
       for (const it of items) { const b = document.createElement('button'); b.style.cssText = 'display:block;width:100%;text-align:left;background:#1c2548;color:#fff;border:0;border-radius:6px;padding:9px 10px;margin:3px 0;cursor:pointer;font-size:13px'; const t = document.createElement('b'); t.textContent = it.t; b.appendChild(t); if (it.s) { const q = document.createElement('span'); q.textContent = '   ' + it.s; q.style.color = '#8fa2d6'; b.appendChild(q); } b.onclick = () => { m.remove(); onPick(it); }; wrap.appendChild(b); } }
     m = popup(title, wrap, [['Cancel']]);
   }
-  function adopt(st, note) { stage = st; if (!stage.id) stage.id = Courses.uid(); Courses.save(stage); savedJ = Courses.json(stage.id); sel = 0; hist = []; histI = -1; snapshot(); refresh(true); setStatus(note || ''); }
+  function adopt(st, note) { fileHandle = null; stage = st; if (!stage.id) stage.id = Courses.uid(); Courses.save(stage); savedJ = Courses.json(stage.id); sel = 0; hist = []; histI = -1; snapshot(); refresh(true); setStatus(note || ''); }
   function guard(next) { if (!unsaved()) { next(); return; } popup('Unsaved changes', 'Your current course has changes that are not saved. What now?', [['Save, then continue', () => { saveCourse(); next(); }, 'primary'], ['Discard the changes', next, 'danger'], ['Cancel']]); }
   function newCourse() { guard(() => adopt({ name: 'New course', scenery: 'plain', theme0: 0, pieces: [{ L: 3000 }, { L: 3500, gap: 700, drop: 1200 }, { turn: 60, R: 6500 }, { L: 3500, cp: true }] }, 'New course created and saved.')); }
   function copyFrom() {
@@ -420,7 +420,28 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     guard(() => { const mine = Courses.list().map(c => ({ t: c.name, s: c.pieces + ' pieces, ' + new Date(c.updated).toLocaleDateString(), my: c.id })); if (!mine.length) { setStatus('No saved courses yet. Use New or Copy.'); return; }
       chooser('Open which of your courses?', [['My courses', mine]], it => { const st = Courses.get(it.my); adopt(st, 'Opened ' + (st.name || 'course') + '.'); }); });
   }
-  function saveCourse() { if (!stage.name || !stage.name.trim()) stage.name = 'Untitled'; Courses.save(stage); savedJ = Courses.json(stage.id); updateBar(); setStatus('Saved "' + stage.name + '" to My courses.'); }
+  function saveCourse() {
+    if (!stage.name || !stage.name.trim()) stage.name = 'Untitled'; Courses.save(stage); savedJ = Courses.json(stage.id); updateBar(); setStatus('Saved "' + stage.name + '" to My courses.');
+    if (fileHandle) writeHandle().then(() => setStatus('Saved "' + stage.name + '" to My courses and to ' + fileHandle.name + ' on disk.')).catch(e => setStatus('Saved to My courses, but could not write ' + fileHandle.name + ': ' + e.message));
+  }
+  // save to / open from a real file on disk (Chrome and Edge). Pick the levels/ folder to ship a course with the game; after the first pick, Save and Ctrl+S write straight to that file.
+  let fileHandle = null;
+  const JSON_TYPES = [{ description: 'Course (JSON)', accept: { 'application/json': ['.json'] } }];
+  async function writeHandle() { const st = clone(stage); delete st.id; const w = await fileHandle.createWritable(); await w.write(JSON.stringify(st, null, 1)); await w.close(); }
+  async function saveToDisk(asNew) {
+    if (!window.showSaveFilePicker) { exportFile(); return; }
+    try {
+      if (!fileHandle || asNew === true) { const nm = (stage.name || 'course').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'course'; fileHandle = await showSaveFilePicker({ suggestedName: nm + '.json', types: JSON_TYPES }); }
+      saveCourse();
+    } catch (e) { if (e.name !== 'AbortError') setStatus('Could not save to disk: ' + e.message); }
+  }
+  async function openFromDisk() {
+    if (!window.showOpenFilePicker) { importFile(); return; }
+    try {
+      const [h] = await showOpenFilePicker({ types: JSON_TYPES }), st = JSON.parse(await (await h.getFile()).text()); if (!Courses.valid(st)) throw new Error('no pieces in that file');
+      guard(() => { delete st.id; adopt(st, 'Opened ' + h.name + '. Save writes your changes back to that file.'); fileHandle = h; updateBar(); });
+    } catch (e) { if (e.name !== 'AbortError') setStatus('Could not open that file: ' + e.message); }
+  }
   function saveAs() {
     const inp = document.createElement('input'); inp.value = (stage.name || 'Course') + ' (2)'; inp.style.cssText = 'width:100%;margin-top:8px;padding:8px;background:#18203a;color:#fff;border:1px solid #33406e;border-radius:6px;box-sizing:border-box';
     popup('Save a copy as...', inp, [['Save copy', () => { const st = clone(stage); st.name = inp.value.trim() || 'Untitled'; delete st.id; adopt(st, 'Saved as "' + st.name + '". You are now editing the copy; the earlier saved version is unchanged.'); }, 'primary'], ['Cancel']]); inp.select();
@@ -453,7 +474,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const pill = document.createElement('div'); pill.id = 'edpill'; pill.style.cssText = 'display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;margin-bottom:4px'; cb.appendChild(pill);
     const cnote = document.createElement('div'); cnote.style.cssText = 'font-size:11px;color:#8fa2d6;margin:2px 0 6px'; cnote.textContent = 'Built-in levels are read only. To change one, press Copy and edit the copy.'; cb.appendChild(cnote);
     const crow = list => { const r = document.createElement('div'); r.style.cssText = 'display:flex;gap:6px;margin:4px 0'; for (const [t, f, cls] of list) { const b = document.createElement('button'); b.textContent = t; b.onclick = f; b.style.cssText = 'flex:1;padding:9px 4px;font-size:13px;font-weight:600;margin:0;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); r.appendChild(b); } return r; };
-    cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Share link', shareLink], ['Export file', exportFile], ['Import file', importFile]]));
+    cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Save to file...', () => saveToDisk(true)], ['Open file...', openFromDisk], ['Share link', shareLink]]));
     ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;line-height:1.55';
     how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins. The <b>green flag</b> is where the run starts: drag it anywhere (Alt: up / down) to start with a drop. The rest of the course stays where it is.';
@@ -534,6 +555,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
       if (e.key === 'ArrowUp') { selectOnly(Math.max(0, sel - 1)); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
       else if (e.key === 'ArrowDown') { selectOnly(Math.min(stage.pieces.length - 1, sel + 1)); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
       else if (e.key === 'Delete') del(); else if (e.key === 'f' || e.key === 'F') focusSel(); else if (e.key === 'd' || e.key === 'D') dup();
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (fileHandle) saveCourse(); else saveToDisk(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { copyRange(); e.preventDefault(); } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { pasteRange(); e.preventDefault(); } else if (e.key === 't' || e.key === 'T') toggleTop();
       else if (e.key === 'PageUp' || e.key === 'PageDown') { const dy = (e.key === 'PageUp' ? 1 : -1) * (e.shiftKey ? 500 : 100), runs = makeRuns(); applyRuns(runs, [0, dy, 0]); change(); e.preventDefault(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { undo(e.shiftKey ? 1 : -1); e.preventDefault(); } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { undo(1); e.preventDefault(); }

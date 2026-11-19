@@ -41,3 +41,7 @@ Switching course with unsaved changes always asks (Save, Discard, Cancel). The e
 
 ## Shipping a course with the game
 Export file, drop the JSON in `levels/`, add `{ "file": "<filename without .json>", "name": "...", "author": "..." }` to `levels/index.json`, commit and push. Open it directly with `#file-<filename>`.
+
+## Adding files to levels/ and saving to disk (2026-11-18)
+- Drop a `.json` course into `levels/`. A local server (`python -m http.server`) lists the folder, so the course appears in the menu at once. A static host (GitHub Pages) cannot list folders, so run `node tools/build-levels-index.js` to refresh `levels/index.json` before committing.
+- The editor's **Save to file...** (Chrome, Edge) writes the course as real JSON on disk. Pick the `levels/` folder to ship it. After the first pick, **Save** and **Ctrl+S** write to that file as well as to My courses. **Open file...** edits an existing file and saves back to it.
