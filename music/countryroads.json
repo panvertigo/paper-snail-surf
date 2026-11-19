@@ -1,0 +1,67 @@
+{
+ "bpm": 77.5,
+ "beatsPerBar": 4,
+ "quantize": "phrase",
+ "linear": [
+  "k01",
+  "k02",
+  "k03",
+  "k04",
+  "k05",
+  "k06",
+  "peak"
+ ],
+ "startOffset": 0.0251,
+ "sections": {
+  "k01": {
+   "file": "countryroads_k01.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k02": {
+   "file": "countryroads_k02.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k03": {
+   "file": "countryroads_k03.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k04": {
+   "file": "countryroads_k04.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k05": {
+   "file": "countryroads_k05.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "k06": {
+   "file": "countryroads_k06.mp3",
+   "bars": 4,
+   "once": true
+  },
+  "peak": {
+   "file": "countryroads_peak.mp3",
+   "bars": 8
+  },
+  "outro": {
+   "file": "countryroads_outro.mp3",
+   "bars": 7,
+   "once": true
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "k01"
+  },
+  {
+   "on": "finish",
+   "section": "outro",
+   "quantize": "phrase"
+  }
+ ]
+}

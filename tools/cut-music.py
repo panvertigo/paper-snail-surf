@@ -39,6 +39,10 @@ SONGS = {
   'boxfort': dict(bpm=105.0, tame=dict(), linear=['k%02d' % i for i in range(1, 8)] + ['peak'], src='3 IoAldoSdtk.wav', grid=0.0, sections={
       **{'k%02d' % i: ((i - 1) * 4 + 1, 4, {'once': True}) for i in range(1, 7)}, 'k07': (25, 2, {'once': True}), 'peak': (27, 8, {}), 'outro': (35, 4, {'once': True})},
       triggers=[{'on': 'start', 'section': 'k01'}, {'on': 'finish', 'section': 'outro', 'quantize': 'phrase'}]),
+  # Country Roads (track 4): 77.5 BPM (grid fitted on the onsets, bar 1 at 0.44 s), gentle, energy climbs steadily to a plateau at bar 25 (1:15) and decays from bar 33 (1:39) to the end at 2:02. Harsh band 8.5 percent, tamed.
+  'countryroads': dict(bpm=77.5, tame=dict(), linear=['k%02d' % i for i in range(1, 7)] + ['peak'], src='4 Country Roads.mp3', grid=0.44, sections={
+      **{'k%02d' % i: ((i - 1) * 4 + 1, 4, {'once': True}) for i in range(1, 7)}, 'peak': (25, 8, {}), 'outro': (33, 7, {'once': True})},
+      triggers=[{'on': 'start', 'section': 'k01'}, {'on': 'finish', 'section': 'outro', 'quantize': 'phrase'}]),
   'bowl': dict(src='6 Fleetwood Mac_electro.wav', grid=0.138 + 60 / BPM, sections={
       'calm': (49, 16, {}), 'groove': (25, 16, {}), 'peak': (105, 16, {})},
       triggers=[{'on': 'start', 'section': 'calm'}]),
