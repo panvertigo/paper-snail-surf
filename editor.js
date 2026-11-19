@@ -48,7 +48,7 @@
     try { buildCourse(stage); applyScenery(stage.scenery === 'descent'); buildScene(); }
     catch (e) { setStatus('invalid stage: ' + e.message); console.error(e); return; }
     setTheme(stage.scenery === 'descent' ? (stage.theme0 || 0) : 0, true);
-    drawSelection(); clearPath(); botRes = null; entries = {};
+    drawSelection(); drawStart(); clearPath(); botRes = null; entries = {};
     if (pendingRun) clearTimeout(pendingRun); pendingRun = setTimeout(() => { pendingRun = null; runBots(false); }, 450);
   }
   function refresh(full) { rebuild(); renderPanel(); if (full) fit(); }
@@ -80,7 +80,7 @@
   }
   // ---------- direct manipulation: click a block, drag it anywhere (hold Alt to lift / lower), drag the white squares to resize it ----------
   // Blocks are stored relative to the block before them, so every move also re-aims the NEXT block: only the blocks you touch change, the rest of the course stays where it is.
-  const HNAME = { len: 'Length', wid: 'Width' };
+  const HNAME = { start: 'Start of this block: drag to change where it begins (Alt: up / down)', end: 'End of this block: drag to bend and tilt it (Alt: up / down)' };
   let hObjs = [], hDrag = null, lastRb = 0, dirty = false;
   const snap = (v, st) => Math.round(v / st) * st, clampv = (v, a, b) => Math.max(a, Math.min(b, v));
   const ids = () => [...multi].filter(i => i < stage.pieces.length).sort((a, b) => a - b);
@@ -88,41 +88,52 @@
   function toggleSel(i) { if (multi.has(i)) { if (multi.size > 1) { multi.delete(i); if (sel === i) { const a = ids(); sel = a[a.length - 1]; } } } else { multi.add(i); sel = i; } }
   function selectRange(a, b) { multi = new Set(); for (let i = Math.min(a, b); i <= Math.max(a, b); i++) multi.add(i); sel = b; }
   const refreshSel = () => { drawSelection(); renderList(); renderInspector(); };
-  function handlePoints() {
+  function handlePoints() { // one dot at each end of the selected block
     const r = ramps[sel], p = stage.pieces[sel]; if (!r || !p || r.tube || multi.size > 1) return [];
-    const u = r.L / 2, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u), out = [{ k: 'len', p: [r.ex, r.ey + r.H, r.ez] }];
-    for (const sd of [1, -1]) out.push({ k: 'wid', p: [c[0] + rt[0] * r.W * sd, r.oy + zOf(r, u), c[1] + rt[2] * r.W * sd], c, rt });
-    return out;
+    return [{ k: 'start', p: [r.sx, r.oy + r.H, r.sz] }, { k: 'end', p: [r.ex, r.ey + r.H, r.ez] }];
   }
   function drawHandles() {
     disposeObjs(hObjs);
     for (const h of handlePoints()) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.95 }));
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.95 }));
       m.renderOrder = 12; m.userData = { k: h.k, rec: h, base: h.p }; m.position.set(h.p[0], h.p[1], h.p[2]); scene.add(m); hObjs.push(m);
     }
     placeHandles();
   }
   E.handleScreen = k => { const m = hObjs.find(o => o.userData.k === k); if (!m) return null; const v = m.position.clone().project(camera), rc = renderer.domElement.getBoundingClientRect(); return [(v.x * 0.5 + 0.5) * rc.width + rc.left, (-v.y * 0.5 + 0.5) * rc.height + rc.top]; }; // for tests
   E.select = i => { selectOnly(i); drawSelection(); focusSel(); renderList(); renderInspector(); };
-  function placeHandles() { const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
+  let startObj = null;
+  function drawStart() {
+    if (startObj) { scene.remove(startObj); startObj.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); startObj = null; }
+    if (!ramps[0]) return; const g = new THREE.Group(), col = 0x2ee6a6;
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 1, 0.07), new THREE.MeshBasicMaterial({ color: col, depthTest: false, transparent: true, opacity: 0.95 })));
+    g.children[0].position.y = 0.5;
+    const fl = new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0.03, 1, 0), new THREE.Vector3(0.75, 0.82, 0), new THREE.Vector3(0.03, 0.64, 0)]), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, depthTest: false }));
+    g.add(fl); g.traverse(o => { o.renderOrder = 13; }); startObj = g; scene.add(g); placeStart();
+  }
+  function placeStart() { if (!startObj || !ramps[0]) return; const r = ramps[0]; startObj.position.set(r.sx, r.oy + r.H, r.sz); startObj.scale.setScalar(cam.dist * 0.05); startObj.rotation.y = r.h0 + Math.PI / 2; }
+  function placeHandles() { placeStart(); const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function setRay(e) { const rc = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height * 2 - 1)); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); ray.setFromCamera(ndc, camera); }
   function hitHandle(e) { setRay(e); const hit = ray.intersectObjects(hObjs, false)[0]; return hit ? hit.object.userData.rec : null; }
   const atY = y => { const o = ray.ray.origin, d = ray.ray.direction; if (Math.abs(d.y) < 1e-4) return null; const t = (y - o.y) / d.y; return t > 0 ? [o.x + d.x * t, y, o.z + d.z * t] : null; };
   const atVert = (p0, nx, nz) => { const o = ray.ray.origin, d = ray.ray.direction, den = d.x * nx + d.z * nz; if (Math.abs(den) < 1e-4) return null; const t = ((p0[0] - o.x) * nx + (p0[2] - o.z) * nz) / den; return t > 0 ? [o.x + d.x * t, o.y + d.y * t, o.z + d.z * t] : null; };
-  // resize handles (length of a ramp / angle of a turn, half-width)
+  // the two dots on a block. End dot: drag along the ground to lengthen / bend it (the block becomes an arc through the dot, radius and angle worked out for you; it can only bend toward the face
+  // you ride), Alt-drag to tilt it (sets the climb). Start dot: changes where the block begins (gap, sideways, height) with its end kept in place.
   function startHandle(h, e) {
-    const r = ramps[sel], p = stage.pieces[sel], nxt = stage.pieces[sel + 1], rn = ramps[sel + 1];
-    const D = { k: h.k, p, L0: p.L, turn0: p.turn, d1: dirOf(r.h1), c: h.c, rt: h.rt, hp: h.p, W0: r.W, oldEnd: [r.ex, r.ey, r.ez], h1: r.h1, comp: false };
-    if (nxt && rn) { D.next = nxt; D.n0 = { gap: nxt.gap ?? 480, lat: nxt.lat || 0, drop: nxt.drop ?? (rn.tube ? 20 - 0.42 * r.H : r.ey - rn.oy), hadW: nxt.W !== undefined }; }
-    setRay(e); D.P0 = atY(h.p[1]); return D.P0 ? D : null;
+    const r = ramps[sel], p = stage.pieces[sel], nxt = stage.pieces[sel + 1], rn = ramps[sel + 1], prev = ramps[sel - 1];
+    const D = { k: h.k, p, hp: h.p, oldEnd: [r.ex, r.ey, r.ez], oldStart: [r.sx, r.oy, r.sz], h0: r.h0, h1: r.h1, side: r.side, mode: e.altKey ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), comp: true,
+      L0: p.L, g0: p.gap ?? 480, l0: p.lat || 0, d0: p.drop ?? (prev ? (r.tube ? 20 - 0.42 * prev.H : prev.ey - r.oy) : 0), zero: sel === 0, st0: { ...(stage.start || {}) } };
+    if (nxt && rn) { D.next = nxt; D.n0 = { gap: nxt.gap ?? 480, lat: nxt.lat || 0, rot: nxt.rot || 0, drop: nxt.drop ?? (rn.tube ? 20 - 0.42 * r.H : r.ey - rn.oy) }; }
+    setRay(e); D.P0 = D.mode === 'v' ? atVert(h.p, D.nx, D.nz) : atY(h.p[1]); return D.P0 ? D : null;
   }
-  function compensate(D) { // keep the next block exactly where it was, whatever happened to this one
+  function compensate(D) { // keep every later block exactly where it was: re-aim the next block (gap, sideways, height and heading); the ones after it follow
     if (!D.next) return; const i = stage.pieces.indexOf(D.p), r = ramps[i], rn = ramps[i + 1]; if (!r || !rn || r.tube) return;
-    if (D.k === 'wid') { if (!D.n0.hadW) D.next.W = D.W0; return; }
-    const dO = dirOf(D.h1), rO = rightOf(D.h1), sx = D.oldEnd[0] + D.n0.gap * dO[0] + D.n0.lat * rO[0], sz = D.oldEnd[2] + D.n0.gap * dO[2] + D.n0.lat * rO[2], sy = D.oldEnd[1] - D.n0.drop;
-    const dN = dirOf(r.h1), rN = rightOf(r.h1), tx = sx - r.ex, tz = sz - r.ez;
-    D.next.gap = clampv(snap(tx * dN[0] + tz * dN[2], 50), 0, 40000); const lat = clampv(snap(tx * rN[0] + tz * rN[2], 50), -30000, 30000); if (lat) D.next.lat = lat; else delete D.next.lat;
+    const rot0 = D.n0.rot || 0, hOld = D.h1 + rot0 * Math.PI / 180, dO = dirOf(hOld), rO = rightOf(hOld);
+    const sx = D.oldEnd[0] + D.n0.gap * dO[0] + D.n0.lat * rO[0], sz = D.oldEnd[2] + D.n0.gap * dO[2] + D.n0.lat * rO[2], sy = D.oldEnd[1] - D.n0.drop;
+    const rotN = Math.round((hOld - r.h1) * 5729.58) / 100; if (rotN) D.next.rot = rotN; else delete D.next.rot; // the next block's heading is put back to what it was
+    const tx = sx - r.ex, tz = sz - r.ez;
+    D.next.gap = clampv(snap(tx * dO[0] + tz * dO[2], 50), 0, 40000); const lat = clampv(snap(tx * rO[0] + tz * rO[2], 50), -30000, 30000); if (lat) D.next.lat = lat; else delete D.next.lat;
     D.next.drop = clampv(snap(r.ey - sy, 50), -20000, 40000);
   }
   // moving blocks: a run of selected blocks translates as one; the block before the run and the block after it are re-aimed so nothing else moves
@@ -131,19 +142,21 @@
     for (const i of ids()) { if (cur && i === cur.b + 1) cur.b = i; else { cur = { a: i, b: i }; runs.push(cur); } }
     const st = i => { const r = ramps[i], pr = ramps[i - 1], p = stage.pieces[i]; return { p, gap: p.gap ?? 480, lat: p.lat || 0, drop: p.drop ?? (r.tube ? 20 - 0.42 * pr.H : pr.ey - r.oy) }; };
     return runs.map(R => { const o = { a: R.a, b: R.b };
-      if (R.a > 0 && ramps[R.a - 1] && !ramps[R.a - 1].tube && ramps[R.a]) { o.s = st(R.a); o.hs = ramps[R.a - 1].h1; }
+      if (R.a === 0 && ramps[0]) { o.s = { zero: true, st0: { ...(stage.start || {}) } }; o.hs = 0; }
+      else if (R.a > 0 && ramps[R.a - 1] && !ramps[R.a - 1].tube && ramps[R.a]) { o.s = st(R.a); o.hs = ramps[R.a - 1].h1; }
       if (R.b + 1 < n && ramps[R.b] && !ramps[R.b].tube && ramps[R.b + 1]) { o.e = st(R.b + 1); o.he = ramps[R.b].h1; }
       return o; });
   }
   function setSt(s, gap, lat, drop) { const p = s.p; p.gap = clampv(snap(gap, 50), 0, 40000); const l = clampv(snap(lat, 50), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(drop, 50), -20000, 40000); }
   function applyRuns(runs, d) {
     for (const o of runs) { if (!o.s) continue;
-      let dr = dirOf(o.hs), rt = rightOf(o.hs); setSt(o.s, o.s.gap + d[0] * dr[0] + d[2] * dr[2], o.s.lat + d[0] * rt[0] + d[2] * rt[2], o.s.drop - d[1]);
+      let dr = dirOf(o.hs), rt = rightOf(o.hs);
+      if (o.s.zero) stage.start = { x: snap((o.s.st0.x || 0) + d[0], 10), y: snap((o.s.st0.y || 0) + d[1], 10), z: snap((o.s.st0.z || 0) + d[2], 10) };
+      else setSt(o.s, o.s.gap + d[0] * dr[0] + d[2] * dr[2], o.s.lat + d[0] * rt[0] + d[2] * rt[2], o.s.drop - d[1]);
       if (o.e) { dr = dirOf(o.he); rt = rightOf(o.he); setSt(o.e, o.e.gap - (d[0] * dr[0] + d[2] * dr[2]), o.e.lat - (d[0] * rt[0] + d[2] * rt[2]), o.e.drop + d[1]); } }
   }
   function bodyStart(e, hit, wasIn) {
     const D = { body: true, runs: makeRuns(), hit, wasIn, i: hit.i, mode: e.altKey ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw) };
-    if (!D.runs.some(o => o.s)) setStatus('The first block is where the course starts; it can be resized but not moved.');
     setRay(e); D.P0 = D.mode === 'v' ? atVert(hit.p, D.nx, D.nz) : atY(hit.p[1]); return D.P0 ? D : null;
   }
   function dragHandle(e) {
@@ -155,9 +168,25 @@
       const t = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; applyRuns(D.runs, t); D.moved = true; dirty = true;
       setStatus('Moving: ' + (mode === 'v' ? 'up / down' : 'along the ground') + ' (hold Alt to lift or lower)'); return;
     }
-    const P = atY(D.hp[1]); if (!P) return; const p = D.p, dx = P[0] - D.P0[0], dz = P[2] - D.P0[2];
-    if (D.k === 'len') { const a = dx * D.d1[0] + dz * D.d1[2]; if (p.turn) { p.turn = clampv(snap(D.turn0 + a / p.R * 57.2958, 5), 10, 360); setStatus('Turn ' + p.turn + ' deg'); } else { p.L = clampv(snap(D.L0 + a, D.L0 > 12000 ? 500 : 100), 500, 40000); setStatus('Length ' + p.L); } }
-    else { p.W = clampv(snap(Math.abs((P[0] - D.c[0]) * D.rt[0] + (P[2] - D.c[1]) * D.rt[2]), 10), 250, 1300); setStatus('Half-width ' + p.W); }
+    const mode = e.altKey ? 'v' : 'h', P = mode === 'v' ? atVert(D.hp, D.nx, D.nz) : atY(D.hp[1]); if (!P) return;
+    if (mode !== D.mode) { D.acc = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; D.cur = [0, 0, 0]; D.P0 = P; D.mode = mode; return; }
+    D.cur = mode === 'v' ? [0, P[1] - D.P0[1], 0] : [P[0] - D.P0[0], 0, P[2] - D.P0[2]];
+    const d = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]], p = D.p, dir0 = dirOf(D.h0), rt0 = rightOf(D.h0);
+    if (D.k === 'end') {
+      const ex = D.oldEnd[0] + d[0] - D.oldStart[0], ez = D.oldEnd[2] + d[2] - D.oldStart[2], A = ex * dir0[0] + ez * dir0[2], B = Math.max(0, (ex * rt0[0] + ez * rt0[2]) * Math.sign(D.side));
+      if (A < 300) return;
+      if (B < 0.05 * A) { delete p.turn; delete p.R; p.L = clampv(snap(A, A > 12000 ? 500 : 100), 500, 40000); }
+      else { const th = 2 * Math.atan2(B, A) * 57.2958, R = clampv((A * A + B * B) / (2 * B), 1500, 60000); delete p.L; p.turn = clampv(snap(th, 0.5), 10, 360); p.R = snap(R, R < 10000 ? 10 : 100); }
+      const len = p.turn ? p.turn * 0.0174533 * p.R : p.L, c = snap(D.oldEnd[1] + d[1] - D.oldStart[1], 50);
+      if (Math.abs(c + SLOPE * len) > 100) p.C = clampv(c, -4000, 4000); else delete p.C;
+      setStatus((p.turn ? 'Curve: ' + p.turn + ' deg, radius ' + p.R : 'Straight, length ' + p.L) + (p.C ? ', climb ' + p.C + (p.C < 0 ? ' (steeper down)' : ' (up)') : ''));
+    } else {
+      const f = d[0] * dir0[0] + d[2] * dir0[2], sd = d[0] * rt0[0] + d[2] * rt0[2];
+      if (D.zero) stage.start = { x: snap((D.st0.x || 0) + d[0], 10), y: snap((D.st0.y || 0) + d[1], 10), z: snap((D.st0.z || 0) + d[2], 10) };
+      else { p.gap = clampv(snap(D.g0 + f, 50), 0, 40000); const l = clampv(snap(D.l0 + sd, 50), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(D.d0 - d[1], 50), -20000, 40000); }
+      if (!p.turn && p.L !== undefined) p.L = clampv(snap(D.L0 - f, 100), 500, 40000);
+      setStatus('Moving where this block starts');
+    }
     dirty = true; D.moved = true; D.comp = true;
   }
   const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _hit = new THREE.Vector3();
@@ -408,7 +437,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Share link', shareLink], ['Export file', exportFile], ['Import file', importFile]]));
     ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;line-height:1.55';
-    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white squares</b> to make it longer or wider. The rest of the course stays where it is.';
+    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins. The <b>green flag</b> is where the run starts (the first block). The rest of the course stays where it is.';
     ed.appendChild(how);
     const bar = document.createElement('div'); bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px'; const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; b.style.cssText = 'margin:0;padding:7px 9px;font-size:13px;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); bar.appendChild(b); };
     bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Top view', toggleTop);
@@ -508,7 +537,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     css(); stage = load(); if (!stage.id) stage.id = Courses.uid();
     if (Courses.has(stage.id)) savedJ = Courses.json(stage.id); else if (fresh) { Courses.save(stage); savedJ = Courses.json(stage.id); } else { stage.name = stage.name || 'Recovered draft'; Courses.save(stage); savedJ = Courses.json(stage.id); setTimeout(() => setStatus('Your earlier editor work was saved as "' + stage.name + '" in My courses.'), 600); }
     snapshot(); setupInput(); addEventListener('beforeunload', e => { if (unsaved()) { e.preventDefault(); e.returnValue = ''; } });
-    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>click: select · drag: move · Alt-drag: up / down · shift-click: select several · white squares: resize · empty-space drag: orbit · right-drag: pan · wheel: zoom · T: top view · Ctrl+Z: undo · Del: delete · Ctrl+C / V: copy / paste'; document.body.appendChild(h);
+    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>click: select · drag: move · Alt-drag: up / down · shift-click: select several · white dots on the selected block: bend / tilt / re-start it · green flag: where the run starts · empty-space drag: orbit · right-drag: pan · wheel: zoom · T: top view · Ctrl+Z: undo · Del: delete · Ctrl+C / V: copy / paste'; document.body.appendChild(h);
     refresh(true);
   }
   init();

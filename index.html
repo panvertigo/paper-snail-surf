@@ -373,7 +373,7 @@ function buildCourse(S, meta) {
     if (i > 0) {
       const prev = ramps[ramps.length - 1];
       prevEnd = prev;
-      h = prev.h1;
+      h = prev.h1 + (p.rot ? p.rot * Math.PI / 180 : 0); // rot (degrees, editor only): turns this piece away from where the previous one ended, so editing one block can leave the blocks after it in place
       const dir = dirOf(h), right = rightOf(h), gap = p.gap ?? 480;
       let shift = 0;
       if (p.loop) shift = prev.side * 0.5 * prev.W + (p.loop.off || 0); // centre the tube where the rider flies in (mid-face), not on the ridge line
