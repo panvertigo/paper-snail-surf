@@ -1639,14 +1639,14 @@ let shot = null; // the cannon flight back to the start: scripted arc, you steer
 function fireCannon() {
   const xyz = o => ({ x: o.x, y: o.y, z: o.z }), P0 = xyz(pos), keepV = xyz(vel), keepYaw = yaw; spawnOn(0); const home = { p: xyz(pos), v: xyz(vel), yaw }; pos.set(P0.x, P0.y, P0.z); vel.set(keepV.x, keepV.y, keepV.z); yaw = keepYaw; // spawnOn also re-arms the rings and the start
   const dist = Math.hypot(home.p.x - P0.x, home.p.z - P0.z), T = Math.max(3.2, Math.min(6, dist / 4000));
-  shot = { t: 0, T, P0, home, steer: 0, lim: (ramps[0].W || 460) * 0.6, apex: Math.max(1500, Math.min(7000, dist * 0.22 + Math.abs(home.p.y - P0.y) * 0.3)), last: xyz(P0) };
+  shot = { t: 0, T, P0, home, steer: 0, off: 0, lim: (ramps[0].W || 460) * 0.6, max: 3600, apex: Math.max(1500, Math.min(7000, dist * 0.22 + Math.abs(home.p.y - P0.y) * 0.3)), last: xyz(P0) };
   flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => { g.material.color.set(0xffe2a0); g.userData.sh.material.color.set(0xffe2a0); });
   setTheme(0, true); Music.at(0); Sfx.portal(); fovKick += 20; showMsg(''); hud(); state = 'shot';
 }
 function updateShot(dt) {
   const S = shot; if (!S) { state = 'ready'; return; }
-  S.t += dt; const s = Math.min(1, S.t / S.T), H = S.home, rt = rightOf(H.yaw), off = S.steer * s * s;
+  S.t += dt; const s = Math.min(1, S.t / S.T), H = S.home, rt = rightOf(H.yaw), corridor = S.lim + (S.max - S.lim) * Math.sin(Math.PI * s), want = Math.max(-corridor, Math.min(corridor, S.steer)); S.off += (want - S.off) * (1 - Math.exp(-dt * 5)); const off = S.off; // guardrail: you can swing wide mid-flight, but the corridor narrows back to the start ramp's width for the landing
   const px = S.P0.x + (H.p.x - S.P0.x) * s + rt[0] * off, pz = S.P0.z + (H.p.z - S.P0.z) * s + rt[2] * off, py = S.P0.y + (H.p.y + 500 - S.P0.y) * s + S.apex * 4 * s * (1 - s);
   prevPos.copy(pos); pos.set(px, py, pz);
   const ivx = (px - S.last.x) / Math.max(dt, 1e-3), ivz = (pz - S.last.z) / Math.max(dt, 1e-3); vel.set(ivx, (py - S.last.y) / Math.max(dt, 1e-3), ivz); S.last.x = px; S.last.y = py; S.last.z = pz;
@@ -1669,7 +1669,7 @@ let pid = null, lastX = 0, anchorY = 0;
 const LIFT_HOLD = 35, LIFT_MAXDX = 60, moveQ = [];
 function flushMoves(nowT) { while (moveQ.length && nowT - moveQ[0].t >= LIFT_HOLD) { const m = moveQ.shift(); turn(-m.dx * P.sens); if (Math.abs(m.dx) > 0.5) cmd.touch = Math.sign(m.dx); } }
 const PITCH_ON = false, /* the lean control is retired (physics code kept; replays read 0) */ PITCH_DEAD = 14, PITCH_RANGE = 100; // px: dead zone, then full lean
-function turn(r) { if (state === 'run') cmd.turn += r; else if (state === 'shot' && shot) shot.steer = Math.max(-shot.lim, Math.min(shot.lim, shot.steer - r * 1000)); else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
+function turn(r) { if (state === 'run') cmd.turn += r; else if (state === 'shot' && shot) shot.steer = Math.max(-shot.max, Math.min(shot.max, shot.steer - r * 1400)); else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
 const cv = renderer.domElement;
 cv.addEventListener('pointerdown', e => {
   e.preventDefault(); $('settings').hidden = true;
