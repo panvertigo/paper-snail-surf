@@ -25,7 +25,7 @@
   const F_RING = [['d', 'Ahead', -500, 3000, 50, 'Distance past the previous piece\'s end'], ['y', 'Height', -1500, 3000, 50], ['s', 'Lane', -1500, 1500, 50, 'Blank = where the rider flies'], ['R', 'Radius', 100, 800, 10],
     ['boost', 'Boost (hoop)', 0, 400, 10], ['theme', 'Scene (portal)', 0, 3, 1, '0 moon, 1 atmosphere, 2 sky, 3 Earth'], ['dip', 'Dip (deg)', -30, 60, 5]];
 
-  let stage, sel = 0, hist = [], histI = -1, version = 0, savedJ = null, fresh = false;
+  let stage, sel = 0, selEnd = null, clip = null, hist = [], histI = -1, version = 0, savedJ = null, fresh = false;
   const LEVEL_NAMES = { 1: 'cruise', 2: 'gauntlet', 3: 'descent', 5: 'grand descent' };
   let SONGS = [{ id: 'chicago', name: 'Chicago Meditation' }, { id: 'fleetwood', name: 'Fleetwood Mac' }, { id: 'salt', name: 'Salt for Mushroom Field' }, { id: 'bowl', name: 'Bowl mix' }, { id: 'descent', name: 'Demo (generated)' }];
   let botRes = null, entries = {}, pathLine = null, selObjs = [], busy = false, pendingRun = null;
@@ -80,7 +80,7 @@
   }
   // ---------- drag handles: shape and place the selected piece right in the 3D view ----------
   // purple diamond = slope (auto net climb), pink ball on a turn = radius. green ball = move along the ground (gap + sideways), blue diamond = raise / lower (drop), yellow = length (turn angle on a turn), orange = width
-  const HCOL = { move: 0x4be07a, rise: 0x4aa8ff, len: 0xffe14a, wid: 0xff9a3c, slope: 0xc77dff, rad: 0xff5fa2 }, HNAME = { move: 'Move (gap and sideways)', rise: 'Raise / lower', len: 'Length', wid: 'Width', slope: 'Slope (auto climb)', rad: 'Sweep radius' };
+  const HCOL = { move: 0x4be07a, rise: 0x4aa8ff, len: 0xffe14a, wid: 0xff9a3c, slope: 0xc77dff, rad: 0xff5fa2, ext: 0x2de2e6 }, HNAME = { move: 'Move (gap and sideways)', rise: 'Raise / lower', len: 'Length', wid: 'Width', slope: 'Slope (auto climb)', rad: 'Sweep radius', ext: 'Extend: drag out a new ramp (it bends toward where you drag)' };
   let hObjs = [], hDrag = null, lastRb = 0, dirty = false;
   const snap = (v, st) => Math.round(v / st) * st, clampv = (v, a, b) => Math.max(a, Math.min(b, v));
   function handlePoints() {
@@ -91,6 +91,7 @@
       out.push({ k: 'len', p: [r.ex, r.ey + r.H, r.ez] });
       const u = r.L / 2, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u);
       out.push({ k: 'wid', p: [c[0] + rt[0] * r.W, r.oy + zOf(r, u), c[1] + rt[2] * r.W], c, rt });
+      out.push({ k: 'ext', p: [r.ex, r.ey + r.H, r.ez] });
       { const us = r.L * 0.7, cs = ridgeAt(r, us); out.push({ k: 'slope', p: [cs[0], r.oy + zOf(r, us) + r.H, cs[1]] }); }
       if (r.k) { const um = r.L * 0.5, cm = ridgeAt(r, um), ox = (cm[0] - r.cx) / r.Rc, oz = (cm[1] - r.cz) / r.Rc; out.push({ k: 'rad', p: [cm[0], r.oy + zOf(r, um) + r.H, cm[1]], out: [ox, oz] }); }
     }
@@ -99,14 +100,14 @@
   function drawHandles() {
     disposeObjs(hObjs);
     for (const h of handlePoints()) {
-      const m = new THREE.Mesh(h.k === 'rise' || h.k === 'slope' ? new THREE.OctahedronGeometry(1) : new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: HCOL[h.k], depthTest: false, transparent: true, opacity: 0.95 }));
+      const m = new THREE.Mesh(h.k === 'rise' || h.k === 'slope' || h.k === 'ext' ? new THREE.OctahedronGeometry(1) : new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: HCOL[h.k], depthTest: false, transparent: true, opacity: 0.95 }));
       m.renderOrder = 12; m.userData = { k: h.k, base: h.p }; m.position.set(h.p[0], h.p[1], h.p[2]); scene.add(m); hObjs.push(m);
     }
     placeHandles();
   }
   E.handleScreen = k => { const m = hObjs.find(o => o.userData.k === k); if (!m) return null; const v = m.position.clone().project(camera), rc = renderer.domElement.getBoundingClientRect(); return [(v.x * 0.5 + 0.5) * rc.width + rc.left, (-v.y * 0.5 + 0.5) * rc.height + rc.top]; }; // for tests
   E.select = i => { sel = i; drawSelection(); focusSel(); renderList(); renderInspector(); };
-  function placeHandles() { const hs = cam.dist * 0.013; for (const m of hObjs) { m.scale.setScalar(m.userData.k === 'rise' || m.userData.k === 'slope' ? hs * 0.9 : hs); const b = m.userData.base; m.position.set(b[0], b[1] + (m.userData.k === 'rise' || m.userData.k === 'slope' ? hs * 3 : 0), b[2]); } }
+  function placeHandles() { const hs = cam.dist * 0.013; for (const m of hObjs) { m.scale.setScalar(m.userData.k === 'rise' || m.userData.k === 'slope' || m.userData.k === 'ext' ? hs * 0.9 : hs); const b = m.userData.base; m.position.set(b[0], b[1] + (m.userData.k === 'rise' || m.userData.k === 'slope' ? hs * 3 : m.userData.k === 'ext' ? hs * 6 : 0), b[2]); } }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function setRay(e) { const rc = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height * 2 - 1)); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); ray.setFromCamera(ndc, camera); }
   function hitHandle(e) { setRay(e); const hit = ray.intersectObjects(hObjs, false)[0]; return hit ? hit.object.userData.k : null; }
@@ -114,7 +115,7 @@
   const atVert = (p0, nx, nz) => { const o = ray.ray.origin, d = ray.ray.direction, den = d.x * nx + d.z * nz; if (Math.abs(den) < 1e-4) return null; const t = ((p0[0] - o.x) * nx + (p0[2] - o.z) * nz) / den; return t > 0 ? [o.x + d.x * t, o.y + d.y * t, o.z + d.z * t] : null; };
   function startHandle(k, e) {
     const r = ramps[sel], p = stage.pieces[sel], prev = sel > 0 ? ramps[sel - 1] : null, h = handlePoints().find(q => q.k === k);
-    const D = { k, p, gap0: p.gap ?? 480, lat0: p.lat || 0, L0: p.L, turn0: p.turn, nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), d1: r.tube ? null : dirOf(r.h1), c: h.c, rt: h.rt, hp: h.p, C0: p.C || 0, R0: p.R, out: h.out };
+    const D = { k, p, gap0: p.gap ?? 480, lat0: p.lat || 0, L0: p.L, turn0: p.turn, nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), d1: r.tube ? null : dirOf(r.h1), c: h.c, rt: h.rt, hp: h.p, C0: p.C || 0, R0: p.R, out: h.out, rt1: r.tube ? null : rightOf(r.h1), at: sel };
     D.drop0 = prev ? (p.drop ?? (r.tube ? 20 - 0.42 * prev.H : prev.ey - r.oy)) : 0;
     if (prev) { D.pd = dirOf(prev.h1); D.pr = rightOf(prev.h1); }
     setRay(e); D.P0 = k === 'rise' || k === 'slope' ? atVert(h.p, D.nx, D.nz) : atY(h.p[1]); if (!D.P0) return null; return D;
@@ -122,6 +123,7 @@
   function dragHandle(e) {
     const D = hDrag; setRay(e); const P = D.k === 'rise' || D.k === 'slope' ? atVert(D.hp, D.nx, D.nz) : atY(D.hp[1]); if (!P) return; const p = D.p;
     const dx = P[0] - D.P0[0], dz = P[2] - D.P0[2];
+    if (D.k === 'ext') { extDrag(D, dx, dz); return; }
     if (D.k === 'move') { p.gap = clampv(snap(D.gap0 + dx * D.pd[0] + dz * D.pd[2], 50), 0, 4000); const lat = clampv(snap(D.lat0 + dx * D.pr[0] + dz * D.pr[2], 50), -3000, 3000); if (lat) p.lat = lat; else delete p.lat; setStatus('Move: gap ' + p.gap + ', sideways ' + (p.lat || 0)); }
     else if (D.k === 'rise') { p.drop = clampv(snap(D.drop0 - (P[1] - D.P0[1]), 50), -2000, 9000); setStatus('Height: drop ' + p.drop); }
     else if (D.k === 'len') { const a = dx * D.d1[0] + dz * D.d1[2]; if (p.turn) { p.turn = clampv(snap(D.turn0 + a / p.R * 57.2958, 5), 10, 360); setStatus('Turn ' + p.turn + ' deg'); } else { p.L = clampv(snap(D.L0 + a, D.L0 > 12000 ? 500 : 100), 500, 40000); setStatus('Length ' + p.L); } }
@@ -129,6 +131,16 @@
     else if (D.k === 'rad') { const d = dx * D.out[0] + dz * D.out[1], arc = D.R0 * p.turn * 0.0174533, R = clampv(D.R0 * Math.exp(d / (0.35 * arc)), 1500, 60000); p.R = snap(R, R < 10000 ? 100 : 500); setStatus('Sweep radius ' + p.R + ' (turn limit about ' + Math.round(Math.sqrt(1000 * p.R)) + ' u/s)'); }
     else if (D.k === 'wid') { p.W = clampv(snap(Math.abs((P[0] - D.c[0]) * D.rt[0] + (P[2] - D.c[1]) * D.rt[2]), 10), 250, 1300); setStatus('Half-width ' + p.W); }
     dirty = true; D.moved = true;
+  }
+  // Extend: the new piece is an arc through the dragged point (tangent to where the last ramp ends), or a straight ramp when the point is straight ahead.
+  function extDrag(D, dx, dz) {
+    const a = dx * D.d1[0] + dz * D.d1[2], b = dx * D.rt1[0] + dz * D.rt1[2]; if (a < 500) return;
+    let np; if (Math.abs(b) < 0.1 * a) np = { L: clampv(snap(a, a > 12000 ? 500 : 100), 500, 40000) };
+    else { const R0 = (a * a + b * b) / (2 * Math.abs(b)), th = 2 * Math.atan2(Math.abs(b), a) * 57.2958, R = clampv(R0, 1500, 60000); np = { turn: clampv(snap(th, 5), 10, 360), R: snap(R, R < 10000 ? 100 : 500) }; }
+    const key = JSON.stringify(np) + Math.sign(b); if (key === D.lastKey) return; D.lastKey = key;
+    if (D.idx == null) { stage.pieces.splice(D.at + 1, 0, np); D.idx = D.at + 1; } else stage.pieces[D.idx] = np;
+    if (np.turn) { rebuild(); const r2 = ramps[D.idx]; if (r2 && Math.sign(r2.k) !== -Math.sign(b)) np.zig = true; }
+    setStatus(np.turn ? 'New arc ' + np.turn + ' deg, radius ' + np.R + (np.zig ? ' (zig)' : '') : 'New ramp L ' + np.L); dirty = true;
   }
   const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _hit = new THREE.Vector3();
   function rayRamp(e) { // click a ramp's surface: ray against the real faces, nearest wins
@@ -154,7 +166,7 @@
         v.project(camera); if (v.z > 1) continue; const d = Math.hypot((v.x * 0.5 + 0.5) * rc.width + rc.left - e.clientX, (-v.y * 0.5 + 0.5) * rc.height + rc.top - e.clientY); if (d < bd) { bd = d; best = i; }
       }
     });
-    if (best >= 0) { sel = best; drawSelection(); renderList(); renderInspector(); }
+    if (best >= 0) { sel = best; selEnd = null; drawSelection(); renderList(); renderInspector(); }
   }
   function clearPath() { if (pathLine) { scene.remove(pathLine); pathLine.geometry.dispose(); pathLine.material.dispose(); pathLine = null; } }
   function drawPath(pts) {
@@ -172,6 +184,8 @@
     cam.tx = (lo[0] + hi[0]) / 2; cam.ty = (lo[1] + hi[1]) / 2; cam.tz = (lo[2] + hi[2]) / 2;
     cam.dist = Math.max(8000, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) * 0.85);
   }
+  let topPrev = null;
+  function toggleTop() { if (topPrev) { cam.pitch = topPrev; topPrev = null; setStatus('Perspective view'); } else { topPrev = cam.pitch; cam.pitch = 1.45; setStatus('Top view: shows the whole route as a map. Press T to go back.'); } }
   function focusSel() { if (!E.focusPoint) return; [cam.tx, cam.ty, cam.tz] = E.focusPoint; cam.dist = Math.min(cam.dist, 12000); }
 
   // ---------- bots ----------
@@ -257,11 +271,11 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     box.innerHTML = '';
     stage.pieces.forEach((p, i) => {
       const e = entries[i], d = document.createElement('div');
-      d.className = 'piece' + (i === sel ? ' sel' : '') + (i === failAt || i === failAt + 1 ? ' bad' : '');
+      d.className = 'piece' + (i === sel || (selEnd != null && i >= range()[0] && i <= range()[1]) ? ' sel' : '') + (i === failAt || i === failAt + 1 ? ' bad' : '');
       d.innerHTML = '<span class="n">' + (i + 1) + '</span><span class="t"></span><span class="v"></span>';
       d.querySelector('.t').textContent = label(p, i);
       d.querySelector('.v').textContent = e ? e.speed + ' u/s' : (botRes && i > 0 && !(i in entries) ? 'skipped' : '');
-      d.onclick = () => { sel = i; drawSelection(); focusSel(); renderList(); renderInspector(); };
+      d.onclick = ev => { if (ev.shiftKey) selEnd = i; else { sel = i; selEnd = null; } drawSelection(); focusSel(); renderList(); renderInspector(); };
       box.appendChild(d);
     });
   }
@@ -301,9 +315,12 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const btn = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; ops.appendChild(b); };
     btn('▲ move up', () => move(-1)); btn('▼ move down', () => move(1)); btn('duplicate', dup); btn('delete', del, 'danger'); btn('focus (F)', () => focusSel()); box.appendChild(ops);
   }
+  const range = () => selEnd == null ? [sel, sel] : [Math.min(sel, selEnd), Math.max(sel, selEnd)];
+  function copyRange() { const [a, b] = range(); clip = clone(stage.pieces.slice(a, b + 1)); setStatus('Copied ' + clip.length + ' piece' + (clip.length > 1 ? 's' : '') + '. Ctrl+V pastes after the selection.'); }
+  function pasteRange() { if (!clip) { setStatus('Nothing copied yet (select pieces, Ctrl+C).'); return; } const at = range()[1] + 1; stage.pieces.splice(at, 0, ...clone(clip)); sel = at; selEnd = at + clip.length - 1; change(); renderInspector(); }
   function move(d) { const j = sel + d; if (j < 0 || j >= stage.pieces.length) return; [stage.pieces[sel], stage.pieces[j]] = [stage.pieces[j], stage.pieces[sel]]; sel = j; change(); renderInspector(); }
   function dup() { stage.pieces.splice(sel + 1, 0, clone(stage.pieces[sel])); sel++; change(); renderInspector(); }
-  function del() { if (stage.pieces.length < 2) return; stage.pieces.splice(sel, 1); sel = Math.min(sel, stage.pieces.length - 1); change(); renderInspector(); }
+  function del() { const [a, b] = range(); if (stage.pieces.length - (b - a + 1) < 1) return; stage.pieces.splice(a, b - a + 1); sel = Math.min(a, stage.pieces.length - 1); selEnd = null; change(); renderInspector(); }
   function add(key) {
     const made = PRESETS[key].piece(), list = Array.isArray(made) ? made : [made];
     stage.pieces.splice(sel + 1, 0, ...list); sel++; change(); focusSel(); renderInspector();
@@ -406,7 +423,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const fr3 = document.createElement('div'); fr3.className = 'row'; fr3.innerHTML = '<label>Air gravity</label><small>0 to 1, extra fall in the air</small>';
     const fl = document.createElement('input'); fl.type = 'number'; fl.step = '0.05'; fl.min = '0'; fl.max = '1'; fl.value = stage.fall ?? 0; fl.onchange = () => { stage.fall = +fl.value || 0; if (!stage.fall) delete stage.fall; change(); }; fr3.prepend(fl); top.appendChild(fr3);
     const bar = document.createElement('div'); const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; bar.appendChild(b); };
-    bt('▶ Play', () => play()); bt('▶ Play from selected', () => play(sel)); bt('Full check', () => runBots(true)); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1));
+    bt('▶ Play', () => play()); bt('▶ Play from selected', () => play(sel)); bt('Full check', () => runBots(true)); bt('Top view (T)', toggleTop); bt('Copy', copyRange); bt('Paste', pasteRange); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1));
     top.appendChild(bar);
     const ph = document.createElement('h3'); ph.textContent = 'Add after the selected piece'; ed.appendChild(ph);
     const pal = document.createElement('div'); for (const [k, v] of Object.entries(PRESETS)) { const b = document.createElement('button'); b.textContent = '+ ' + v.label; b.title = v.tip; b.onclick = () => add(k); pal.appendChild(b); } ed.appendChild(pal);
@@ -448,7 +465,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     }, true);
     const up = e => {
       stop(e);
-      if (hDrag) { const nomove = hDrag.body && !hDrag.moved; hDrag = null; cv.style.cursor = 'default'; if (nomove) return; dirty = false; snapshot(); rebuild(); renderList(); renderInspector(); renderStatus(); return; }
+      if (hDrag) { const nomove = hDrag.body && !hDrag.moved; if (hDrag.k === 'ext' && hDrag.idx != null) { sel = hDrag.idx; selEnd = null; } hDrag = null; cv.style.cursor = 'default'; if (nomove) return; dirty = false; snapshot(); rebuild(); renderList(); renderInspector(); renderStatus(); return; }
       if (drag && moved < 6 && e.button === 0) pickPiece(e);
       drag = null;
     }; cv.addEventListener('pointerup', up, true); cv.addEventListener('pointercancel', up, true);
@@ -456,9 +473,10 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cv.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(300, Math.min(900000, cam.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
     addEventListener('keydown', e => {
       e.stopImmediatePropagation(); if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) return;
-      if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
-      else if (e.key === 'ArrowDown') { sel = Math.min(stage.pieces.length - 1, sel + 1); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
+      if (e.key === 'ArrowUp') { selEnd = null; sel = Math.max(0, sel - 1); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { selEnd = null; sel = Math.min(stage.pieces.length - 1, sel + 1); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
       else if (e.key === 'Delete') del(); else if (e.key === 'f' || e.key === 'F') focusSel(); else if (e.key === 'd' || e.key === 'D') dup();
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { copyRange(); e.preventDefault(); } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { pasteRange(); e.preventDefault(); } else if (e.key === 't' || e.key === 'T') toggleTop();
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { undo(e.shiftKey ? 1 : -1); e.preventDefault(); } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { undo(1); e.preventDefault(); }
     }, true);
     addEventListener('keyup', e => e.stopImmediatePropagation(), true);
@@ -481,7 +499,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     css(); stage = load(); if (!stage.id) stage.id = Courses.uid();
     if (Courses.has(stage.id)) savedJ = Courses.json(stage.id); else if (fresh) { Courses.save(stage); savedJ = Courses.json(stage.id); } else { stage.name = stage.name || 'Recovered draft'; Courses.save(stage); savedJ = Courses.json(stage.id); setTimeout(() => setStatus('Your earlier editor work was saved as "' + stage.name + '" in My courses.'), 600); }
     snapshot(); setupInput(); addEventListener('beforeunload', e => { if (unsaved()) { e.preventDefault(); e.returnValue = ''; } });
-    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>drag: orbit · right-drag / shift-drag: pan · wheel: zoom · ↑↓: select · F: focus · D: duplicate · Del: delete · Ctrl+Z: undo · click a ramp: select · drag a ramp: move it'; document.body.appendChild(h);
+    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>drag: orbit · right-drag / shift-drag: pan · wheel: zoom · ↑↓: select · F: focus · D: duplicate · T: top view · shift-click list: select a range · Ctrl+C / Ctrl+V: copy and paste · cyan diamond: drag out a new ramp or arc · Del: delete · Ctrl+Z: undo · click a ramp: select · drag a ramp: move it'; document.body.appendChild(h);
     refresh(true);
   }
   init();
