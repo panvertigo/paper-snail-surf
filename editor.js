@@ -18,8 +18,8 @@
   const RING_PRESETS = { hoop: { kind: 'hoop', d: 400, y: 380 }, portal: { kind: 'portal', d: 500, y: 380, R: 280, theme: 1 } };
   // field specs: [key, label, min, max, step, tip]
   const F_COMMON = [['gap', 'Gap before', 0, 4000, 50, 'Distance from the previous piece\'s end'], ['drop', 'Drop', -2000, 9000, 50, 'Height below the previous piece (blank = automatic)'], ['lat', 'Sideways', -3000, 3000, 50, 'Shift left / right (negative = left)'], ['hue', 'Colour (0-1)', 0, 1, 0.01, 'Blank = follows previous']];
-  const F_RAMP = [['L', 'Length', 500, 12000, 100], ['W', 'Half-width', 250, 1300, 10, 'Carries on to later ramps'], ['C', 'Climb', 0, 2500, 50, 'Net climb (uphill ramp)']];
-  const F_TURN = [['turn', 'Turn (deg)', 10, 360, 5], ['R', 'Radius', 2000, 9000, 100], ['W', 'Half-width', 250, 1300, 10]];
+  const F_RAMP = [['L', 'Length', 500, 40000, 100], ['W', 'Half-width', 250, 1300, 10, 'Carries on to later ramps'], ['C', 'Climb', -4000, 4000, 50, 'Net climb: positive = uphill, negative = a steeper down ramp']];
+  const F_TURN = [['turn', 'Turn (deg)', 10, 360, 5], ['R', 'Radius', 1500, 60000, 100, 'Bigger = a wider, faster sweep'], ['W', 'Half-width', 250, 1300, 10]];
   const F_LOOP = [['R', 'Radius', 500, 3000, 50, 'Bigger = needs more speed'], ['phi', 'Entry angle', 0, 1.2, 0.05, 'Quarter-pipe you drop onto (rad)'], ['phi2', 'Exit angle', 0, 1, 0.05, 'Launch angle (blank: 0.3, banked: 0)'],
     ['turns', 'Turns', 1, 4, 1, '1 = loop, 2+ = corkscrew / swirl'], ['bank', 'Bank (deg)', 0, 80, 5, '0 = vertical loop, high = flat swirl'], ['W', 'Half-width', 300, 900, 10], ['dir', 'Side (1 / -1)', -1, 1, 2, 'Which way the turns drift'], ['off', 'Lane offset', -600, 600, 10]];
   const F_RING = [['d', 'Ahead', -500, 3000, 50, 'Distance past the previous piece\'s end'], ['y', 'Height', -1500, 3000, 50], ['s', 'Lane', -1500, 1500, 50, 'Blank = where the rider flies'], ['R', 'Radius', 100, 800, 10],
@@ -79,8 +79,8 @@
     E.focusPoint = b; drawHandles();
   }
   // ---------- drag handles: shape and place the selected piece right in the 3D view ----------
-  // green ball = move along the ground (gap + sideways), blue diamond = raise / lower (drop), yellow = length (turn angle on a turn), orange = width
-  const HCOL = { move: 0x4be07a, rise: 0x4aa8ff, len: 0xffe14a, wid: 0xff9a3c }, HNAME = { move: 'Move (gap and sideways)', rise: 'Raise / lower', len: 'Length', wid: 'Width' };
+  // purple diamond = slope (auto net climb), pink ball on a turn = radius. green ball = move along the ground (gap + sideways), blue diamond = raise / lower (drop), yellow = length (turn angle on a turn), orange = width
+  const HCOL = { move: 0x4be07a, rise: 0x4aa8ff, len: 0xffe14a, wid: 0xff9a3c, slope: 0xc77dff, rad: 0xff5fa2 }, HNAME = { move: 'Move (gap and sideways)', rise: 'Raise / lower', len: 'Length', wid: 'Width', slope: 'Slope (auto climb)', rad: 'Sweep radius' };
   let hObjs = [], hDrag = null, lastRb = 0, dirty = false;
   const snap = (v, st) => Math.round(v / st) * st, clampv = (v, a, b) => Math.max(a, Math.min(b, v));
   function handlePoints() {
@@ -91,20 +91,22 @@
       out.push({ k: 'len', p: [r.ex, r.ey + r.H, r.ez] });
       const u = r.L / 2, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u);
       out.push({ k: 'wid', p: [c[0] + rt[0] * r.W, r.oy + zOf(r, u), c[1] + rt[2] * r.W], c, rt });
+      { const us = r.L * 0.7, cs = ridgeAt(r, us); out.push({ k: 'slope', p: [cs[0], r.oy + zOf(r, us) + r.H, cs[1]] }); }
+      if (r.k) { const um = r.L * 0.5, cm = ridgeAt(r, um), ox = (cm[0] - r.cx) / r.Rc, oz = (cm[1] - r.cz) / r.Rc; out.push({ k: 'rad', p: [cm[0], r.oy + zOf(r, um) + r.H, cm[1]], out: [ox, oz] }); }
     }
     return out;
   }
   function drawHandles() {
     disposeObjs(hObjs);
     for (const h of handlePoints()) {
-      const m = new THREE.Mesh(h.k === 'rise' ? new THREE.OctahedronGeometry(1) : new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: HCOL[h.k], depthTest: false, transparent: true, opacity: 0.95 }));
+      const m = new THREE.Mesh(h.k === 'rise' || h.k === 'slope' ? new THREE.OctahedronGeometry(1) : new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: HCOL[h.k], depthTest: false, transparent: true, opacity: 0.95 }));
       m.renderOrder = 12; m.userData = { k: h.k, base: h.p }; m.position.set(h.p[0], h.p[1], h.p[2]); scene.add(m); hObjs.push(m);
     }
     placeHandles();
   }
   E.handleScreen = k => { const m = hObjs.find(o => o.userData.k === k); if (!m) return null; const v = m.position.clone().project(camera), rc = renderer.domElement.getBoundingClientRect(); return [(v.x * 0.5 + 0.5) * rc.width + rc.left, (-v.y * 0.5 + 0.5) * rc.height + rc.top]; }; // for tests
   E.select = i => { sel = i; drawSelection(); focusSel(); renderList(); renderInspector(); };
-  function placeHandles() { const hs = cam.dist * 0.013; for (const m of hObjs) { m.scale.setScalar(m.userData.k === 'rise' ? hs * 0.9 : hs); const b = m.userData.base; m.position.set(b[0], b[1] + (m.userData.k === 'rise' ? hs * 3 : 0), b[2]); } }
+  function placeHandles() { const hs = cam.dist * 0.013; for (const m of hObjs) { m.scale.setScalar(m.userData.k === 'rise' || m.userData.k === 'slope' ? hs * 0.9 : hs); const b = m.userData.base; m.position.set(b[0], b[1] + (m.userData.k === 'rise' || m.userData.k === 'slope' ? hs * 3 : 0), b[2]); } }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function setRay(e) { const rc = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height * 2 - 1)); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); ray.setFromCamera(ndc, camera); }
   function hitHandle(e) { setRay(e); const hit = ray.intersectObjects(hObjs, false)[0]; return hit ? hit.object.userData.k : null; }
@@ -112,17 +114,19 @@
   const atVert = (p0, nx, nz) => { const o = ray.ray.origin, d = ray.ray.direction, den = d.x * nx + d.z * nz; if (Math.abs(den) < 1e-4) return null; const t = ((p0[0] - o.x) * nx + (p0[2] - o.z) * nz) / den; return t > 0 ? [o.x + d.x * t, o.y + d.y * t, o.z + d.z * t] : null; };
   function startHandle(k, e) {
     const r = ramps[sel], p = stage.pieces[sel], prev = sel > 0 ? ramps[sel - 1] : null, h = handlePoints().find(q => q.k === k);
-    const D = { k, p, gap0: p.gap ?? 480, lat0: p.lat || 0, L0: p.L, turn0: p.turn, nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), d1: r.tube ? null : dirOf(r.h1), c: h.c, rt: h.rt, hp: h.p };
+    const D = { k, p, gap0: p.gap ?? 480, lat0: p.lat || 0, L0: p.L, turn0: p.turn, nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), d1: r.tube ? null : dirOf(r.h1), c: h.c, rt: h.rt, hp: h.p, C0: p.C || 0, R0: p.R, out: h.out };
     D.drop0 = prev ? (p.drop ?? (r.tube ? 20 - 0.42 * prev.H : prev.ey - r.oy)) : 0;
     if (prev) { D.pd = dirOf(prev.h1); D.pr = rightOf(prev.h1); }
-    setRay(e); D.P0 = k === 'rise' ? atVert(h.p, D.nx, D.nz) : atY(h.p[1]); if (!D.P0) return null; return D;
+    setRay(e); D.P0 = k === 'rise' || k === 'slope' ? atVert(h.p, D.nx, D.nz) : atY(h.p[1]); if (!D.P0) return null; return D;
   }
   function dragHandle(e) {
-    const D = hDrag; setRay(e); const P = D.k === 'rise' ? atVert(D.hp, D.nx, D.nz) : atY(D.hp[1]); if (!P) return; const p = D.p;
+    const D = hDrag; setRay(e); const P = D.k === 'rise' || D.k === 'slope' ? atVert(D.hp, D.nx, D.nz) : atY(D.hp[1]); if (!P) return; const p = D.p;
     const dx = P[0] - D.P0[0], dz = P[2] - D.P0[2];
     if (D.k === 'move') { p.gap = clampv(snap(D.gap0 + dx * D.pd[0] + dz * D.pd[2], 50), 0, 4000); const lat = clampv(snap(D.lat0 + dx * D.pr[0] + dz * D.pr[2], 50), -3000, 3000); if (lat) p.lat = lat; else delete p.lat; setStatus('Move: gap ' + p.gap + ', sideways ' + (p.lat || 0)); }
     else if (D.k === 'rise') { p.drop = clampv(snap(D.drop0 - (P[1] - D.P0[1]), 50), -2000, 9000); setStatus('Height: drop ' + p.drop); }
-    else if (D.k === 'len') { const a = dx * D.d1[0] + dz * D.d1[2]; if (p.turn) { p.turn = clampv(snap(D.turn0 + a / p.R * 57.2958, 5), 10, 360); setStatus('Turn ' + p.turn + ' deg'); } else { p.L = clampv(snap(D.L0 + a, 100), 500, 12000); setStatus('Length ' + p.L); } }
+    else if (D.k === 'len') { const a = dx * D.d1[0] + dz * D.d1[2]; if (p.turn) { p.turn = clampv(snap(D.turn0 + a / p.R * 57.2958, 5), 10, 360); setStatus('Turn ' + p.turn + ' deg'); } else { p.L = clampv(snap(D.L0 + a, D.L0 > 12000 ? 500 : 100), 500, 40000); setStatus('Length ' + p.L); } }
+    else if (D.k === 'slope') { const c = clampv(snap(D.C0 + (P[1] - D.P0[1]) * 1.4, 50), -4000, 4000); if (c) p.C = c; else delete p.C; setStatus('Slope: net climb ' + c + (c < 0 ? ' (steeper down ramp)' : c > 0 ? ' (uphill)' : ' (normal)')); }
+    else if (D.k === 'rad') { const d = dx * D.out[0] + dz * D.out[1], arc = D.R0 * p.turn * 0.0174533, R = clampv(D.R0 * Math.exp(d / (0.35 * arc)), 1500, 60000); p.R = snap(R, R < 10000 ? 100 : 500); setStatus('Sweep radius ' + p.R + ' (turn limit about ' + Math.round(Math.sqrt(1000 * p.R)) + ' u/s)'); }
     else if (D.k === 'wid') { p.W = clampv(snap(Math.abs((P[0] - D.c[0]) * D.rt[0] + (P[2] - D.c[1]) * D.rt[2]), 10), 250, 1300); setStatus('Half-width ' + p.W); }
     dirty = true; D.moved = true;
   }
@@ -384,7 +388,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Share link', shareLink], ['Export file', exportFile], ['Import file', importFile]]));
     ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;line-height:1.5';
-    how.innerHTML = '<b>How to build</b><br>1. Press <b>+ Ramp</b> below, then <b>click any ramp</b> in the 3D view to select it; <b>drag the ramp itself</b> to place it.<br>2. Drag the balls on the selected ramp:<br><span style="color:#ffe14a">&#9679;</span> yellow: <b>length</b> (turn angle on a turn) &nbsp;<span style="color:#ff9a3c">&#9679;</span> orange: <b>width</b><br><span style="color:#4be07a">&#9679;</span> green: <b>move</b> along the ground and sideways &nbsp;<span style="color:#4aa8ff">&#9670;</span> blue: <b>raise / lower</b><br>3. The coloured line is the bot riding it; red rows are where it falls. Press <b>Play</b> to try it yourself.';
+    how.innerHTML = '<b>How to build</b><br>1. Press <b>+ Ramp</b> below, then <b>click any ramp</b> in the 3D view to select it; <b>drag the ramp itself</b> to place it.<br>2. Drag the balls on the selected ramp:<br><span style="color:#ffe14a">&#9679;</span> yellow: <b>length</b> (turn angle on a turn) &nbsp;<span style="color:#ff9a3c">&#9679;</span> orange: <b>width</b><br><span style="color:#4be07a">&#9679;</span> green: <b>move</b> along the ground and sideways &nbsp;<span style="color:#4aa8ff">&#9670;</span> blue: <b>raise / lower</b><br><span style="color:#c77dff">&#9670;</span> purple: <b>slope</b> (drag up = uphill, down = steeper down ramp; sets the climb for you) &nbsp;<span style="color:#ff5fa2">&#9679;</span> pink on a turn: <b>sweep radius</b> (drag outward = bigger, wider sweep)<br>3. The coloured line is the bot riding it; red rows are where it falls. Press <b>Play</b> to try it yourself.';
     ed.appendChild(how);
     const top = document.createElement('div'); top.innerHTML = '<h3 style="margin-top:0">Course settings</h3>'; ed.appendChild(top);
     const sr = document.createElement('div'); sr.className = 'row'; sr.innerHTML = '<label>Scenery</label>';
