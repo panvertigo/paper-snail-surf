@@ -88,7 +88,7 @@
   }
   // ---------- direct manipulation: click a block, drag it anywhere (hold Alt to lift / lower), drag the white squares to resize it ----------
   // Blocks are stored relative to the block before them, so every move also re-aims the NEXT block: only the blocks you touch change, the rest of the course stays where it is.
-  const HNAME = { start: 'Start of this block: drag to change where it begins (Alt: up / down)', end: 'End of this block: drag to bend and tilt it (Alt: up / down)' };
+  const HNAME = { wid: 'Corner: drag sideways to make this block wider or narrower', start: 'Start of this block: drag to change where it begins (Alt: up / down)', end: 'End of this block: drag to bend and tilt it (Alt: up / down)' };
   let hObjs = [], hDrag = null, lastRb = 0, dirty = false;
   const snap = (v, st) => Math.round(v / st) * st, clampv = (v, a, b) => Math.max(a, Math.min(b, v));
   const ids = () => [...multi].filter(i => i < stage.pieces.length).sort((a, b) => a - b);
@@ -98,12 +98,14 @@
   const refreshSel = () => { drawSelection(); renderList(); renderInspector(); };
   function handlePoints() { // one dot at each end of the selected block
     const r = ramps[sel], p = stage.pieces[sel]; if (!r || !p || r.tube || multi.size > 1) return [];
-    return [{ k: 'start', p: [r.sx, r.oy + r.H, r.sz] }, { k: 'end', p: [r.ex, r.ey + r.H, r.ez] }];
+    const out = [{ k: 'start', p: [r.sx, r.oy + r.H, r.sz] }, { k: 'end', p: [r.ex, r.ey + r.H, r.ez] }];
+    for (const u of [0, r.L]) { const c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u), y = r.oy + zOf(r, u); for (const sd of [1, -1]) out.push({ k: 'wid', p: [c[0] + rt[0] * r.W * sd, y, c[1] + rt[2] * r.W * sd], c, rt }); }
+    return out;
   }
   function drawHandles() {
     disposeObjs(hObjs);
     for (const h of handlePoints()) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.95 }));
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: h.k === 'wid' ? 0x8fd0ff : 0xffffff, depthTest: false, transparent: true, opacity: 0.95 }));
       m.renderOrder = 12; m.userData = { k: h.k, rec: h, base: h.p }; m.position.set(h.p[0], h.p[1], h.p[2]); scene.add(m); hObjs.push(m);
     }
     placeHandles();
@@ -124,7 +126,7 @@
   }
   function startPos() { const r = ramps[0], sp = stage.spawn; return sp ? [sp.x, sp.y, sp.z] : [r.sx, r.oy + r.H, r.sz]; }
   function placeStart() { if (!startObj || !ramps[0]) return; const q = startPos(); startObj.position.set(q[0], q[1], q[2]); startObj.scale.setScalar(cam.dist * 0.05); startObj.rotation.y = (stage.spawn && stage.spawn.h !== undefined ? stage.spawn.h : ramps[0].h0) + Math.PI / 2; }
-  function placeHandles() { placeStart(); const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
+  function placeHandles() { placeStart(); const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(m.userData.k === 'wid' ? hs * 0.75 : hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function setRay(e) { const rc = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height * 2 - 1)); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); ray.setFromCamera(ndc, camera); }
   function hitHandle(e) { setRay(e); const hit = ray.intersectObjects(hObjs, false)[0]; return hit ? hit.object.userData.rec : null; }
@@ -134,13 +136,18 @@
   // you ride), Alt-drag to tilt it (sets the climb). Start dot: changes where the block begins (gap, sideways, height) with its end kept in place.
   function startHandle(h, e) {
     const r = ramps[sel], p = stage.pieces[sel], nxt = stage.pieces[sel + 1], rn = ramps[sel + 1], prev = ramps[sel - 1];
-    const D = { k: h.k, p, hp: h.p, oldEnd: [r.ex, r.ey, r.ez], oldStart: [r.sx, r.oy, r.sz], h0: r.h0, h1: r.h1, side: r.side, mode: e.altKey ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), comp: true,
+    const D = { k: h.k, c: h.c, rt: h.rt, W0: r.W, p, hp: h.p, oldEnd: [r.ex, r.ey, r.ez], oldStart: [r.sx, r.oy, r.sz], h0: r.h0, h1: r.h1, side: r.side, mode: e.altKey && h.k !== 'wid' ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), comp: true,
       C0: p.C, L0: p.L, g0: p.gap ?? 480, l0: p.lat || 0, d0: p.drop ?? (prev ? (r.tube ? 20 - 0.42 * prev.H : prev.ey - r.oy) : 0), zero: sel === 0, st0: { ...(stage.start || {}) } };
-    if (nxt && rn) { D.next = nxt; D.n0 = { gap: nxt.gap ?? 480, lat: nxt.lat || 0, rot: nxt.rot || 0, drop: nxt.drop ?? (rn.tube ? 20 - 0.42 * r.H : r.ey - rn.oy) }; }
+    if (nxt && rn) { D.next = nxt; D.n0 = { hadW: nxt.W !== undefined, zig: !!nxt.zig, sideBefore: nxt.zig ? -rn.side : rn.side, gap: nxt.gap ?? 480, lat: nxt.lat || 0, rot: nxt.rot || 0, drop: nxt.drop ?? (rn.tube ? 20 - 0.42 * r.H : r.ey - rn.oy) }; }
     setRay(e); D.P0 = D.mode === 'v' ? atVert(h.p, D.nx, D.nz) : atY(h.p[1]); return D.P0 ? D : null;
   }
   function compensate(D) { // keep every later block exactly where it was: re-aim the next block (gap, sideways, height and heading); the ones after it follow
     if (!D.next) return; const i = stage.pieces.indexOf(D.p), r = ramps[i], rn = ramps[i + 1]; if (!r || !rn || r.tube) return;
+    if (D.k === 'wid') { // the next block keeps its own width; a zigzag after this block lands 0.75 W across, so re-aim it for the new width
+      if (!D.n0.hadW) D.next.W = D.W0;
+      if (D.n0.zig) { const l0 = D.n0.lat, l = clampv(snap(l0 - D.n0.sideBefore * 0.75 * (D.p.W - D.W0), 10), -30000, 30000); if (l) D.next.lat = l; else delete D.next.lat; }
+      return;
+    }
     const rot0 = D.n0.rot || 0, hOld = D.h1 + rot0 * Math.PI / 180, dO = dirOf(hOld), rO = rightOf(hOld);
     const sx = D.oldEnd[0] + D.n0.gap * dO[0] + D.n0.lat * rO[0], sz = D.oldEnd[2] + D.n0.gap * dO[2] + D.n0.lat * rO[2], sy = D.oldEnd[1] - D.n0.drop;
     const rotN = Math.round((hOld - r.h1) * 5729.58) / 100; if (rotN) D.next.rot = rotN; else delete D.next.rot; // the next block's heading is put back to what it was
@@ -187,6 +194,7 @@
       const t = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; applyRuns(D.runs, t); D.moved = true; dirty = true;
       setStatus('Moving: ' + (mode === 'v' ? 'up / down' : 'along the ground') + ' (hold Alt to lift or lower)'); return;
     }
+    if (D.k === 'wid') { const P = atY(D.hp[1]); if (!P) return; D.p.W = clampv(snap(Math.abs((P[0] - D.c[0]) * D.rt[0] + (P[2] - D.c[1]) * D.rt[2]), 10), 250, 1300); setStatus('Half-width ' + D.p.W + ' (the whole block widens evenly)'); D.moved = true; dirty = true; return; }
     const mode = e.altKey ? 'v' : 'h', P = mode === 'v' ? atVert(D.hp, D.nx, D.nz) : atY(D.hp[1]); if (!P) return;
     if (mode !== D.mode) { D.acc = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; D.cur = [0, 0, 0]; D.P0 = P; D.mode = mode; return; }
     D.cur = mode === 'v' ? [0, P[1] - D.P0[1], 0] : [P[0] - D.P0[0], 0, P[2] - D.P0[2]];
@@ -477,7 +485,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Save to file...', () => saveToDisk(true)], ['Open file...', openFromDisk], ['Share link', shareLink]]));
     ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;line-height:1.55';
-    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins. The <b>green flag</b> is where the run starts: drag it anywhere (Alt: up / down) to start with a drop. The rest of the course stays where it is.';
+    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins; the four <b>blue corner dots</b> make it wider or narrower. The <b>green flag</b> is where the run starts: drag it anywhere (Alt: up / down) to start with a drop. The rest of the course stays where it is.';
     ed.appendChild(how);
     const bar = document.createElement('div'); bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px'; const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; b.style.cssText = 'margin:0;padding:7px 9px;font-size:13px;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); bar.appendChild(b); };
     bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Top view', toggleTop); bt('Flag back to block 1', () => { delete stage.spawn; change(); });
@@ -580,7 +588,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     css(); stage = load(); if (!stage.id) stage.id = Courses.uid();
     if (Courses.has(stage.id)) savedJ = Courses.json(stage.id); else if (fresh) { Courses.save(stage); savedJ = Courses.json(stage.id); } else { stage.name = stage.name || 'Recovered draft'; Courses.save(stage); savedJ = Courses.json(stage.id); setTimeout(() => setStatus('Your earlier editor work was saved as "' + stage.name + '" in My courses.'), 600); }
     snapshot(); setupInput(); addEventListener('beforeunload', e => { if (unsaved()) { e.preventDefault(); e.returnValue = ''; } });
-    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>click: select · drag: move · Alt-drag: up / down · shift-click: select several · white dots on the selected block: bend / tilt / re-start it · green flag: where the run starts · empty-space drag: orbit · right-drag: pan · wheel: zoom · T: top view · Ctrl+Z: undo · Del: delete · Ctrl+C / V: copy / paste'; document.body.appendChild(h);
+    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>click: select · drag: move · Alt-drag: up / down · shift-click: select several · big white dots on the selected block: bend / tilt / re-start it · small blue corner dots: width · green flag: where the run starts · empty-space drag: orbit · right-drag: pan · wheel: zoom · T: top view · Ctrl+Z: undo · Del: delete · Ctrl+C / V: copy / paste'; document.body.appendChild(h);
     refresh(true);
   }
   // If startup fails (for example a saved draft the editor cannot read), say so on screen and offer a way out instead of freezing
