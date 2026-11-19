@@ -1715,9 +1715,9 @@ let baseFov = 70;
 // ---------- Speed look: edge heat shimmer + chromatic fringe + light tunnel vignette (centre stays clear), starts ~900 u/s ----------
 const blurRT = renderer.capabilities.isWebGL2 ? new THREE.WebGLMultisampleRenderTarget(1, 1) : new THREE.WebGLRenderTarget(1, 1);
 const blurMat = new THREE.ShaderMaterial({
-  uniforms: { tDiffuse: { value: blurRT.texture }, strength: { value: 0 }, time: { value: 0 } },
+  uniforms: { tDiffuse: { value: blurRT.texture }, strength: { value: 0 }, time: { value: 0 }, sat: { value: 1 }, con: { value: 1 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength, time; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength, time, sat, con; varying vec2 vUv;
     void main(){
       vec2 d = vUv - 0.5; float r = length(d * vec2(1.0, 0.75));
       float e = smoothstep(0.22, 0.75, r) * strength;                       // 0 in the middle, 1 at the edges
@@ -1726,6 +1726,7 @@ const blurMat = new THREE.ShaderMaterial({
       float ca = 0.013 * e;                                                  // chromatic fringe, radial
       vec3 c = vec3(texture2D(tDiffuse, uv + dir * ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - dir * ca).b);
       c *= 1.0 - 0.5 * strength * smoothstep(0.4, 0.95, r);                  // light tunnel vignette
+      float lum = dot(c, vec3(0.299, 0.587, 0.114)); c = mix(vec3(lum), c, sat); c = (c - 0.5) * con + 0.5; // colour grade: more saturation and contrast at flow speeds
       gl_FragColor = vec4(c, 1.0);
     }`,
   depthTest: false, depthWrite: false
@@ -1737,6 +1738,7 @@ function renderFrame(speed) {
   const s = Math.max(0, Math.min(1, (speed - 900) / 1800)) * fxAmt;
   if (s < 0.01) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
   blurMat.uniforms.strength.value = s; blurMat.uniforms.time.value = performance.now() / 1000;
+  { const g = s * s; blurMat.uniforms.sat.value = 1 + 0.35 * g; blurMat.uniforms.con.value = 1 + 0.18 * g; } // the grade builds up only near top speed (s is 1 at about 2700 u/s, scaled by the Speed effects slider)
   if (blurDirty) { blurDirty = false; const pr = renderer.getPixelRatio(), bw = Math.round(innerWidth * pr), bh = Math.round(innerHeight * pr); if (blurRT.samples !== undefined) blurRT.samples = bw * bh > 1.5e6 ? 2 : 4; blurRT.setSize(bw, bh); }
   renderer.setRenderTarget(blurRT); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(blurScene, blurCam);

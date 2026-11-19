@@ -72,3 +72,9 @@ Dropped: the Quickfolk and Slowfolk split (too Tolkien), quoted one-liners, and 
 - The friend is a ghost on the same lines (they surveyed in pairs). Early on the friend leads, mid-career you ride level, near the end you ride alone. Marks and two cups at the table say the rest.
 - Melancholy comes from a friendship that drifted or ended, not from a death shown. Open: gone, moved away, or simply apart?
 - Clay look suits memory: soft, remembered. The break ends in the last stage: back to work, or not.
+
+## Update 2026-11-19 (4): the friend is long dead, memory flashbacks, speed grading
+- The friend died long ago and is never seen. Only their ghost appears, in dramatic stretches of the ride.
+- **Flashback cues (all non-textual):** the player's snail becomes translucent and smaller (younger); the grade goes warm and soft (less saturation, a little grain); scenery steps at about 12 fps like stop-motion; the music low-passes and widens with reverb; the friend's pale ghost rides the same line. Leaving the memory reverses all of it.
+- **Trigger (open):** authored (a per-block memory flag in the editor), speed-driven, or both. Idea worth testing: flow state IS the memory. The faster you ride, the closer the grade slides toward the memory look, and at peak speed the friend's ghost appears. Slow down and you are back in the present. Flashbacks are earned by riding at the edge, not scripted. The sad part is what it costs.
+- **Speed grading (built, 2026-11-19):** at high speed the post pass raises saturation up to +35 percent and contrast up to +18 percent, scaled by the Speed effects slider and only near top speed (quadratic in the effect strength). The same pass will carry the memory grade later (saturation below 1, warm tint).
