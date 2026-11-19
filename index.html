@@ -955,6 +955,7 @@ function updateSky(dt, now) {
 }
 let _gateTex = null, _glowTex = null;
 function glowTexA() { if (!_glowTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); _glowTex = new THREE.CanvasTexture(c); } return _glowTex; }
+const padFx = []; // per-frame animations of the finish light and the cannon whirl
 let _shaftTex = null;
 function shaftTex() { if (!_shaftTex) { const c = document.createElement('canvas'); c.width = 64; c.height = 128; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 64, 0); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 128); x.globalCompositeOperation = 'destination-in'; const v = x.createLinearGradient(0, 0, 0, 128); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.35, 'rgba(0,0,0,1)'); v.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = v; x.fillRect(0, 0, 64, 128); _shaftTex = new THREE.CanvasTexture(c); } return _shaftTex; }
 function buildScene() { // (re)builds every course-dependent mesh from ramps / rings / fin; the editor calls this after each edit
@@ -1045,23 +1046,24 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     const um = (fin.u0 + fin.u1) / 2;
     m.position.set(fin.x + fin.dir[0] * um, fin.y - 30, fin.z + fin.dir[2] * um); m.rotation.y = fin.h;
     addObj(m);
-    const half = fin.half, at = (u, v) => [fin.x + fin.dir[0] * u + fin.right[0] * v, fin.z + fin.dir[2] * u + fin.right[2] * v];
-    { // survey arch over the stamp side (left of the pad): two clay posts and a lintel, with a glowing seal ring in the opening
-      const aw = half * 1.3, cx = -half * 0.35, clay = new THREE.MeshLambertMaterial({ color: 0xc8744a }), ph = Math.min(2600, aw * 0.9), pw = Math.max(90, aw * 0.05), g = new THREE.Group();
-      for (const sd of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(pw, ph, pw), clay); p.position.set(sd * (aw / 2 - pw), ph / 2, 0); g.add(p); }
-      const lin = new THREE.Mesh(new THREE.BoxGeometry(aw, pw * 1.2, pw * 1.4), clay); lin.position.set(0, ph + pw * 0.6, 0); g.add(lin);
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(Math.min(aw * 0.3, ph * 0.38), pw * 0.18, 8, 40), new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.85, depthWrite: false })); ring.position.set(0, ph * 0.55, 0); g.add(ring);
-      const p0 = at(fin.u0 + 40, cx); g.position.set(p0[0], fin.y, p0[1]); g.rotation.y = fin.h; addObj(g);
+    padFx.length = 0; const half = fin.half, at = (u, v) => [fin.x + fin.dir[0] * u + fin.right[0] * v, fin.z + fin.dir[2] * u + fin.right[2] * v];
+    const cnv = (w, h, f, rep) => { const c = document.createElement('canvas'); c.width = w; c.height = h; f(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (rep) t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
+    const glowMat = (map, color, op) => new THREE.MeshBasicMaterial({ map, color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    { // finish: a column of warm light over the pad's left side, a soft pool on the floor, motes drifting up
+      const aw = half * 1.3, cx = -half * 0.35, p0 = at(fin.u0 + (fin.u1 - fin.u0) * 0.45, cx), R = Math.min(aw * 0.32, 520), H = 7000;
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 1.25, H, 32, 1, true), glowMat(cnv(8, 128, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.6, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0.85)'); x.fillStyle = g; x.fillRect(0, 0, w, h); }), 0xffc766, 0.3)); col.position.set(p0[0], fin.y + H / 2, p0[1]); addObj(col);
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.35, R * 0.45, H, 20, 1, true), col.material.clone()); core.material.opacity = 0.4; core.position.copy(col.position); addObj(core);
+      const pool = new THREE.Mesh(new THREE.CircleGeometry(R * 2.4, 48), glowMat(glowTexA(), 0xffd98a, 0.9)); pool.rotation.x = -Math.PI / 2; pool.position.set(p0[0], fin.y + 4, p0[1]); addObj(pool);
+      padFx.push((dt, now) => { const k = 0.85 + 0.15 * Math.sin(now / 900); col.material.opacity = 0.3 * k; pool.material.opacity = 0.9 * k; core.scale.set(1 + 0.08 * Math.sin(now / 500), 1, 1 + 0.08 * Math.sin(now / 500)); });
     }
-    { // the cannon (right of the pad): land on its pad and it fires you back to the start for the next lap
-      const cw = half * 0.7, cv = half * 0.65, brass = new THREE.MeshLambertMaterial({ color: 0x8a6a3c }), dark = new THREE.MeshLambertMaterial({ color: 0x2c2420 });
-      const pad = new THREE.Mesh(new THREE.BoxGeometry(cw, 6, d), new THREE.MeshLambertMaterial({ color: 0x6b4c34 })); const pp = at(um, cv); pad.position.set(pp[0], fin.y + 1, pp[1]); pad.rotation.y = fin.h; addObj(pad);
-      const tgt = stageMeta.spawn || { x: ramps[0].sx, z: ramps[0].sz }, hx = tgt.x - fin.x, hz = tgt.z - fin.z, hl = Math.hypot(hx, hz) || 1, tilt = 0.7;
-      const dirV = new THREE.Vector3(hx / hl * Math.cos(tilt), Math.sin(tilt), hz / hl * Math.cos(tilt)), R = Math.min(cw * 0.32, 420), len = R * 5;
-      const base = at(fin.u0 + d * 0.5, cv), bp = new THREE.Vector3(base[0], fin.y + R * 0.9, base[1]);
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 1.18, len, 24), brass); barrel.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirV); barrel.position.copy(bp).addScaledVector(dirV, len / 2); addObj(barrel);
-      const mouth = new THREE.Mesh(new THREE.CircleGeometry(R * 0.86, 24), dark); mouth.quaternion.copy(barrel.quaternion); mouth.rotateX(-Math.PI / 2); mouth.position.copy(bp).addScaledVector(dirV, len + 2); addObj(mouth);
-      for (const f of [0.18, 0.55, 0.92]) { const band = new THREE.Mesh(new THREE.TorusGeometry(R * 1.04, R * 0.1, 8, 28), dark); band.quaternion.copy(barrel.quaternion); band.rotateX(Math.PI / 2); band.position.copy(bp).addScaledVector(dirV, len * f); addObj(band); }
+    { // cannon: a flat teal whirl on the pad's right side and a column of chevrons rising from it (a different colour and motion from the finish light), tilted toward the start
+      const cw = half * 0.7, cv = half * 0.65, pp = at(fin.u0 + (fin.u1 - fin.u0) * 0.45, cv), R = Math.min(cw * 0.46, 600), teal = 0x6fe3d2;
+      const spiral = cnv(256, 256, (x, w, h) => { x.translate(w / 2, h / 2); for (let a = 0; a < 3; a++) { x.rotate(2.0944); x.beginPath(); for (let t = 0; t <= 1; t += 0.02) { const r = t * 120, th = t * 4.2; x.lineTo(Math.cos(th) * r, Math.sin(th) * r); } x.strokeStyle = 'rgba(255,255,255,0.9)'; x.lineWidth = 9; x.lineCap = 'round'; x.stroke(); } });
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(R, 48), glowMat(spiral, teal, 0.95)); disc.rotation.x = -Math.PI / 2; disc.position.set(pp[0], fin.y + 6, pp[1]); addObj(disc);
+      const halo = new THREE.Mesh(new THREE.CircleGeometry(R * 1.8, 48), glowMat(glowTexA(), teal, 0.5)); halo.rotation.x = -Math.PI / 2; halo.position.set(pp[0], fin.y + 3, pp[1]); addObj(halo);
+      const chev = cnv(64, 128, (x, w, h) => { x.strokeStyle = 'rgba(255,255,255,0.95)'; x.lineWidth = 9; x.lineCap = 'round'; x.lineJoin = 'round'; for (const y0 of [34, 90]) { x.beginPath(); x.moveTo(10, y0 + 22); x.lineTo(w / 2, y0); x.lineTo(w - 10, y0 + 22); x.stroke(); } }, true); chev.repeat.set(1, 14);
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.55, R * 0.7, 5200, 3, 1, true), glowMat(chev, teal, 0.8)); tower.position.set(pp[0], fin.y + 2600, pp[1]); addObj(tower);
+      padFx.push((dt, now) => { disc.rotation.z -= dt * 0.9; chev.offset.y -= dt * 0.9; halo.material.opacity = 0.4 + 0.15 * Math.sin(now / 700); tower.rotation.y += dt * 0.25; });
     }
   }
   { // void floor grid for height reference
@@ -1098,6 +1100,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
   buildTowns();
 }
 function updateRings(dt, now) {
+  for (const f of padFx) f(dt, now);
   for (const g of gates) { const u = g.userData, n = u.ph.length; for (let k = 0; k < n; k++) { const p = u.ph[k]; u.arr[k * 3] = u.base[k * 3] + Math.sin(now / 1300 + p) * 40; u.arr[k * 3 + 1] = u.base[k * 3 + 1] + Math.sin(now / 1700 + p * 2) * 55 + now % 1 * 0; u.arr[k * 3 + 2] = u.base[k * 3 + 2] + Math.cos(now / 1500 + p) * 30; } u.geo.attributes.position.needsUpdate = true; }
   for (let i = 0; i < rings.length; i++) {
     const g = rings[i], o = ringObjs[i]; o.fx = Math.max(0, o.fx - dt * 1.5);
@@ -1619,7 +1622,7 @@ function musicAhead(speed) {
 }
 function resetRun() {
   intro.on = false;
-  flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
+  setLoop(false); flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => { g.material.color.set(0xffe2a0); g.userData.sh.material.color.set(0xffe2a0); });
   spawnOn(0); prevPos.copy(pos); setTheme(0, true); Music.at(0);
   showMsg(START_MSG);
@@ -1627,30 +1630,24 @@ function resetRun() {
 }
 function onCheckpoint() { gates[nextCp - 1].material.color.set(0xa8f0c8); gates[nextCp - 1].userData.sh.material.color.set(0xa8f0c8); Sfx.checkpoint(); Music.trigger('checkpoint', nextCp); toast('Checkpoint ' + nextCp + '/' + checkpoints.length + '  ·  ' + tRun.toFixed(2) + 's'); hud(); }
 function fail() {
+  if (loopFly && pos.y > loopFloor) return; // flying back from the cannon: only a drop well below the pad counts as a miss
   falls++; flow.v = 0; flow.on = false; flow.pend = 0; flow.wasAir = false;
   $('flash').style.opacity = .3; setTimeout(() => $('flash').style.opacity = 0, 120);
-  if (nextCp === 0) { tRun = 0; ghostRec = []; ghostTick = 0; } // fell before the first checkpoint: same as pressing reset, so the clock starts again from 0
+  setLoop(false); if (nextCp === 0) { tRun = 0; ghostRec = []; ghostTick = 0; } // fell before the first checkpoint: same as pressing reset, so the clock starts again from 0
   aheadCp = -1; aheadFin = false; spawnOn(cpRamp); prevPos.copy(pos); trail.length = 0; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0; setTheme(themeFor(cpRamp), true);
   Sfx.splat(); if (!Music.playing) Music.at(cpRamp, { quantize: 'beat', respawn: true }); // a splat never touches the song: it keeps playing from where it was
   state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
 }
-let shot = null; // the cannon flight back to the start: scripted arc, you steer where you come down
-function fireCannon() {
-  const xyz = o => ({ x: o.x, y: o.y, z: o.z }), P0 = xyz(pos), keepV = xyz(vel), keepYaw = yaw; spawnOn(0); const home = { p: xyz(pos), v: xyz(vel), yaw }; pos.set(P0.x, P0.y, P0.z); vel.set(keepV.x, keepV.y, keepV.z); yaw = keepYaw; // spawnOn also re-arms the rings and the start
-  const dist = Math.hypot(home.p.x - P0.x, home.p.z - P0.z), T = Math.max(3.2, Math.min(6, dist / 4000));
-  shot = { t: 0, T, P0, home, steer: 0, off: 0, lim: (ramps[0].W || 460) * 0.6, max: 3600, apex: Math.max(1500, Math.min(7000, dist * 0.22 + Math.abs(home.p.y - P0.y) * 0.3)), last: xyz(P0) };
+let loopFly = false, loopFloor = -1e9; const G0 = P.g, LOOP_G = 0.4; // after a cannon shot the clock waits until you touch a ramp, and gravity is lighter on the way back (the flight is free: you steer it yourself)
+function setLoop(b) { loopFly = b; P.g = b ? G0 * LOOP_G : G0; }
+function fireCannon() { // aim from the pad at the start along a ballistic arc, then hand over: it is normal flight from there (steer, strafe, or even try the course backwards)
+  const xyz = o => ({ x: o.x, y: o.y, z: o.z }), P0 = xyz(pos), keepYaw = yaw; spawnOn(0); const H = xyz(pos), hv = xyz(vel), hyaw = yaw; // spawnOn also re-arms the rings and the start
+  const tx = H.x, ty = H.y + 700, tz = H.z, hx = tx - P0.x, hz = tz - P0.z, D = Math.max(1, Math.hypot(hx, hz)), dy = ty - P0.y, g = G0 * LOOP_G;
+  const tan = Math.max(0.9, dy / D + 0.5), tf = Math.sqrt(2 * (D * tan - dy) / g), vh = D / tf; // flight time and horizontal speed that land on the start; the angle is 42 degrees or steeper when the start is high
+  pos.set(P0.x, P0.y + 30, P0.z); vel.set(hx / D * vh, tan * vh, hz / D * vh); yaw = Math.atan2(-hx, -hz); contactN = null; contactTicks = 0; lastTouched = 0; stuckTicks = 0; setLoop(true); loopFloor = P0.y - 4000;
   flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => { g.material.color.set(0xffe2a0); g.userData.sh.material.color.set(0xffe2a0); });
-  setTheme(0, true); Music.at(0); Sfx.portal(); fovKick += 20; showMsg(''); hud(); state = 'shot';
-}
-function updateShot(dt) {
-  const S = shot; if (!S) { state = 'ready'; return; }
-  S.t += dt; const s = Math.min(1, S.t / S.T), H = S.home, rt = rightOf(H.yaw), corridor = S.lim + (S.max - S.lim) * Math.sin(Math.PI * s), want = Math.max(-corridor, Math.min(corridor, S.steer)); S.off += (want - S.off) * (1 - Math.exp(-dt * 5)); const off = S.off; // guardrail: you can swing wide mid-flight, but the corridor narrows back to the start ramp's width for the landing
-  const px = S.P0.x + (H.p.x - S.P0.x) * s + rt[0] * off, pz = S.P0.z + (H.p.z - S.P0.z) * s + rt[2] * off, py = S.P0.y + (H.p.y + 500 - S.P0.y) * s + S.apex * 4 * s * (1 - s);
-  prevPos.copy(pos); pos.set(px, py, pz);
-  const ivx = (px - S.last.x) / Math.max(dt, 1e-3), ivz = (pz - S.last.z) / Math.max(dt, 1e-3); vel.set(ivx, (py - S.last.y) / Math.max(dt, 1e-3), ivz); S.last.x = px; S.last.y = py; S.last.z = pz;
-  const hy = Math.atan2(-ivx, -ivz), k = Math.max(0, (s - 0.7) / 0.3); let dy = H.yaw - hy; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); yaw = hy + dy * k; // face the flight, then turn to the start heading for the drop
-  if (s >= 1) { pos.set(px, py, pz); vel.set(H.v.x, -350, H.v.z); yaw = H.yaw; contactN = null; contactTicks = 0; lastTouched = 0; stuckTicks = 0; prevPos.copy(pos); shot = null; state = 'run'; showMsg(''); }
+  setTheme(0, true); Music.at(0); Sfx.portal(); fovKick += 20; showMsg(''); prevPos.copy(pos); hud();
 }
 function finish() {
   if (fin.cannon !== false && !stageMeta.park) { const dx = pos.x - fin.x, dz = pos.z - fin.z, v = dx * fin.right[0] + dz * fin.right[2]; if (v > fin.half * 0.3) { fireCannon(); return; } } // landed on the cannon side
@@ -1668,7 +1665,7 @@ let pid = null, lastX = 0, anchorY = 0;
 const LIFT_HOLD = 35, LIFT_MAXDX = 60, moveQ = [];
 function flushMoves(nowT) { while (moveQ.length && nowT - moveQ[0].t >= LIFT_HOLD) { const m = moveQ.shift(); turn(-m.dx * P.sens); if (Math.abs(m.dx) > 0.5) cmd.touch = Math.sign(m.dx); } }
 const PITCH_ON = false, /* the lean control is retired (physics code kept; replays read 0) */ PITCH_DEAD = 14, PITCH_RANGE = 100; // px: dead zone, then full lean
-function turn(r) { if (state === 'run') cmd.turn += r; else if (state === 'shot' && shot) shot.steer = Math.max(-shot.max, Math.min(shot.max, shot.steer - r * 1400)); else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
+function turn(r) { if (state === 'run') cmd.turn += r; else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
 const cv = renderer.domElement;
 cv.addEventListener('pointerdown', e => {
   e.preventDefault(); $('settings').hidden = true;
@@ -1869,10 +1866,9 @@ function frame(now) {
   if (moveQ.length) flushMoves(performance.now());
   const dt = Math.min(0.1, (now - last) / 1000); { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
-  if (state === 'shot') updateShot(dt);
   if (state === 'run') {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
-    while (acc >= P.dt && state === 'run') { prevPos.copy(pos); step(); if (state === 'run') { tRun += P.dt; if (++ghostTick % 10 === 0) { const c = contactN || [0, 1, 0]; ghostRec.push(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z), Math.round(c[0] * 100), Math.round(c[1] * 100), Math.round(c[2] * 100)); } } acc -= P.dt; }
+    while (acc >= P.dt && state === 'run') { prevPos.copy(pos); step(); if (state === 'run' && loopFly) { if (contactN) setLoop(false); } else if (state === 'run') { tRun += P.dt; if (++ghostTick % 10 === 0) { const c = contactN || [0, 1, 0]; ghostRec.push(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z), Math.round(c[0] * 100), Math.round(c[1] * 100), Math.round(c[2] * 100)); } } acc -= P.dt; }
   } else { acc = 0; prevPos.copy(pos); }
   rp.lerpVectors(prevPos, pos, state === 'run' ? acc / P.dt : 1);
   const speed = Math.hypot(vel.x, vel.z);
