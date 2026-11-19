@@ -33,8 +33,16 @@
 
   // ---------- stage helpers ----------
   const kind = p => p.loop ? (p.loop.bank ? 'swirl' : 'loop') : p.turn ? 'turn' : 'ramp';
+  function sane(st) { // drop numbers a draft should never contain (NaN, infinite, absurd sizes) so a bad value cannot hang the course builder
+    const lim = { L: [500, 40000], R: [1500, 60000], turn: [10, 360], W: [100, 1500], C: [-4000, 4000], gap: [0, 40000], lat: [-30000, 30000], drop: [-20000, 40000], rot: [-720, 720] };
+    st.pieces = st.pieces.slice(0, 400).filter(p => p && typeof p === 'object');
+    for (const p of st.pieces) for (const k in lim) if (p[k] !== undefined) { const v = +p[k]; if (!Number.isFinite(v)) delete p[k]; else p[k] = Math.max(lim[k][0], Math.min(lim[k][1], v)); }
+    if (st.start && !['x', 'y', 'z'].every(k => Number.isFinite(+st.start[k] || 0))) delete st.start;
+    if (st.spawn && !['x', 'y', 'z'].every(k => Number.isFinite(+st.spawn[k]))) delete st.spawn;
+    return st;
+  }
   function load() {
-    try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.pieces && s.pieces.length) return s; } catch (e) {}
+    try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.pieces && s.pieces.length) return sane(s); } catch (e) {}
     fresh = true; return { name: 'My first course', scenery: 'plain', theme0: 0, pieces: [{ L: 3000 }, { L: 3500, gap: 700, drop: 1200 }, { turn: 60, R: 6500 }, { L: 3500, cp: true }] };
   }
   function fromLevel(n) { const m = STAGE_META[n] || {}; const o = { name: 'Level ' + n + ' copy', scenery: m.scenery || 'plain', theme0: 0, pieces: clone(STAGES[n]) }; for (const k of ['music', 'pull', 'fall']) if (m[k] !== undefined) o[k] = m[k]; if (m.riskRings) o.riskRings = clone(m.riskRings); return o; /* feel settings come along too */ }
@@ -553,5 +561,16 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>click: select · drag: move · Alt-drag: up / down · shift-click: select several · white dots on the selected block: bend / tilt / re-start it · green flag: where the run starts · empty-space drag: orbit · right-drag: pan · wheel: zoom · T: top view · Ctrl+Z: undo · Del: delete · Ctrl+C / V: copy / paste'; document.body.appendChild(h);
     refresh(true);
   }
-  init();
+  // If startup fails (for example a saved draft the editor cannot read), say so on screen and offer a way out instead of freezing
+  function fatal(err) {
+    console.error(err); const m = document.createElement('div'); m.style.cssText = 'position:fixed;inset:0;z-index:99;background:#0e1424f2;color:#dfe6ff;font:14px/1.5 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:20px';
+    const box = document.createElement('div'); box.style.cssText = 'max-width:640px'; const h = document.createElement('b'); h.textContent = 'The editor hit an error while starting.'; box.appendChild(h);
+    const pre = document.createElement('pre'); pre.style.cssText = 'white-space:pre-wrap;background:#18203a;padding:10px;border-radius:6px;font-size:12px;max-height:40vh;overflow:auto'; pre.textContent = String(err && err.stack || err).split('\n').slice(0, 8).join('\n'); box.appendChild(pre);
+    const note = document.createElement('p'); note.textContent = 'Your saved courses are kept. "Discard the unsaved draft" removes only the editor\'s autosave of the last course you were editing, then reloads.'; box.appendChild(note);
+    const b1 = document.createElement('button'); b1.textContent = 'Discard the unsaved draft and reload'; b1.style.cssText = 'padding:9px 14px;margin-right:8px;border:0;border-radius:6px;background:#1f7a4a;color:#fff;font-size:14px;cursor:pointer'; b1.onclick = () => { try { localStorage.removeItem(KEY); } catch (e) {} location.reload(); };
+    const b2 = document.createElement('button'); b2.textContent = 'Copy error'; b2.style.cssText = 'padding:9px 14px;border:0;border-radius:6px;background:#27325a;color:#fff;font-size:14px;cursor:pointer'; b2.onclick = () => navigator.clipboard.writeText(pre.textContent).catch(() => {});
+    box.append(b1, b2); m.appendChild(box); document.body.appendChild(m);
+  }
+  try { init(); } catch (err) { fatal(err); }
+  addEventListener('error', ev => { if (!document.getElementById('ed')) fatal(ev.error || ev.message); });
 })();
