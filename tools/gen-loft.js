@@ -19,5 +19,5 @@ const P = [
   // 5 HOME: run to the pool of light
   R(6500, { W: 900, gap: 1000, drop: 3200, label: '5 Home' }), R(4500, { W: 700 }), T(45, 6500), R(4000, { gap: 900, drop: 2500, rings: [H(400)] }), R(3500), T(120, 7000, { zig: true }), R(3000),
 ];
-fs.writeFileSync('levels/loft.json', JSON.stringify({ name: 'Loft', author: 'Paper Snail Surf', scenery: 'plain', night: true, theme0: 0, pull: 0.3, fall: 0.1, music: 'countryroads', pieces: P }, null, 1));
+fs.writeFileSync('levels/loft.json', JSON.stringify({ name: 'Loft', author: 'Paper Snail Surf', scenery: 'loft', night: true, theme0: 0, pull: 0.3, fall: 0.1, music: 'countryroads', pieces: P }, null, 1));
 console.log('wrote levels/loft.json,', P.length, 'pieces');

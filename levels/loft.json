@@ -1,7 +1,7 @@
 {
  "name": "Loft",
  "author": "Paper Snail Surf",
- "scenery": "plain",
+ "scenery": "loft",
  "night": true,
  "theme0": 0,
  "pull": 0.3,

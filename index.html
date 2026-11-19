@@ -815,7 +815,7 @@ const mtnLayers = [];
 scene.add(mountains);
 let scenicClouds = []; // painted cloud and floating-island sprites scattered along the course, so they stream past
 function buildClouds() {
-  for (const g of scenicClouds) scene.remove(g); scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park) return;
+  for (const g of scenicClouds) scene.remove(g); scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park || stageMeta.scenery === 'loft') return;
   let sd = 777; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, step = Math.max(1, Math.floor(ramps.length / 14)), kinds = [['cloud1.png', 245 / 512], ['cloud2.png', 231 / 512]];
   const mk = (file, asp, w) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: art(file), fog: false, transparent: true, depthWrite: false })); sp.scale.set(w, w * asp, 1); return sp; };
   let n = 0;
@@ -847,10 +847,49 @@ function updateNightSky(dt, now) {
   u.moon.position.set(-Math.sin(moonAz) * D * Math.cos(el), D * Math.sin(el), -Math.cos(moonAz) * D * Math.cos(el)); u.moon.material.color.copy(dayNow.mid).multiplyScalar(0.8).lerp(_wc.setRGB(1, 0.96, 0.84), nk); u.halo.position.copy(u.moon.position); u.halo.material.opacity = 0.4 * nk;
   u.small.opacity = 0.85 * nk; u.big.opacity = nk * (0.6 + 0.3 * Math.sin(now / 700));
 }
+// ---------- the loft (scenery 'loft'): clay and paper, warm lamplight on a deep blue night; art in art/web/loft_* ----------
+function buildLoft() {
+  let minY = 0, ax = 0, az = 0; for (const r of ramps) { minY = Math.min(minY, r.oy, r.ey); ax += r.sx; az += r.sz; } ax /= ramps.length; az /= ramps.length; const fy = minY - 2500;
+  let sd = 9137; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const ft = art('loft_floor.jpg', true); ft.wrapT = THREE.MirroredRepeatWrapping; ft.repeat.set(18, 18);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(130000, 48), new THREE.MeshBasicMaterial({ map: ft, color: 0x85736c, fog: true })); floor.rotation.x = -Math.PI / 2; floor.position.set(ax, fy, az); floor.renderOrder = -26; floor.material.depthWrite = false; addObj(floor);
+  const lowAt = i => Math.min(ramps[i].oy, ramps[i].ey);
+  // giant furniture standing on the floor, only where the course has come down close enough to see it
+  const names = ['armchair', 'lamp', 'shelf', 'plant', 'stairs', 'record'];
+  for (let i = 4; i < ramps.length; i++) {
+    const r = ramps[i]; if (r.tube || lowAt(i) - fy > 32000 || rn() < 0.45) continue;
+    const side = rn() < 0.5 ? -1 : 1, rt = rightOf(r.h0), off = 9000 + rn() * 10000, n = names[Math.floor(rn() * names.length)], size = 13000 + rn() * 11000;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: art('loft_' + n + '.png'), color: 0xb7aac8, fog: true, depthWrite: false })); sp.center.set(0.5, 0.12); sp.scale.set(size, size, 1);
+    sp.position.set(r.sx + rt[0] * off * side, fy, r.sz + rt[2] * off * side); sp.renderOrder = -24; addObj(sp);
+  }
+  // pendant lights hanging beside the course: a cord from the dark above, a clay shade, a glow
+  const pal = [0x2f7a70, 0xc4684a, 0xe6c598, 0xf1dcae], cordM = new THREE.MeshBasicMaterial({ color: 0x5a3a28 });
+  for (let i = 1; i < ramps.length; i += 2) for (const side of [-1, 1]) {
+    const r = ramps[i]; if (r.tube || rn() < 0.3) continue;
+    const u = r.L * (0.25 + 0.5 * rn()), c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u), off = 3200 + rn() * 5200, rad = 1000 + rn() * 1300, col = pal[Math.floor(rn() * pal.length)];
+    const x = c[0] + rt[0] * off * side, z = c[1] + rt[2] * off * side, y = r.oy + zOf(r, u) + 1500 + rn() * 4500, kind = Math.floor(rn() * 4);
+    const geo = kind === 0 ? new THREE.SphereGeometry(rad, 18, 12, 0, 6.2832, 0, 1.5708) : kind === 1 ? new THREE.ConeGeometry(rad, rad * 1.5, 20) : kind === 2 ? new THREE.SphereGeometry(rad * 0.8, 18, 14) : new THREE.CylinderGeometry(rad * 0.6, rad * 0.6, rad * 2.2, 18);
+    const shade = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: col, emissive: new THREE.Color(col).multiplyScalar(kind === 2 ? 0.7 : 0.35) })); shade.position.set(x, y, z); if (kind === 0) shade.rotation.x = 0; addObj(shade);
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(30, 30, 34000, 5), cordM); cord.position.set(x, y + 17000 + rad, z); addObj(cord);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: 0xffc070, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })); glow.scale.set(rad * 7, rad * 7, 1); glow.position.set(x, y - rad * 0.4, z); addObj(glow);
+  }
+  // windows: rare, big, with the night city layered behind (sky, far, mid, near). One where the course forks, one past the finish.
+  const win = (x, y, z, tx, tz, w) => {
+    const g = new THREE.Group(), face = Math.atan2(tx - x, tz - z);
+    const plane = (name, W, Hh, py, pz, ro, opaque) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(W, Hh), new THREE.MeshBasicMaterial({ map: art(name), transparent: !opaque, depthWrite: !!opaque, fog: true, side: THREE.DoubleSide })); m.position.set(0, py, pz); m.renderOrder = ro; g.add(m); return m; };
+    plane('loft_sky.jpg', w * 1.7, w * 0.9, w * 0.05, -w * 0.30, 1, true);
+    plane('loft_city_far.png', w * 1.6, w * 1.6 / 3.7, -w * 0.2, -w * 0.26, 2); plane('loft_city_mid.png', w * 1.5, w * 1.5 / 3.7, -w * 0.28, -w * 0.20, 3); plane('loft_city_near.png', w * 1.4, w * 1.4 / 3.7, -w * 0.34, -w * 0.12, 4);
+    plane('loft_window.png', w, w, 0, 0, 5); g.position.set(x, y, z); g.rotation.y = face; addObj(g);
+  };
+  const wi = (stageMeta.pieces || []).findIndex(p => p.label && /window/i.test(p.label));
+  if (wi >= 0 && ramps[wi]) { const r = ramps[wi], u = r.L * 0.6, c = ridgeAt(r, u), rt = rightOf(r.h0), y = r.oy + zOf(r, u); win(c[0] - rt[0] * 17000, y + 3500, c[1] - rt[2] * 17000, c[0], c[1], 18000); }
+  { const dx = fin.dir[0], dz = fin.dir[2]; win(fin.x + dx * 15000 - fin.right[0] * 6000, fin.y + 7000, fin.z + dz * 15000 - fin.right[2] * 6000, fin.x, fin.z, 20000); }
+}
 function buildTowns() { // night levels: one lakeside town (inspired by Tiny Glade's night town) far below the course, plus a lit ferris wheel as a landmark
   for (const o of townPatches) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); } townPatches = [];
   for (const o of [townPts, townLines, nightGround, wheel, town]) if (o) { scene.remove(o); o.traverse(c => { if (c.geometry) c.geometry.dispose(); }); }
   townPts = townLines = nightGround = wheel = town = null;
+  if (stageMeta.scenery === 'loft' && ramps.length) { buildLoft(); return; } // the loft: wooden floor, giant furniture, hanging lamps, rare windows onto the city
   if (!FUSION || !TOWN || !stageMeta.night || !ramps.length || /^#edit/.test(location.hash)) return;
   buildNightSky();
   let minY = 0; for (const r of ramps) minY = Math.min(minY, r.oy, r.ey); const fy = minY - 2500;
@@ -936,7 +975,7 @@ let skyWarm = 4; // the first frames draw the mountains and clouds even in space
 function updateSky(dt, now) {
   skyDome.position.copy(camera.position); updateTowns(now); updateNightSky(dt, now);
   if (floorGrid) { floorGrid.position.x = Math.round(camera.position.x / 1000) * 1000; floorGrid.position.z = Math.round(camera.position.z / 1000) * 1000; }
-  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && (plain || dayP > 0.3 || skyWarm-- > 0); // in the space levels the mountains and clouds only appear once you reach the sky
+  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && stageMeta.scenery !== 'loft' && (plain || dayP > 0.3 || skyWarm-- > 0); // the loft is indoors: no hills or clouds // in the space levels the mountains and clouds only appear once you reach the sky
   const T = (plain || FUSION) ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
   skyDome.visible = FUSION;
   if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); skyU.gnd.value.copy(dayNow.gnd); skyU.gk.value = dayGk; }
@@ -1069,7 +1108,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
   { // void floor grid for height reference
     let minY = 0, sx = 0, sz = 0;
     for (const r of ramps) { minY = Math.min(minY, r.oy, r.ey); sx += r.sx; sz += r.sz; }
-    if (!themesOn && !stageMeta.park && !FUSION) { // the fusion look has no floor grid: its dense lines merged into a pink disc whose edge moved with the camera
+    if (!themesOn && !stageMeta.park && !FUSION && stageMeta.scenery !== 'loft') { // the fusion look has no floor grid: its dense lines merged into a pink disc whose edge moved with the camera
       const grid = new THREE.GridHelper(400000, 400, FUSION ? 0xd98a8c : 0x4a5a9a, FUSION ? 0xcf8088 : 0x2a3466);
       grid.position.set(sx / ramps.length, minY - 2500, sz / ramps.length); grid.renderOrder = -27; grid.material.depthWrite = false; floorGrid = grid; addObj(grid); // follows the camera in whole cells (see updateSky), so it never shows an edge and its lines stay put in the world
     }
