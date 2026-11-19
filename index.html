@@ -1637,9 +1637,9 @@ function fail() {
 }
 let shot = null; // the cannon flight back to the start: scripted arc, you steer where you come down
 function fireCannon() {
-  const P0 = pos.clone(), keepV = vel.clone(), keepYaw = yaw; spawnOn(0); const home = { p: pos.clone(), v: vel.clone(), yaw }; pos.copy(P0); vel.copy(keepV); yaw = keepYaw; // spawnOn also re-arms the rings and the start
+  const xyz = o => ({ x: o.x, y: o.y, z: o.z }), P0 = xyz(pos), keepV = xyz(vel), keepYaw = yaw; spawnOn(0); const home = { p: xyz(pos), v: xyz(vel), yaw }; pos.set(P0.x, P0.y, P0.z); vel.set(keepV.x, keepV.y, keepV.z); yaw = keepYaw; // spawnOn also re-arms the rings and the start
   const dist = Math.hypot(home.p.x - P0.x, home.p.z - P0.z), T = Math.max(3.2, Math.min(6, dist / 4000));
-  shot = { t: 0, T, P0, home, steer: 0, lim: (ramps[0].W || 460) * 0.6, apex: Math.max(1500, Math.min(7000, dist * 0.22 + Math.abs(home.p.y - P0.y) * 0.3)), last: P0.clone() };
+  shot = { t: 0, T, P0, home, steer: 0, lim: (ramps[0].W || 460) * 0.6, apex: Math.max(1500, Math.min(7000, dist * 0.22 + Math.abs(home.p.y - P0.y) * 0.3)), last: xyz(P0) };
   flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => { g.material.color.set(0xffe2a0); g.userData.sh.material.color.set(0xffe2a0); });
   setTheme(0, true); Music.at(0); Sfx.portal(); fovKick += 20; showMsg(''); hud(); state = 'shot';
@@ -1649,7 +1649,7 @@ function updateShot(dt) {
   S.t += dt; const s = Math.min(1, S.t / S.T), H = S.home, rt = rightOf(H.yaw), off = S.steer * s * s;
   const px = S.P0.x + (H.p.x - S.P0.x) * s + rt[0] * off, pz = S.P0.z + (H.p.z - S.P0.z) * s + rt[2] * off, py = S.P0.y + (H.p.y + 500 - S.P0.y) * s + S.apex * 4 * s * (1 - s);
   prevPos.copy(pos); pos.set(px, py, pz);
-  const ivx = (px - S.last.x) / Math.max(dt, 1e-3), ivz = (pz - S.last.z) / Math.max(dt, 1e-3); vel.set(ivx, (py - S.last.y) / Math.max(dt, 1e-3), ivz); S.last.set(px, py, pz);
+  const ivx = (px - S.last.x) / Math.max(dt, 1e-3), ivz = (pz - S.last.z) / Math.max(dt, 1e-3); vel.set(ivx, (py - S.last.y) / Math.max(dt, 1e-3), ivz); S.last.x = px; S.last.y = py; S.last.z = pz;
   const hy = Math.atan2(-ivx, -ivz), k = Math.max(0, (s - 0.7) / 0.3); let dy = H.yaw - hy; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); yaw = hy + dy * k; // face the flight, then turn to the start heading for the drop
   if (s >= 1) { pos.set(px, py, pz); vel.set(H.v.x, -350, H.v.z); yaw = H.yaw; contactN = null; contactTicks = 0; lastTouched = 0; stuckTicks = 0; prevPos.copy(pos); shot = null; state = 'run'; showMsg(''); }
 }
