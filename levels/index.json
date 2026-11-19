@@ -13,5 +13,15 @@
   "file": "kitchen-fast",
   "name": "Kitchen (fast variant)",
   "author": "Paper Snail Surf"
+ },
+ {
+  "file": "stairwell",
+  "name": "Stairwell (draft)",
+  "author": "Paper Snail Surf"
+ },
+ {
+  "file": "boxfort",
+  "name": "Box Fort (draft, no walls yet)",
+  "author": "Paper Snail Surf"
  }
 ]

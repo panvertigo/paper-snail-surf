@@ -1,0 +1,171 @@
+{
+ "name": "Stairwell",
+ "author": "Paper Snail Surf",
+ "scenery": "plain",
+ "theme0": 0,
+ "pull": 0.3,
+ "fall": 0.5,
+ "music": "stairwell",
+ "pieces": [
+  {
+   "L": 3500,
+   "W": 460,
+   "label": "1 Top step"
+  },
+  {
+   "turn": 30,
+   "R": 6000,
+   "zig": true
+  },
+  {
+   "L": 3500,
+   "zig": true
+  },
+  {
+   "turn": 30,
+   "R": 6000,
+   "zig": true
+  },
+  {
+   "L": 3500,
+   "zig": true
+  },
+  {
+   "L": 3500,
+   "C": 500
+  },
+  {
+   "L": 3500,
+   "C": 700
+  },
+  {
+   "L": 3200,
+   "cp": true,
+   "label": "2 Stair cascade",
+   "gap": 800,
+   "drop": 350
+  },
+  {
+   "L": 3000,
+   "zig": true,
+   "gap": 800,
+   "drop": 350
+  },
+  {
+   "L": 3000,
+   "zig": true,
+   "gap": 800,
+   "drop": 350
+  },
+  {
+   "L": 3000,
+   "zig": true,
+   "gap": 900,
+   "drop": 400
+  },
+  {
+   "L": 3000,
+   "zig": true,
+   "gap": 800,
+   "drop": 350
+  },
+  {
+   "L": 3400,
+   "zig": true,
+   "C": 800
+  },
+  {
+   "L": 3400,
+   "C": 800
+  },
+  {
+   "L": 6000,
+   "cp": true,
+   "label": "3 Banister",
+   "gap": 1100,
+   "drop": 1000
+  },
+  {
+   "turn": 50,
+   "R": 8000
+  },
+  {
+   "turn": 50,
+   "R": 8000
+  },
+  {
+   "turn": 50,
+   "R": 8000
+  },
+  {
+   "L": 3400,
+   "C": 500
+  },
+  {
+   "L": 3400,
+   "C": 300
+  },
+  {
+   "L": 3400,
+   "cp": true,
+   "label": "4 Long gaps"
+  },
+  {
+   "L": 3000,
+   "zig": true,
+   "gap": 1100,
+   "drop": 350
+  },
+  {
+   "L": 3000,
+   "zig": true,
+   "gap": 1000,
+   "drop": 300
+  },
+  {
+   "L": 3000,
+   "zig": true,
+   "gap": 1150,
+   "drop": 350
+  },
+  {
+   "L": 3400,
+   "C": 700
+  },
+  {
+   "L": 3400,
+   "C": 700
+  },
+  {
+   "L": 3400,
+   "cp": true,
+   "label": "5 Basement door",
+   "W": 420
+  },
+  {
+   "L": 3200,
+   "zig": true,
+   "W": 390
+  },
+  {
+   "turn": 40,
+   "R": 7000,
+   "W": 370
+  },
+  {
+   "turn": 40,
+   "R": 7000
+  },
+  {
+   "turn": 40,
+   "R": 7000
+  },
+  {
+   "L": 3200,
+   "zig": true
+  },
+  {
+   "L": 3000
+  }
+ ]
+}

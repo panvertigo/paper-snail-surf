@@ -49,7 +49,8 @@ console.log('good bot (100 ms): ' + g.r.res + ' ' + g.r.t + ' s, falls ' + g.r.f
 const cps = G0.cps || [], marks = [0, ...cps.map(c => G0.first[c]), g.r.t]; console.log('  sections (s): ' + marks.slice(1).map((m, i) => (m - marks[i]).toFixed(1)).join(' / ') + '   checkpoints at ramps ' + cps.join(','));
 console.log('  air share: ' + (100 * G0.airTicks / G0.ticks).toFixed(0) + '%');
 if (PERIOD) { let ok = 0, tot = 0; const bad = []; for (let i = 0; i < n - 1; i++) { if (isSkip(i) || stage.pieces[i].turn || (stage.pieces[i + 1] && stage.pieces[i + 1].turn) || G0.first[i] === undefined || G0.first[i + 1] === undefined) continue; const p = G0.first[i + 1] - G0.first[i]; tot++; if (Math.abs(p - PERIOD) <= 0.15 * PERIOD) ok++; else bad.push(i + ':' + p.toFixed(1)); } console.log('  cadence (period ' + PERIOD + ' s +/-15%): ' + ok + '/' + tot + ' = ' + (100 * ok / tot).toFixed(0) + '%' + (bad.length ? '   off: ' + bad.join(' ') : '')); }
-const slow = run(trial, { hold: 30 }); console.log('300 ms bot: ' + slow.r.res + ' ' + slow.r.t + ' s, falls ' + slow.r.falls);
+const slow = run(trial, { hold: 30 }); { const fl = {}; (globalThis.__fallLog || []).forEach(x => fl[x] = (fl[x] || 0) + 1); console.log('  falls from ramp (good bot): ' + (Object.keys(fl).map(k => k + 'x' + fl[k]).join(' ') || 'none')); } globalThis.__fallLog = [];
+console.log('300 ms bot: ' + slow.r.res + ' ' + slow.r.t + ' s, falls ' + slow.r.falls);
 const entries = {}; const add = rec => { for (const k in rec.entry) (entries[k] = entries[k] || []).push(rec.entry[k]); }; add(G0); add(slow.rec);
 let fin = 0, fs_ = 0, clean = 0; for (let i = 1; i <= 30; i++) { const o = run(trial, { hold: 10, lift: 0.15, seed: i }); if (o.r.res === 'done') { fin++; fs_ += o.r.falls; if (!o.r.falls) clean++; } add(o.rec); }
 console.log('sloppy bots (lift 15%, 30 runs): finished ' + fin + '/30, clean ' + clean + '/30, avg falls ' + (fs_ / Math.max(1, fin)).toFixed(2));
