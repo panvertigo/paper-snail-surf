@@ -42,7 +42,7 @@ canvas{display:block;touch-action:none}
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-l="1">1<br>cruise</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="4">4<br>bowl</button><button data-l="5">5<br>grand descent</button></div>
+  <div class="row" id="lvl"><button data-f="kitchen">1<br>kitchen</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="5">5<br>grand descent</button></div>
   <label>My and shared courses</label>
   <select id="courses" style="width:100%;padding:6px;border-radius:8px;background:#ffffff22;color:#fff;border:0"><option value="">Choose a course...</option></select>
   <button id="toedit" style="margin-top:6px;width:100%;padding:6px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px">Course editor (desktop)</button>
@@ -1671,7 +1671,7 @@ function syncSettings() {
   $('mus').value = Math.round(musicVol * 100); $('musv').textContent = Math.round(musicVol * 100) + '%';
   $('sfx').value = Math.round(sfxVol * 100); $('sfxv').textContent = Math.round(sfxVol * 100) + '%';
 }
-document.querySelectorAll('#lvl button').forEach(b => { b.classList.toggle('on', +b.dataset.l === LEVEL); b.onclick = () => { if (+b.dataset.l !== LEVEL) { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; location.reload(); } }; });
+document.querySelectorAll('#lvl button').forEach(b => { const f = b.dataset.f; b.classList.toggle('on', f ? globalThis.SURF_COURSE === 'f_' + f : +b.dataset.l === LEVEL); b.onclick = () => { if (f) { if (globalThis.SURF_COURSE !== 'f_' + f) { location.hash = 'file-' + f; location.reload(); } } else if (+b.dataset.l !== LEVEL || globalThis.SURF_COURSE) { store.set('surf_level', b.dataset.l); location.hash = 'level-' + b.dataset.l; location.reload(); } }; });
 { // courses menu: my saved courses (this browser) and the shared ones listed in levels/index.json
   const sel = $('courses'), add = (label, items) => { if (!items.length) return; const g = document.createElement('optgroup'); g.label = label; for (const it of items) { const o = document.createElement('option'); o.value = it.v; o.textContent = it.t; g.appendChild(o); } sel.appendChild(g); };
   try { add('My courses', Courses.list().map(c => ({ v: 'course-' + c.id, t: c.name }))); } catch (e) {}

@@ -7,6 +7,7 @@
 const fs = require('fs'), path = require('path');
 const file = process.argv[2], arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i < 0 ? d : (process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : true); };
 const PERIOD = +arg('period', 0), SKIP = String(arg('skip', '')).split(',').filter(Boolean).map(x => x.split('-').map(Number)), TRAP = String(arg('trap', '')).split(',').filter(Boolean).map(Number), TUNE = +arg('tune', 0);
+const SPD = String(arg('speed', '')).split('-').map(Number), CMAX = +arg('cmax', 300), RMAX = +arg('rmax', 0);
 const isSkip = i => SKIP.some(([a, b]) => i >= a && i <= (b ?? a));
 let stage = JSON.parse(fs.readFileSync(file, 'utf8'));
 globalThis.SURF_LEVEL = 'custom';
@@ -30,6 +31,12 @@ if (TUNE) {
       const period = rec.first[i + 1] - rec.first[i], air = rec.air[i] || 0, onRamp = period - air; if (onRamp < 0.3) continue;
       const f = Math.max(0.75, Math.min(1.3, (PERIOD - air) / onRamp)); const L0 = p.L, L1 = Math.max(900, Math.round(L0 * (1 + 0.7 * (f - 1)) / 50) * 50); if (L1 !== L0) { p.L = L1; changed++; }
     }
+    if (SPD.length === 2 && SPD[0]) { // also steer entry speed into the band with climbs (C), and open up arcs whose limit the good bot exceeds
+      for (let i = 0; i < n; i++) { const p = stage.pieces[i]; if (isSkip(i) || rec.entry[i] === undefined) continue; const sp = rec.entry[i];
+        if (p.turn) { if (RMAX && sp > 0.85 * Math.sqrt(1000 * p.R)) { p.R = Math.min(RMAX, Math.ceil(sp * sp / 850 / 250) * 250); changed++; } continue; }
+        if (p.loop || p.cp) continue; const c0 = p.C || 0; let c1 = c0; if (sp > SPD[1]) c1 = Math.min(CMAX, c0 + 50); else if (sp < SPD[0]) c1 = Math.max(0, c0 - 50);
+        if (c1 !== c0) { if (c1) p.C = c1; else delete p.C; changed++; } }
+    }
     console.log('tune round', round + 1, ': good bot', r.res, r.t + 's, ramps resized', changed);
     if (!changed) break;
   }
@@ -41,7 +48,7 @@ console.log('== ' + (stage.name || file) + ' : ' + n + ' pieces');
 console.log('good bot (100 ms): ' + g.r.res + ' ' + g.r.t + ' s, falls ' + g.r.falls + ', vmax ' + g.r.vmax + ', vavg ' + g.r.vavg + ', speed p50/p90 ' + (pct(G0.speeds, 0.5) | 0) + '/' + (pct(G0.speeds, 0.9) | 0));
 const cps = G0.cps || [], marks = [0, ...cps.map(c => G0.first[c]), g.r.t]; console.log('  sections (s): ' + marks.slice(1).map((m, i) => (m - marks[i]).toFixed(1)).join(' / ') + '   checkpoints at ramps ' + cps.join(','));
 console.log('  air share: ' + (100 * G0.airTicks / G0.ticks).toFixed(0) + '%');
-if (PERIOD) { let ok = 0, tot = 0; const bad = []; for (let i = 0; i < n - 1; i++) { if (isSkip(i) || G0.first[i] === undefined || G0.first[i + 1] === undefined) continue; const p = G0.first[i + 1] - G0.first[i]; tot++; if (Math.abs(p - PERIOD) <= 0.15 * PERIOD) ok++; else bad.push(i + ':' + p.toFixed(1)); } console.log('  cadence (period ' + PERIOD + ' s +/-15%): ' + ok + '/' + tot + ' = ' + (100 * ok / tot).toFixed(0) + '%' + (bad.length ? '   off: ' + bad.join(' ') : '')); }
+if (PERIOD) { let ok = 0, tot = 0; const bad = []; for (let i = 0; i < n - 1; i++) { if (isSkip(i) || stage.pieces[i].turn || (stage.pieces[i + 1] && stage.pieces[i + 1].turn) || G0.first[i] === undefined || G0.first[i + 1] === undefined) continue; const p = G0.first[i + 1] - G0.first[i]; tot++; if (Math.abs(p - PERIOD) <= 0.15 * PERIOD) ok++; else bad.push(i + ':' + p.toFixed(1)); } console.log('  cadence (period ' + PERIOD + ' s +/-15%): ' + ok + '/' + tot + ' = ' + (100 * ok / tot).toFixed(0) + '%' + (bad.length ? '   off: ' + bad.join(' ') : '')); }
 const slow = run(trial, { hold: 30 }); console.log('300 ms bot: ' + slow.r.res + ' ' + slow.r.t + ' s, falls ' + slow.r.falls);
 const entries = {}; const add = rec => { for (const k in rec.entry) (entries[k] = entries[k] || []).push(rec.entry[k]); }; add(G0); add(slow.rec);
 let fin = 0, fs_ = 0, clean = 0; for (let i = 1; i <= 30; i++) { const o = run(trial, { hold: 10, lift: 0.15, seed: i }); if (o.r.res === 'done') { fin++; fs_ += o.r.falls; if (!o.r.falls) clean++; } add(o.rec); }

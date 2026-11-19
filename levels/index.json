@@ -6,7 +6,12 @@
  },
  {
   "file": "kitchen",
-  "name": "Kitchen (draft, not tuned)",
+  "name": "Kitchen",
+  "author": "Paper Snail Surf"
+ },
+ {
+  "file": "kitchen-fast",
+  "name": "Kitchen (fast variant)",
   "author": "Paper Snail Surf"
  }
 ]
