@@ -123,7 +123,7 @@
     placeStart();
   }
   function startPos() { const r = ramps[0], sp = stage.spawn; return sp ? [sp.x, sp.y, sp.z] : [r.sx, r.oy + r.H, r.sz]; }
-  function placeStart() { if (!startObj || !ramps[0]) return; const q = startPos(); startObj.position.set(q[0], q[1], q[2]); startObj.scale.setScalar(cam.dist * 0.05); startObj.rotation.y = r.h0 + Math.PI / 2; }
+  function placeStart() { if (!startObj || !ramps[0]) return; const q = startPos(); startObj.position.set(q[0], q[1], q[2]); startObj.scale.setScalar(cam.dist * 0.05); startObj.rotation.y = (stage.spawn && stage.spawn.h !== undefined ? stage.spawn.h : ramps[0].h0) + Math.PI / 2; }
   function placeHandles() { placeStart(); const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function setRay(e) { const rc = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height * 2 - 1)); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); ray.setFromCamera(ndc, camera); }
