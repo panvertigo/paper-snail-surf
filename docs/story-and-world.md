@@ -60,3 +60,8 @@ Dropped: the Quickfolk and Slowfolk split (too Tolkien), quoted one-liners, and 
 - **Why snails go fast:** leylines only hold while a snail rides them at speed (a trail glows under motion and fades at rest), and gaps in the old lines can only be crossed with momentum. Speed is how the archive stays alive, not a race. Unridden lines go dark.
 - **The sad part:** the other archivists are gone and the Works is nearly empty. One colleague went out on a final survey and never came back. Their ghost file is the only record, and it leaves the official route. You chase it, level by level, and finish their line. Majesty with no audience.
 - Open: how the colleague ended (a fall at a gap, or finished and became a hill), and whether the ghost is a pace-setter you can beat.
+
+## Update 2026-11-19 (2): tracking down a colleague, the empty shell
+- Nobody is disappearing. The archive sent you to check on an old colleague who stopped filing reports. The Works is quiet, not abandoned; the others are out on other lines.
+- You follow their ghost and their marks, level by level. The end: a big empty shell, door open, trail still warm and leading on past the edge of the map. They are alive and ahead. A snail leaving its house is the biggest thing a snail can do, and the shell says it without a word.
+- Open: whose shell is it (the colleague's own home, left behind, or something far older, a first snail's)? And does the player follow the trail, or stop?
