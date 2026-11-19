@@ -8,7 +8,7 @@ function trial(aa,{hold=10,maxTurn=3,lift=0,seed=1,checkpoints=false,tmax=300,re
   while(t<tmax){
     const st=G.g();
     if(st.state==='done') break;
-    if(st.state==='fail'){ if(!checkpoints) break; falls++; G.spawnOn(st.cpRamp); G.setState('run'); continue; }
+    if(st.state==='fail'){ if(!checkpoints) break; falls++; (globalThis.__fallLog = globalThis.__fallLog || []).push(st.lastTouched); G.spawnOn(st.cpRamp); G.setState('run'); continue; }
     const tick=Math.round(t/P.dt);
     if(tick%hold===0){
       const lt=st.lastTouched;

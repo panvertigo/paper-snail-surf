@@ -60,7 +60,7 @@
     if (pendingRun) clearTimeout(pendingRun); pendingRun = setTimeout(() => { pendingRun = null; runBots(false); }, 450);
   }
   function refresh(full) { rebuild(); renderPanel(); if (full) fit(); }
-  function change(noSnap) { if (!noSnap) snapshot(); rebuild(); renderList(); renderStatus(); }
+  function change(noSnap) { if (!noSnap) snapshot(); rebuild(); renderList(); renderStatus(); if (testRes && !testRes.stale) { testRes.stale = true; renderTests(); } }
 
   // ---------- 3D overlays ----------
   function disposeObjs(a) { for (const o of a) { scene.remove(o); if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); } a.length = 0; }
@@ -341,6 +341,37 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
   }
   function setHint(t) { const e = $id('edhint'); if (e) e.textContent = t; }
   function setStatus(t) { const e = $id('edstat'); if (e) e.textContent = t; }
+  // ---------- test runs: 22 simulated riders (1 steady, 1 slow, 20 sloppy) over the whole course ----------
+  let testRes = null, testFalls = {};
+  function renderTests() {
+    const e = $id('edtests'); if (!e) return; const T = testRes; if (!T) { e.innerHTML = '<span style="color:#8fa2d6">Press the button to see how often simulated riders finish.</span>'; return; }
+    const pct = Math.round(100 * T.fin / T.n), hard = Object.entries(T.fallsAt).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    e.innerHTML = '<b>' + T.fin + ' of ' + T.n + ' finished (' + pct + '%)</b>' + (T.stale ? ' <i style="color:#ffb347">(course changed since)</i>' : '') + '<br>' +
+      (T.fin ? 'time: best ' + T.best.toFixed(0) + ' s, average ' + T.avg.toFixed(0) + ' s, slowest ' + T.worst.toFixed(0) + ' s<br>' : '') +
+      'falls per finished run: ' + T.fpr.toFixed(1) + ' &nbsp;·&nbsp; top speed ' + Math.round(T.vmax) + ' u/s<br>' +
+      (hard.length ? 'hardest: ' + hard.map(([b, n]) => '<a href="#" data-b="' + b + '" style="color:#7be3a8">block ' + (+b + 1) + '</a> (' + n + ' falls)').join(', ') : 'no falls anywhere') +
+      '<br><span style="color:#8fa2d6">The steady rider: ' + (T.good.res === 'done' ? T.good.t + ' s, ' + T.good.falls + ' falls' : 'did not finish') + '. The slow rider (reacts 3x slower): ' + (T.slow.res === 'done' ? T.slow.t + ' s, ' + T.slow.falls + ' falls' : 'did not finish') + '.</span>' +
+      '<details style="margin-top:4px"><summary style="cursor:pointer;color:#8fa2d6">Is the bot smart?</summary><span style="color:#aab6e0">Not like a person. It is a rule-based rider that knows the whole course, steers to a line along the ridge and holds or lifts a finger on a plan. The steady one reacts every 0.1 s, the slow one every 0.3 s, the 20 sloppy ones lift their finger at random 10 to 30 percent of the time. It does not look for shortcuts or clever lines. So: a high finish rate means the course is fair and forgiving; low means there is a spot a careful player must handle. People can beat it (better lines) or lose to it (nerves), so treat it as a sanity check, not as how hard it feels.</span></details>';
+    e.querySelectorAll('a[data-b]').forEach(a => { a.onclick = ev => { ev.preventDefault(); selectOnly(+a.dataset.b); drawSelection(); focusSel(); renderList(); renderInspector(); }; });
+  }
+  async function runTests() {
+    if (busy) { setStatus('Wait a moment: the bots are still checking the last change.'); return; }
+    busy = true; const e = $id('edtests'); const say = t => { if (e) e.textContent = t; };
+    try {
+      await ensureSources(); globalThis.SURF_STAGE = clone(stage); const mod = { exports: {} }; new Function('module', botSrc)(mod); const trial = mod.exports(makeSim);
+      const jobs = [{ n: 'good', o: { hold: 10 } }, { n: 'slow', o: { hold: 30 } }]; for (let k = 0; k < 20; k++) jobs.push({ n: 'sloppy', o: { hold: 10 + (k % 3) * 5, lift: 0.1 + (k % 4) * 0.07, seed: k + 3 } });
+      const T = { n: jobs.length, fin: 0, times: [], falls: 0, fallsAt: {}, vmax: 0 }; let done = 0;
+      for (const j of jobs) {
+        say('Running test ' + (++done) + ' of ' + jobs.length + '...'); await tick(); globalThis.__fallLog = [];
+        const r = trial(400, { ...j.o, tmax: 400, checkpoints: true }); if (j.n === 'good') T.good = r; if (j.n === 'slow') T.slow = r;
+        for (const b of globalThis.__fallLog) T.fallsAt[b] = (T.fallsAt[b] || 0) + 1; T.vmax = Math.max(T.vmax, r.vmax || 0);
+        if (r.res === 'done') { T.fin++; T.times.push(r.t); T.falls += r.falls; }
+      }
+      T.best = Math.min(...T.times, 1e9); T.worst = Math.max(...T.times, 0); T.avg = T.times.length ? T.times.reduce((a, b) => a + b, 0) / T.times.length : 0; T.fpr = T.fin ? T.falls / T.fin : 0; T.sig = JSON.stringify(stage.pieces);
+      testRes = T; testFalls = T.fallsAt; renderTests(); renderList();
+    } catch (err) { say('Test runs failed: ' + err.message); console.error(err); }
+    busy = false;
+  }
   function renderStatus() {
     const e = $id('edstat'); if (!e) return;
     if (!botRes) { e.textContent = 'edit a piece; the good bot runs automatically'; return; }
@@ -366,7 +397,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
       d.className = 'piece' + (multi.has(i) ? ' sel' : '') + (i === failAt || i === failAt + 1 ? ' bad' : '');
       d.innerHTML = '<span class="n">' + (i + 1) + '</span><span class="t"></span><span class="v"></span>';
       d.querySelector('.t').textContent = label(p, i);
-      d.querySelector('.v').textContent = e ? e.speed + ' u/s' : (botRes && i > 0 && !(i in entries) ? 'skipped' : '');
+      d.querySelector('.v').textContent = (e ? e.speed + ' u/s' : (botRes && i > 0 && !(i in entries) ? 'skipped' : '')) + (testFalls[i] ? '  \u00d7' + testFalls[i] + ' falls' : '');
       d.onclick = ev => { if (ev.shiftKey) selectRange(sel, i); else selectOnly(i); drawSelection(); focusSel(); renderList(); renderInspector(); };
       box.appendChild(d);
     });
@@ -509,7 +540,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Save to file...', () => saveToDisk(true)], ['Open file...', openFromDisk], ['Share link', shareLink]]));
     ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;line-height:1.55';
-    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins; the four <b>blue corner dots</b> make it wider or narrower; the <b>orange dot</b> spins it flat on the ground. The <b>green flag</b> is where the run starts: drag it anywhere (Alt: up / down) to start with a drop. The rest of the course stays where it is.';
+    how.innerHTML = '<b>Click</b> a block to select it, <b>drag</b> to move it (<b>Alt</b>: up / down), <b>shift-click</b> to select several.<br>On the selected block: <b>white</b> dots bend / tilt / re-start it, <b>blue</b> dots set width, <b>orange</b> spins it. Drag the <b>green flag</b> to move the start.';
     ed.appendChild(how);
     const bar = document.createElement('div'); bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px'; const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; b.style.cssText = 'margin:0;padding:7px 9px;font-size:13px;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); bar.appendChild(b); };
     bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Top view', toggleTop); bt('Flag back to block 1', () => { delete stage.spawn; change(); });
@@ -530,10 +561,13 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const pn = document.createElement('input'); pn.type = 'number'; pn.step = '0.05'; pn.min = '0'; pn.max = '1'; pn.value = stage.pull ?? 0; pn.onchange = () => { stage.pull = +pn.value || 0; if (!stage.pull) delete stage.pull; change(); }; fr2.prepend(pn); top.appendChild(fr2);
     const fr3 = document.createElement('div'); fr3.className = 'row'; fr3.innerHTML = '<label>Air gravity</label><small>0 to 1, extra fall in the air</small>';
     const fl = document.createElement('input'); fl.type = 'number'; fl.step = '0.05'; fl.min = '0'; fl.max = '1'; fl.value = stage.fall ?? 0; fl.onchange = () => { stage.fall = +fl.value || 0; if (!stage.fall) delete stage.fall; change(); }; fr3.prepend(fl); top.appendChild(fr3);
-    ed.appendChild(det);
-    const lh = document.createElement('h3'); lh.textContent = 'Blocks (red = where the bot falls)'; ed.appendChild(lh);
-    const list = document.createElement('div'); list.id = 'edlist'; ed.appendChild(list);
     const insp = document.createElement('div'); insp.id = 'edinsp'; ed.appendChild(insp);
+    const tb = document.createElement('div'); tb.style.cssText = 'margin:8px 0';
+    const tbtn = document.createElement('button'); tbtn.textContent = '▶ Test runs (bots)'; tbtn.title = 'Runs 22 simulated riders over the whole course and reports how many finish'; tbtn.style.cssText = 'margin:0 6px 0 0;padding:8px 12px;font-size:13px;font-weight:600;background:#1f4a7a'; tbtn.onclick = () => runTests(); tb.appendChild(tbtn);
+    const tres = document.createElement('div'); tres.id = 'edtests'; tres.style.cssText = 'font-size:12px;line-height:1.5;margin-top:6px;color:#cfe0ff'; tb.appendChild(tres); ed.appendChild(tb); renderTests();
+    const dl = document.createElement('details'); dl.open = true; dl.innerHTML = '<summary style="cursor:pointer;color:#8fa2d6;font-size:12px;margin:6px 0">All blocks (click to select; speed is where the bot enters it; red = the bot fell here)</summary>';
+    const list = document.createElement('div'); list.id = 'edlist'; dl.appendChild(list); ed.appendChild(dl);
+    ed.appendChild(det);
     const st = document.createElement('div'); st.id = 'edstat'; ed.appendChild(st);
     renderList(); renderInspector(); renderStatus();
   }
