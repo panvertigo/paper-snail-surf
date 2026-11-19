@@ -45,3 +45,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - v75-v85 (no physics change): town sprawl, paper ramp texture, camera and FOV settings, lean retired (cmd.pitch stays in physics, now always 0 from input), hybrid (linear) music policy on all songs, mastering, perf tools, hoop messages removed. Golden L1-L4 OK each time.
 
 - v-next (2026-11-18): buildCourse (inside the physics block) reads an optional per-piece `rot` (degrees, added to the heading the previous piece ended with). Editor-only: it lets the editor re-aim one block and leave the blocks after it in place. No built-in level uses it, so L1-L4 golden replays are unchanged (check passes). Also: `stage.start {x,y,z}` (already supported) is now moved by the editor when the first block is dragged.
+
+- v-next (2026-11-18): spawnOn(0) honours an optional `stage.spawn {x,y,z,h,v}` (a floating start flag: the rider starts there, default speed 0, and drops onto the course). Absent in all built-in levels, so L1-L4 golden replays are unchanged (check passes). Kitchen with a flag 2500 up: good bot still finishes with 0 falls.

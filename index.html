@@ -428,6 +428,11 @@ function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
     for (const g of rings) { g.hit = false; g.cool = 0; }
     stuckTicks = 0; return;
   }
+  if (i === 0 && stageMeta.spawn) { // a floating start flag (editor): begin there and drop onto the course. spawn = { x, y, z, h (heading, default the first block's), v (forward speed, default 0) }
+    const S = stageMeta.spawn, hh = S.h ?? ramps[0].h0, dd = dirOf(hh), sv = S.v || 0; pos.set(S.x, S.y, S.z); vel.set(dd[0] * sv, 0, dd[2] * sv); yaw = hh; lastTouched = 0; contactN = null; contactTicks = 0;
+    for (const g of rings) if (g.ramp >= 0) g.hit = false;
+    stuckTicks = 0; return;
+  }
   const r = ramps[i], u = 60, c = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u), v = r.side * 0.04 * r.W, d = dirOf(r.h0 + r.k * u);
   pos.set(c[0] + rt[0] * v, r.oy + zOf(r, u) + r.H * 0.96 + 60, c[1] + rt[2] * v);
   vel.set(d[0] * 600, 0, d[2] * 600);

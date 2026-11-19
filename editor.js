@@ -102,16 +102,20 @@
   }
   E.handleScreen = k => { const m = hObjs.find(o => o.userData.k === k); if (!m) return null; const v = m.position.clone().project(camera), rc = renderer.domElement.getBoundingClientRect(); return [(v.x * 0.5 + 0.5) * rc.width + rc.left, (-v.y * 0.5 + 0.5) * rc.height + rc.top]; }; // for tests
   E.select = i => { selectOnly(i); drawSelection(); focusSel(); renderList(); renderInspector(); };
-  let startObj = null;
+  let startObj = null, startObjs = [];
   function drawStart() {
+    disposeObjs(startObjs);
     if (startObj) { scene.remove(startObj); startObj.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); startObj = null; }
     if (!ramps[0]) return; const g = new THREE.Group(), col = 0x2ee6a6;
     g.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 1, 0.07), new THREE.MeshBasicMaterial({ color: col, depthTest: false, transparent: true, opacity: 0.95 })));
     g.children[0].position.y = 0.5;
     const fl = new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0.03, 1, 0), new THREE.Vector3(0.75, 0.82, 0), new THREE.Vector3(0.03, 0.64, 0)]), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, depthTest: false }));
-    g.add(fl); g.traverse(o => { o.renderOrder = 13; }); startObj = g; scene.add(g); placeStart();
+    g.add(fl); g.traverse(o => { o.renderOrder = 13; }); startObj = g; scene.add(g);
+    if (stage.spawn) { const r = ramps[0], sp = stage.spawn, ln = lineOf([[sp.x, sp.y, sp.z], [sp.x, r.oy + r.H, sp.z]], 0x2ee6a6); startObjs.push(ln); }
+    placeStart();
   }
-  function placeStart() { if (!startObj || !ramps[0]) return; const r = ramps[0]; startObj.position.set(r.sx, r.oy + r.H, r.sz); startObj.scale.setScalar(cam.dist * 0.05); startObj.rotation.y = r.h0 + Math.PI / 2; }
+  function startPos() { const r = ramps[0], sp = stage.spawn; return sp ? [sp.x, sp.y, sp.z] : [r.sx, r.oy + r.H, r.sz]; }
+  function placeStart() { if (!startObj || !ramps[0]) return; const q = startPos(); startObj.position.set(q[0], q[1], q[2]); startObj.scale.setScalar(cam.dist * 0.05); startObj.rotation.y = r.h0 + Math.PI / 2; }
   function placeHandles() { placeStart(); const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function setRay(e) { const rc = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height * 2 - 1)); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); ray.setFromCamera(ndc, camera); }
@@ -161,6 +165,13 @@
   }
   function dragHandle(e) {
     const D = hDrag; setRay(e);
+    if (D.flag) {
+      const mode = e.altKey ? 'v' : 'h', P = mode === 'v' ? atVert(D.hp, D.nx, D.nz) : atY(D.hp[1]); if (!P) return;
+      if (mode !== D.mode) { D.acc = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; D.cur = [0, 0, 0]; D.P0 = P; D.mode = mode; return; }
+      D.cur = mode === 'v' ? [0, P[1] - D.P0[1], 0] : [P[0] - D.P0[0], 0, P[2] - D.P0[2]];
+      stage.spawn = { x: snap(D.base[0] + D.acc[0] + D.cur[0], 50), y: snap(D.base[1] + D.acc[1] + D.cur[1], 50), z: snap(D.base[2] + D.acc[2] + D.cur[2], 50) }; D.moved = true; dirty = true;
+      setStatus('Start flag: the snail starts here and drops onto the course (Alt: up / down)'); return;
+    }
     if (D.body) {
       const mode = e.altKey ? 'v' : 'h', P = mode === 'v' ? atVert(D.hit.p, D.nx, D.nz) : atY(D.hit.p[1]); if (!P) return;
       if (mode !== D.mode) { D.acc = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; D.cur = [0, 0, 0]; D.P0 = P; D.mode = mode; return; }
@@ -437,10 +448,10 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Share link', shareLink], ['Export file', exportFile], ['Import file', importFile]]));
     ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;line-height:1.55';
-    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins. The <b>green flag</b> is where the run starts (the first block). The rest of the course stays where it is.';
+    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white dot at its end</b> to lengthen, bend or (with Alt) tilt it; the dot at its start changes where it begins. The <b>green flag</b> is where the run starts: drag it anywhere (Alt: up / down) to start with a drop. The rest of the course stays where it is.';
     ed.appendChild(how);
     const bar = document.createElement('div'); bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px'; const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; b.style.cssText = 'margin:0;padding:7px 9px;font-size:13px;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); bar.appendChild(b); };
-    bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Top view', toggleTop);
+    bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Top view', toggleTop); bt('Flag back to block 1', () => { delete stage.spawn; change(); });
     bt('▶ Play', () => play(), 'go'); bt('▶ Play from selected', () => play(sel));
     ed.appendChild(bar);
     const det = document.createElement('details'); det.innerHTML = '<summary style="cursor:pointer;color:#8fa2d6;font-size:12px;margin:4px 0">More settings (scenery, music, physics)</summary>'; const top = document.createElement('div'); det.appendChild(top);
@@ -475,6 +486,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
       stop(e); e.preventDefault(); moved = 0; cv.setPointerCapture(e.pointerId);
       const hk = e.button === 0 && !e.shiftKey ? hitHandle(e) : null, D = hk ? startHandle(hk, e) : null;
       if (D) { hDrag = D; drag = null; cv.style.cursor = 'grabbing'; return; }
+      if (e.button === 0 && startObj) { setRay(e); if (ray.intersectObject(startObj, true).length) { const q = startPos(), D = { flag: true, hp: q, base: q, mode: e.altKey ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw) }; D.P0 = D.mode === 'v' ? atVert(q, D.nx, D.nz) : atY(q[1]); if (D.P0) { hDrag = D; drag = null; cv.style.cursor = 'grabbing'; return; } } }
       if (e.button === 0) { // press on a block: select it (shift = add / remove from the selection); dragging carries the selection along
         const hit = rayRamp(e);
         if (hit) {
@@ -499,6 +511,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
       stop(e);
       if (hDrag) {
         const D = hDrag; hDrag = null; cv.style.cursor = 'default';
+        if (D.flag && !D.moved) return;
         if (D.body && !D.moved) { if (D.wasIn && multi.size > 1) { selectOnly(D.i); refreshSel(); } return; }
         if (D.comp) { rebuild(); compensate(D); }
         dirty = false; snapshot(); rebuild(); renderList(); renderInspector(); renderStatus(); return;
