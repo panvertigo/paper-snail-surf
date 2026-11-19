@@ -394,7 +394,7 @@ function buildCourse(S, meta) {
     let L = p.L, k = 0;
     if (p.turn) { L = p.turn * Math.PI / 180 * p.R; k = -side / p.R; } // banked: always turn toward the face you're riding
     if (p.loop) { const lp = makeLoop(x, y, z, h, p.loop, i, tex, side); ramps.push(lp); tex += lp.tube.sweep * p.loop.R; }
-    else { ramps.push(makeRamp(x, y, z, h, L, k, W, W * 1.25, i, tex, side, p.C || 0)); tex += L; }
+    else { ramps.push(makeRamp(x, y, z, h, L, k, W, W * (p.hr || 1.25), i, tex, side, p.C || 0)); /* hr: face height / half-width, default 1.25 (about 51 deg); lower = a flatter ramp (editor slider) */ tex += L; }
     ramps[ramps.length - 1].hue = hue; if (p.half && !p.loop) ramps[ramps.length - 1].half = side; // half: single-sided ramp, only the face you ride exists (the other side is open air)
     // rings sit in the flight just before this piece, placed from the previous piece's end: d ahead, s to the right, y above its end height
     const allRings = (p.rings || []).concat((stageMeta.riskRings || []).filter(q => q.piece === i));

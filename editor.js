@@ -34,7 +34,7 @@
   // ---------- stage helpers ----------
   const kind = p => p.loop ? (p.loop.bank ? 'swirl' : 'loop') : p.turn ? 'turn' : 'ramp';
   function sane(st) { // drop numbers a draft should never contain (NaN, infinite, absurd sizes) so a bad value cannot hang the course builder
-    const lim = { L: [500, 40000], R: [1500, 60000], turn: [10, 360], W: [100, 1500], C: [-4000, 4000], gap: [0, 40000], lat: [-30000, 30000], drop: [-20000, 40000], rot: [-720, 720] };
+    const lim = { L: [500, 40000], R: [1500, 60000], turn: [10, 360], W: [100, 1500], hr: [0.15, 2.5], C: [-4000, 4000], gap: [0, 40000], lat: [-30000, 30000], drop: [-20000, 40000], rot: [-720, 720] };
     st.pieces = st.pieces.slice(0, 400).filter(p => p && typeof p === 'object');
     for (const p of st.pieces) for (const k in lim) if (p[k] !== undefined) { const v = +p[k]; if (!Number.isFinite(v)) delete p[k]; else p[k] = Math.max(lim[k][0], Math.min(lim[k][1], v)); }
     if (st.start && !['x', 'y', 'z'].every(k => Number.isFinite(+st.start[k] || 0))) delete st.start;
@@ -390,6 +390,12 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     if (k === 'ramp') F_RAMP.forEach(s => numField(box, p, s, ch));
     else if (k === 'turn') { F_TURN.forEach(s => numField(box, p, s, ch)); numField(box, p, F_RAMP[2], ch); }
     else F_LOOP.forEach(s => numField(box, p.loop, s, ch));
+    if (k !== 'loop' && k !== 'swirl') { // flatten: the face angle (default 51 deg); lower = a flatter, gentler ramp
+      const row = document.createElement('div'); row.className = 'row'; const lab = document.createElement('label'); lab.textContent = 'Steepness'; const sl = document.createElement('input'); sl.type = 'range'; sl.min = 8; sl.max = 65; sl.step = 1; sl.style.flex = '1';
+      const val = document.createElement('small'), cur = Math.round(Math.atan(p.hr || 1.25) * 57.2958); sl.value = cur; val.textContent = cur + '°'; val.style.flex = '0 0 36px';
+      sl.oninput = () => { const dg = +sl.value; if (dg === 51) delete p.hr; else p.hr = Math.round(Math.tan(dg * 0.0174533) * 1000) / 1000; val.textContent = dg + '°'; dirty = true; };
+      sl.onchange = () => { snapshot(); rebuild(); renderList(); }; row.append(lab, sl, val); box.appendChild(row);
+    }
     if (k !== 'loop' && k !== 'swirl') { checkField(box, p, 'half', 'Single-sided (only the face you ride)', ch); checkField(box, p, 'zig', 'Zigzag', ch); checkField(box, p, 'cp', 'Checkpoint', ch); }
     const d = document.createElement('details'); d.innerHTML = '<summary style="cursor:pointer;color:#8fa2d6;font-size:12px;margin:6px 0">Exact position numbers</summary>';
     F_COMMON.forEach(s => numField(d, p, s, ch)); box.appendChild(d);
