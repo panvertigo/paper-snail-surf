@@ -395,7 +395,7 @@ function buildCourse(S, meta) {
     if (p.turn) { L = p.turn * Math.PI / 180 * p.R; k = -side / p.R; } // banked: always turn toward the face you're riding
     if (p.loop) { const lp = makeLoop(x, y, z, h, p.loop, i, tex, side); ramps.push(lp); tex += lp.tube.sweep * p.loop.R; }
     else { ramps.push(makeRamp(x, y, z, h, L, k, W, W * 1.25, i, tex, side, p.C || 0)); tex += L; }
-    ramps[ramps.length - 1].hue = hue;
+    ramps[ramps.length - 1].hue = hue; if (p.half && !p.loop) ramps[ramps.length - 1].half = side; // half: single-sided ramp, only the face you ride exists (the other side is open air)
     // rings sit in the flight just before this piece, placed from the previous piece's end: d ahead, s to the right, y above its end height
     const allRings = (p.rings || []).concat((stageMeta.riskRings || []).filter(q => q.piece === i));
     if (allRings.length && prevEnd) for (const q of allRings) {
@@ -593,7 +593,7 @@ function step() {
     if (r.tube) { tubeContact(r.tube, i); continue; }
     const L = local(r, pos.x, pos.z);
     if (L.u < 0 || L.u > r.L) continue;
-    for (const sd of [1, -1]) {
+    for (const sd of (r.half ? [r.half] : [1, -1])) {
       const s = sd * L.v;
       if (s < -2 || s > r.W + EDGE) continue; // EDGE: the face plane carries on a little past the visible base, so a near miss of the outer edge still lands
       const F = face(r, sd, pos.y, L), n = F.n, d = F.d;
@@ -985,15 +985,17 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
       const slant = Math.hypot(r.W, r.H) / T, n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 120)) : 1;
       for (let j = 0; j < n; j++) {
         const ua = r.L * j / n, ub = r.L * (j + 1) / n, ta = (r.tex + ua) / T, tb = (r.tex + ub) / T;
-        for (const sd of [1, -1]) {
+        for (const sd of (r.half ? [r.half] : [1, -1])) {
           const A = Pt(r, ua, 0, r.H), B = Pt(r, ua, sd * r.W, 0), A2 = Pt(r, ub, 0, r.H), B2 = Pt(r, ub, sd * r.W, 0);
           pos.push(...A, ...B, ...B2, ...A, ...B2, ...A2);
           uv.push(ta, slant, ta, 0, tb, 0, ta, slant, tb, 0, tb, slant);
           for (let m = 0; m < 6; m++) col.push(c.r, c.g, c.b);
         }
       }
+      if (r.half) { const hs = r.half * r.W; cpos.push(...Pt(r, 0, 0, 0), ...Pt(r, 0, 0, r.H), ...Pt(r, 0, hs, 0)); cpos.push(...Pt(r, r.L, 0, 0), ...Pt(r, r.L, hs, 0), ...Pt(r, r.L, 0, r.H)); }
+      else {
       cpos.push(...Pt(r, 0, -r.W, 0), ...Pt(r, 0, 0, r.H), ...Pt(r, 0, r.W, 0));
-      cpos.push(...Pt(r, r.L, -r.W, 0), ...Pt(r, r.L, r.W, 0), ...Pt(r, r.L, 0, r.H));
+      cpos.push(...Pt(r, r.L, -r.W, 0), ...Pt(r, r.L, r.W, 0), ...Pt(r, r.L, 0, r.H)); }
       for (let m = 0; m < 6; m++) ccol.push(capC.r, capC.g, capC.b);
     }
     const g = new THREE.BufferGeometry();
@@ -1272,7 +1274,7 @@ function surfaceBelow(p) {
   for (let i = i0; i <= i1; i++) {
     const r = ramps[i], L = local(r, p.x, p.z);
     if (L.u < 0 || L.u > r.L) continue;
-    for (const sd of [1, -1]) {
+    for (const sd of (r.half ? [r.half] : [1, -1])) {
       const s = sd * L.v; if (s < 0 || s > r.W) continue;
       const F = face(r, sd, p.y, L); if (F.d < -60) continue;
       const t = F.d / F.n[1];

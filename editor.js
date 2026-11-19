@@ -69,7 +69,7 @@
     if (r.tube) return null;
     const n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 150)) : Math.max(1, Math.ceil(r.L / 800)), pos = [];
     const Pt = (u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; };
-    for (let j = 0; j < n; j++) for (const sd of [1, -1]) { const ua = r.L * j / n, ub = r.L * (j + 1) / n, A = Pt(ua, 0, r.H), B = Pt(ua, sd * r.W, 0), A2 = Pt(ub, 0, r.H), B2 = Pt(ub, sd * r.W, 0); pos.push(...A, ...B, ...B2, ...A, ...B2, ...A2); }
+    for (let j = 0; j < n; j++) for (const sd of (r.half ? [r.half] : [1, -1])) { const ua = r.L * j / n, ub = r.L * (j + 1) / n, A = Pt(ua, 0, r.H), B = Pt(ua, sd * r.W, 0), A2 = Pt(ub, 0, r.H), B2 = Pt(ub, sd * r.W, 0); pos.push(...A, ...B, ...B2, ...A, ...B2, ...A2); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     m.renderOrder = 8; m.frustumCulled = false; scene.add(m); return m;
@@ -99,7 +99,7 @@
   function handlePoints() { // one dot at each end of the selected block
     const r = ramps[sel], p = stage.pieces[sel]; if (!r || !p || r.tube || multi.size > 1) return [];
     const out = [{ k: 'start', p: [r.sx, r.oy + r.H, r.sz] }, { k: 'end', p: [r.ex, r.ey + r.H, r.ez] }];
-    for (const u of [0, r.L]) { const c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u), y = r.oy + zOf(r, u); for (const sd of [1, -1]) out.push({ k: 'wid', p: [c[0] + rt[0] * r.W * sd, y, c[1] + rt[2] * r.W * sd], c, rt }); }
+    for (const u of [0, r.L]) { const c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u), y = r.oy + zOf(r, u); for (const sd of (r.half ? [r.half] : [1, -1])) out.push({ k: 'wid', p: [c[0] + rt[0] * r.W * sd, y, c[1] + rt[2] * r.W * sd], c, rt }); }
     if (sel > 0) { const u = Math.min(r.L * 0.8, Math.max(400, Math.min(r.L * 0.3, 1500))), c = ridgeAt(r, u); out.push({ k: 'rot', p: [c[0], r.oy + zOf(r, u) + r.H, c[1]] }); }
     return out;
   }
@@ -241,7 +241,7 @@
       if (r.tube) return;
       const n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 150)) : Math.max(1, Math.ceil(r.L / 800));
       const Pt = (u, v, y, t) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return t.set(q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v); };
-      for (let j = 0; j < n; j++) for (const sd of [1, -1]) {
+      for (let j = 0; j < n; j++) for (const sd of (r.half ? [r.half] : [1, -1])) {
         const ua = r.L * j / n, ub = r.L * (j + 1) / n;
         Pt(ua, 0, r.H, _a); Pt(ua, sd * r.W, 0, _b); Pt(ub, sd * r.W, 0, _c); Pt(ub, 0, r.H, _d);
         for (const h of [ray.ray.intersectTriangle(_a, _b, _c, false, _hit), ray.ray.intersectTriangle(_a, _c, _d, false, _hit)]) { if (h) { const dd = h.distanceTo(ray.ray.origin); if (dd < bd) { bd = dd; best = { i, p: [h.x, h.y, h.z] }; } } }
@@ -390,7 +390,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     if (k === 'ramp') F_RAMP.forEach(s => numField(box, p, s, ch));
     else if (k === 'turn') { F_TURN.forEach(s => numField(box, p, s, ch)); numField(box, p, F_RAMP[2], ch); }
     else F_LOOP.forEach(s => numField(box, p.loop, s, ch));
-    if (k !== 'loop' && k !== 'swirl') { checkField(box, p, 'zig', 'Zigzag', ch); checkField(box, p, 'cp', 'Checkpoint', ch); }
+    if (k !== 'loop' && k !== 'swirl') { checkField(box, p, 'half', 'Single-sided (only the face you ride)', ch); checkField(box, p, 'zig', 'Zigzag', ch); checkField(box, p, 'cp', 'Checkpoint', ch); }
     const d = document.createElement('details'); d.innerHTML = '<summary style="cursor:pointer;color:#8fa2d6;font-size:12px;margin:6px 0">Exact position numbers</summary>';
     F_COMMON.forEach(s => numField(d, p, s, ch)); box.appendChild(d);
   }
