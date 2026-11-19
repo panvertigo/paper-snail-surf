@@ -1,5 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paper Snail Surf: Level Editor</title>
-<style>body{margin:0;background:#0e1424;color:#dfe6ff;font:15px/1.5 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh}a{color:#3fc1c9}</style></head>
-<body><div>Opening the level editor... <a href="index.html#edit">tap here if nothing happens</a></div>
-<script>location.replace('index.html' + (location.hash && !/^#edit/.test(location.hash) ? location.hash : '#edit'));</script></body></html>
+<style>body{margin:0;background:#0e1424;color:#dfe6ff;font:15px/1.6 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}div{max-width:560px;padding:20px}a{color:#3fc1c9}code{background:#18203a;padding:2px 6px;border-radius:4px}</style></head>
+<body><div id="m">Opening the level editor... <a href="index.html#edit">tap here if nothing happens</a></div>
+<script>
+if (location.protocol === 'file:') {
+  document.getElementById('m').innerHTML = '<b>The editor cannot run from a double-clicked file.</b><br>Browsers block the loading it needs when a page is opened straight from a folder, which can make it crash.<br><br>Use one of these instead:<br>1. The hosted editor (no setup): <a href="https://panvertigo.github.io/paper-snail-surf/editor.html">panvertigo.github.io/paper-snail-surf/editor.html</a><br>2. Locally: open a terminal in this folder, run <code>python -m http.server 8000</code>, then open <a href="http://localhost:8000/editor.html">http://localhost:8000/editor.html</a>';
+} else location.replace('index.html' + (location.hash && !/^#edit/.test(location.hash) ? location.hash : '#edit'));
+</script></body></html>
