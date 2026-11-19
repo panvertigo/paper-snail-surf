@@ -176,6 +176,30 @@
       else setSt(o.s, o.s.gap + d[0] * dr[0] + d[2] * dr[2], o.s.lat + d[0] * rt[0] + d[2] * rt[2], o.s.drop - d[1]);
       if (o.e) { dr = dirOf(o.he); rt = rightOf(o.he); setSt(o.e, o.e.gap - (d[0] * dr[0] + d[2] * dr[2]), o.e.lat - (d[0] * rt[0] + d[2] * rt[2]), o.e.drop + d[1]); } }
   }
+  // Stickiness: bring a block close to the end of the one before it (or its end close to the start of the next) and it snaps to a seamless join (gap 0, same height, no sideways shift).
+  // Joined blocks ride as one continuous ramp (tools/test-join.js). Blocks with a zigzag or a rotation are never snapped, because their faces would not line up.
+  function snapDelta(runs, d) {
+    for (const o of runs) {
+      if (o.s && !o.s.zero && !o.s.p.zig && !o.s.p.rot) {
+        const dr = dirOf(o.hs), rt = rightOf(o.hs), g = o.s.gap + d[0] * dr[0] + d[2] * dr[2], l = o.s.lat + d[0] * rt[0] + d[2] * rt[2], dp = o.s.drop - d[1];
+        if (g > -250 && g < 200 && Math.abs(l) < 130 && Math.abs(dp) < 110) return { d: [d[0] - g * dr[0] - l * rt[0], d[1] + dp, d[2] - g * dr[2] - l * rt[2]], joined: 'the block before it' };
+      }
+      if (o.e && !o.e.p.zig && !o.e.p.rot) {
+        const dr = dirOf(o.he), rt = rightOf(o.he), g = o.e.gap - (d[0] * dr[0] + d[2] * dr[2]), l = o.e.lat - (d[0] * rt[0] + d[2] * rt[2]), dp = o.e.drop + d[1];
+        if (g > -250 && g < 200 && Math.abs(l) < 130 && Math.abs(dp) < 110) return { d: [d[0] + g * dr[0] + l * rt[0], d[1] - dp, d[2] + g * dr[2] + l * rt[2]], joined: 'the block after it' };
+      }
+    }
+    return { d, joined: null };
+  }
+  function joinToPrev() { // button: snap the selected block's start onto the end of the previous block, pointing the way it points (this clears any rotation); the block after it stays where it was
+    const r = ramps[sel], pr = ramps[sel - 1], p = stage.pieces[sel]; if (sel < 1 || !r || !pr || r.tube || pr.tube) { setStatus('Nothing before this block to join to.'); return; }
+    if (p.zig) { setStatus('This block has a zigzag (it lands on the other face), so it cannot join end to end. Untick Zigzag first.'); return; }
+    const nx = stage.pieces[sel + 1], rn = ramps[sel + 1];
+    const D = nx && rn && !rn.tube ? { p, next: nx, oldEnd: [r.ex, r.ey, r.ez], h1: r.h1, W0: r.W, n0: { zig: !!nx.zig, sideBefore: nx.zig ? -rn.side : rn.side, gap: nx.gap ?? 480, lat: nx.lat || 0, rot: nx.rot || 0, drop: nx.drop ?? (r.ey - rn.oy) } } : null;
+    p.gap = 0; delete p.lat; p.drop = 0; delete p.rot;
+    if (r.W !== pr.W) { if (nx && nx.W === undefined) nx.W = r.W; p.W = pr.W; }
+    rebuild(); if (D) { compensate(D); } change(); setStatus('Joined to the block before it: same width, no gap, pointing the same way.');
+  }
   function bodyStart(e, hit, wasIn) {
     const D = { body: true, runs: makeRuns(), hit, wasIn, i: hit.i, mode: e.altKey ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw) };
     setRay(e); D.P0 = D.mode === 'v' ? atVert(hit.p, D.nx, D.nz) : atY(hit.p[1]); return D.P0 ? D : null;
@@ -199,8 +223,8 @@
       const mode = e.altKey ? 'v' : 'h', P = mode === 'v' ? atVert(D.hit.p, D.nx, D.nz) : atY(D.hit.p[1]); if (!P) return;
       if (mode !== D.mode) { D.acc = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; D.cur = [0, 0, 0]; D.P0 = P; D.mode = mode; return; }
       D.cur = mode === 'v' ? [0, P[1] - D.P0[1], 0] : [P[0] - D.P0[0], 0, P[2] - D.P0[2]];
-      const t = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; applyRuns(D.runs, t); D.moved = true; dirty = true;
-      setStatus('Moving: ' + (mode === 'v' ? 'up / down' : 'along the ground') + ' (hold Alt to lift or lower)'); return;
+      const t = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]], sn = snapDelta(D.runs, t); applyRuns(D.runs, sn.d); D.moved = true; dirty = true;
+      setStatus(sn.joined ? 'Joined to ' + sn.joined + ': it rides as one continuous ramp. Drag further to pull it apart.' : 'Moving: ' + (mode === 'v' ? 'up / down' : 'along the ground') + ' (hold Alt to lift or lower)'); return;
     }
     if (D.k === 'wid') { const P = atY(D.hp[1]); if (!P) return; D.p.W = clampv(snap(Math.abs((P[0] - D.c[0]) * D.rt[0] + (P[2] - D.c[1]) * D.rt[2]), 10), 250, 1300); setStatus('Half-width ' + D.p.W + ' (the whole block widens evenly)'); D.moved = true; dirty = true; return; }
     const mode = e.altKey ? 'v' : 'h', P = mode === 'v' ? atVert(D.hp, D.nx, D.nz) : atY(D.hp[1]); if (!P) return;
@@ -218,13 +242,14 @@
     if (D.k === 'end') {
       const ex = D.oldEnd[0] + d[0] - D.oldStart[0], ez = D.oldEnd[2] + d[2] - D.oldStart[2], A = ex * dir0[0] + ez * dir0[2], Braw = ex * rt0[0] + ez * rt0[2];
       if (A < 300) return;
-      const flip = !D.zero && !D.nextTube && !!D.prevEnd && Braw * Math.sign(D.side) < -0.03 * A; applyFlip(D, flip);
+      const flip = !D.zero && !D.nextTube && !!D.prevEnd && Braw * Math.sign(D.side) < -0.01 * A; applyFlip(D, flip);
+      if (!D.guide) { D.guide = lineOf([[D.oldStart[0], D.oldEnd[1] + 60, D.oldStart[2]], [D.oldStart[0] + dir0[0] * 30000, D.oldEnd[1] + 60, D.oldStart[2] + dir0[2] * 30000]], 0xffe14a); selObjs.push(D.guide); } // the straight line out of the block's start: cross it to bend the other way
       const B = Math.max(0, Braw * Math.sign(flip ? -D.side : D.side));
       if (B < 0.05 * A) { delete p.turn; delete p.R; p.L = clampv(snap(A, A > 12000 ? 500 : 100), 500, 40000); }
       else { const th = 2 * Math.atan2(B, A) * 57.2958, R = clampv((A * A + B * B) / (2 * B), 1500, 60000); delete p.L; p.turn = clampv(snap(th, 0.5), 10, 360); p.R = snap(R, R < 10000 ? 10 : 100); }
       const len = p.turn ? p.turn * 0.0174533 * p.R : p.L, c = snap(D.oldEnd[1] + d[1] - D.oldStart[1], 50);
       if (d[1] !== 0) { if (Math.abs(c + SLOPE * len) > 100) p.C = clampv(c, -4000, 4000); else delete p.C; } else if (D.C0 !== undefined) p.C = D.C0; else delete p.C; // only an Alt (vertical) drag changes the slope
-      setStatus((p.turn ? 'Curve: ' + p.turn + ' deg, radius ' + p.R : 'Straight, length ' + p.L) + (p.C ? ', climb ' + p.C + (p.C < 0 ? ' (steeper down)' : ' (up)') : ''));
+      setStatus((flip ? 'Bending the other way (faces swapped). ' : 'Drag across the yellow line to bend the other way. ') + (p.turn ? 'Curve: ' + p.turn + ' deg, radius ' + p.R : 'Straight, length ' + p.L) + (p.C ? ', climb ' + p.C + (p.C < 0 ? ' (steeper down)' : ' (up)') : ''));
     } else {
       const f = d[0] * dir0[0] + d[2] * dir0[2], sd = d[0] * rt0[0] + d[2] * rt0[2];
       if (D.zero) stage.start = { x: snap((D.st0.x || 0) + d[0], 10), y: snap((D.st0.y || 0) + d[1], 10), z: snap((D.st0.z || 0) + d[2], 10) };
@@ -540,10 +565,10 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Save to file...', () => saveToDisk(true)], ['Open file...', openFromDisk], ['Share link', shareLink]]));
     ed.appendChild(cb); updateBar();
     const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;line-height:1.55';
-    how.innerHTML = '<b>Click</b> a block to select it, <b>drag</b> to move it (<b>Alt</b>: up / down), <b>shift-click</b> to select several.<br>On the selected block: <b>white</b> dots bend / tilt / re-start it, <b>blue</b> dots set width, <b>orange</b> spins it. Drag the <b>green flag</b> to move the start.';
+    how.innerHTML = '<b>Click</b> a block to select it, <b>drag</b> to move it (<b>Alt</b>: up / down), <b>shift-click</b> to select several.<br>On the selected block: <b>white</b> dots bend / tilt / re-start it, <b>blue</b> dots set width, <b>orange</b> spins it. Drag the <b>green flag</b> to move the start. Bring two blocks together and they stick into one smooth ramp.';
     ed.appendChild(how);
     const bar = document.createElement('div'); bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px'; const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; b.style.cssText = 'margin:0;padding:7px 9px;font-size:13px;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); bar.appendChild(b); };
-    bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Top view', toggleTop); bt('Flag back to block 1', () => { delete stage.spawn; change(); });
+    bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Join to previous', joinToPrev); bt('Top view', toggleTop); bt('Flag back to block 1', () => { delete stage.spawn; change(); });
     bt('▶ Play', () => play(), 'go'); bt('▶ Play from selected', () => play(sel));
     ed.appendChild(bar);
     const det = document.createElement('details'); det.innerHTML = '<summary style="cursor:pointer;color:#8fa2d6;font-size:12px;margin:4px 0">More settings (scenery, music, physics)</summary>'; const top = document.createElement('div'); det.appendChild(top);
@@ -605,7 +630,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const up = e => {
       stop(e);
       if (hDrag) {
-        const D = hDrag; hDrag = null; cv.style.cursor = 'default';
+        const D = hDrag; hDrag = null; cv.style.cursor = 'default'; if (D.guide) { scene.remove(D.guide); D.guide.geometry.dispose(); D.guide.material.dispose(); }
         if (D.flag && !D.moved) return;
         if (D.body && !D.moved) { if (D.wasIn && multi.size > 1) { selectOnly(D.i); refreshSel(); } return; }
         if (D.comp) { rebuild(); compensate(D); }
