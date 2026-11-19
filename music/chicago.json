@@ -3,7 +3,6 @@
  "beatsPerBar": 4,
  "quantize": "phrase",
  "linear": [
-  "k01",
   "k02",
   "k03",
   "k04",
@@ -20,7 +19,6 @@
   "earth"
  ],
  "linearLong": [
-  "k01",
   "k02",
   "k03",
   "k04",
@@ -171,7 +169,7 @@
  "triggers": [
   {
    "on": "start",
-   "section": "k01"
+   "section": "k02"
   }
  ],
  "fallback": "descent"
