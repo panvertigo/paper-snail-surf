@@ -77,3 +77,6 @@ Goals: wondrous, symbolic, whimsical; easy to see from the air (glow or spiral);
 - A pillow fort with a lantern: the cosiest ending, lanterns hang over it.
 - A moonlit puddle on the balcony that reflects the sky: the exit from the house for the last stage.
 Recommendation: one signature pad per room so each stage ends on a different small wonder: sunbeam and cat bed (bedroom), spinning record (living room), open storybook (study), paper boat (bathroom), crayon house (the final one). Cheap to build as a flat painted card plus a glow and a particle burst on landing.
+
+## Story and world (2026-11-19)
+See docs/story-and-world.md: paper snail in a clay world, leylines (ramps) as the house's memory-lines, eyestalks that grow with lifetime distance, echoes at checkpoints, an Attic hub. Open decisions are listed at the bottom of that file. First cheap step: eyestalk growth (about 1 hour).
