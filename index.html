@@ -17,7 +17,8 @@ canvas{display:block;touch-action:none}
 #msg{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:17px;line-height:1.4;background:#000a;padding:14px 18px;border-radius:12px;max-width:80vw;pointer-events:none}
 #msg b{font-size:22px}
 #toast{position:fixed;left:50%;top:78px;transform:translateX(-50%);font-size:15px;font-weight:600;color:#ffe066;opacity:0;transition:opacity .4s;pointer-events:none;text-shadow:0 1px 4px #000a}
-#settings{position:fixed;right:8px;top:56px;background:#000c;padding:12px;border-radius:12px;font-size:14px;width:220px}
+#settings{position:fixed;right:8px;top:56px;background:#000c;padding:12px;border-radius:12px;font-size:14px;width:220px;max-height:calc(100vh - 70px);overflow-y:auto;overscroll-behavior:contain}
+#settings summary{cursor:pointer;margin:10px 0 2px;color:#9fb0c8;font-size:13px}
 #settings label{display:block;margin:6px 0 4px}
 #settings .row{display:flex;gap:6px}
 #settings .row button{flex:1;padding:8px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px}
@@ -44,29 +45,31 @@ canvas{display:block;touch-action:none}
 <div id="settings" hidden>
   <label>Level</label>
   <div class="row" id="lvl"><button data-f="kitchen">1<br>kitchen</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="5">5<br>grand descent</button><button data-f="stairwell">stairwell<br>draft</button><button data-f="boxfort">box fort<br>draft</button><button data-f="plunge">plunge<br>draft</button></div>
-  <label>My and shared courses</label>
-  <select id="courses" style="width:100%;padding:6px;border-radius:8px;background:#ffffff22;color:#fff;border:0"><option value="">Choose a course...</option></select>
-  <button id="toedit" style="margin-top:6px;width:100%;padding:6px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px">Course editor (desktop)</button>
-  <label>Air accel (ramp grip)</label>
-  <div class="row" id="aa">
-    <button data-v="150">150<br>classic</button><button data-v="400">400<br>medium</button><button data-v="800">800<br>easy</button>
-  </div>
-  <label>Swipe sensitivity <span id="sv"></span></label>
-  <input id="sens" type="range" min="4" max="30" step="1">
+  <label>Music <span id="musv"></span></label>
+  <input id="mus" type="range" min="0" max="100" step="5">
+  <label>Sound effects <span id="sfxv"></span></label>
+  <input id="sfx" type="range" min="0" max="100" step="5">
   <label>Camera</label>
   <div class="row" id="cam"><button data-c="3">third<br>person</button><button data-c="1">first<br>person</button></div>
   <label>Camera distance <span id="zmv"></span></label>
   <input id="zoomd" type="range" min="50" max="200" step="5">
   <label>Field of view <span id="fvv"></span></label>
   <input id="fovo" type="range" min="-15" max="25" step="1">
-  <label>Game speed <span id="gsv"></span></label>
-  <input id="gspeed" type="range" min="100" max="115" step="1">
+  <label>Swipe sensitivity <span id="sv"></span></label>
+  <input id="sens" type="range" min="4" max="30" step="1">
   <label>Speed effects <span id="fxv"></span></label>
   <input id="fx" type="range" min="0" max="150" step="5">
-  <label>Music <span id="musv"></span></label>
-  <input id="mus" type="range" min="0" max="100" step="5">
-  <label>Sound effects <span id="sfxv"></span></label>
-  <input id="sfx" type="range" min="0" max="100" step="5">
+  <details><summary>More (saved courses, air grip, game speed)</summary>
+  <label>Saved and shared courses</label>
+  <select id="courses" style="width:100%;padding:6px;border-radius:8px;background:#ffffff22;color:#fff;border:0"><option value="">Choose a course...</option></select>
+  <button id="toedit" style="margin-top:6px;width:100%;padding:6px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px">Course editor (desktop)</button>
+  <label>Air grip: how hard steering bites in the air</label>
+  <div class="row" id="aa">
+    <button data-v="150">150<br>classic</button><button data-v="400">400<br>medium</button><button data-v="800">800<br>easy</button>
+  </div>
+  <label>Game speed <span id="gsv"></span></label>
+  <input id="gspeed" type="range" min="100" max="115" step="1">
+  </details>
 </div>
 <div id="msg"></div>
 <div id="flash"></div>
@@ -1683,7 +1686,7 @@ document.querySelectorAll('#lvl button').forEach(b => { const f = b.dataset.f; b
   try { add('My courses', Courses.list().map(c => ({ v: 'course-' + c.id, t: c.name }))); } catch (e) {}
   try { Courses.index().then(list => add('Shared courses', list.map(c => ({ v: 'file-' + c.file, t: c.name + (c.author ? ' (' + c.author + ')' : '') })))).then(() => { sel.value = location.hash.slice(1); }); } catch (e) {}
   sel.onchange = () => { if (sel.value) { location.hash = sel.value; location.reload(); } }; sel.value = location.hash.slice(1);
-  $('toedit').onclick = () => { location.hash = 'edit'; location.reload(); };
+  $('toedit').onclick = () => { location.hash = 'edit'; location.reload(); }; if (navigator.maxTouchPoints > 0) $('toedit').style.display = 'none'; // the editor is desktop only
 }
 document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airaccel = +b.dataset.v; store.set('surf_aa', P.airaccel); syncSettings(); });
 $('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
