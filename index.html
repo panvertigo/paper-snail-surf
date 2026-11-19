@@ -915,7 +915,7 @@ function buildTowns() { // night levels: one lakeside town (inspired by Tiny Gla
 const _wc = new THREE.Color();
 function updateTowns(now) {
   if (!townPts) return; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd); } for (const m of townPatches) m.material.color.copy(dayNow.gnd); if (town && town.userData.land) town.userData.land.material.color.copy(dayNow.gnd).multiplyScalar(1.04); if (town) { const u = town.userData; u.bldMat.color.copy(dayNow.mid).lerp(_wc.setRGB(1, 1, 1), 0.5).multiplyScalar(0.85); u.land.material.color.copy(dayNow.gnd); }
-  if (Math.abs(dayP - lampP) > 0.002) { lampP = dayP; // only re-light the towns when the evening has moved on
+  if (Math.abs(dayP - lampP) > 0.006) { lampP = dayP; // only re-light the towns when the evening has moved on
     for (const s of townMeta.sets) { const arr = s.g.attributes.color.array; for (let i = 0; i < s.n; i++) { const x = (dayP - s.th[i]) / 0.06, k = (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)) * s.k; arr[i * 3] = s.base[i * 3] * k; arr[i * 3 + 1] = s.base[i * 3 + 1] * k; arr[i * 3 + 2] = s.base[i * 3 + 2] * k; } s.g.attributes.color.needsUpdate = true; }
   }
   if (wheel && ++townMeta.tick % 3 === 0) { // the wheel's bulbs chase through colours once the lights come on
@@ -1722,9 +1722,10 @@ function renderFrame(speed) {
 }
 // Fullscreen on a big or hi-DPI monitor used to allocate a huge canvas plus a 4x multisampled copy of it, which can crash the browser's GPU process. Cap the total pixel count (about 2.6 million, a bit more than a phone screen) and make the speed-effect target lazily, with fewer samples when large.
 const MAXPX = 2.6e6, PR_WANT = parseFloat(Q.get('pr')) || (LITE ? 1.25 : Math.min(devicePixelRatio, 2));
+let PR_SCALE = 1, adaptN = 0, adaptOK = 0, adaptMs = 16.7, adaptT = 0; const ADAPT = Q.get('adapt') !== '0';
 function resize() {
   const w = innerWidth, h = innerHeight;
-  renderer.setPixelRatio(Math.max(0.5, Math.min(PR_WANT, Math.sqrt(MAXPX / (w * h)))));
+  renderer.setPixelRatio(Math.max(0.5, Math.min(PR_WANT * PR_SCALE, Math.sqrt(MAXPX / (w * h)))));
   renderer.setSize(w, h); camera.aspect = w / h; blurRT.setSize(1, 1); blurDirty = true;
   baseFov = Math.max(55, Math.min(100, 2 * Math.atan(Math.tan(50 * Math.PI / 180) / camera.aspect) * 180 / Math.PI));
 }
@@ -1803,7 +1804,7 @@ let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
 let hudT = 0;
 function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const dt = Math.min(0.1, (now - last) / 1000); { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
   if (state === 'run') {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds

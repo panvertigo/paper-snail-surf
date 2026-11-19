@@ -28,3 +28,9 @@ Whichever flag restores the frame rate is the cost. Report the box text.
 4. Fewer, lower-resolution mountain/cloud layers.
 5. Music: decode lazily per section and free used buffers.
 6. Safety: the sim catch-up loop allows up to 10 physics steps per frame after a slow frame (dt clamp 0.1 s), which can spiral on a slow device; lower the clamp.
+
+## Stutter pass (2026-11-18)
+- Fullscreen crash: the canvas and a 4x multisampled speed-effect target were sized from the full monitor resolution. Total pixels are now capped at about 2.6M and the target is made lazily (2 samples when large).
+- Adaptive resolution: if the smoothed frame time stays above 22 ms for about 1.6 s the pixel ratio drops by 15 percent (floor 0.6 of normal); with frames under 13 ms for about 10 s it creeps back up. Disable with `?adapt=0`.
+- Night towns re-light only when the evening moves 0.006 (was 0.002), a third of the buffer uploads.
+- Not measured on a phone yet: open `?perf=1` and report the box if stutters remain; the overlay shows draw calls and frame times.
