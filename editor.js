@@ -123,7 +123,7 @@
   function startHandle(h, e) {
     const r = ramps[sel], p = stage.pieces[sel], nxt = stage.pieces[sel + 1], rn = ramps[sel + 1], prev = ramps[sel - 1];
     const D = { k: h.k, p, hp: h.p, oldEnd: [r.ex, r.ey, r.ez], oldStart: [r.sx, r.oy, r.sz], h0: r.h0, h1: r.h1, side: r.side, mode: e.altKey ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), comp: true,
-      L0: p.L, g0: p.gap ?? 480, l0: p.lat || 0, d0: p.drop ?? (prev ? (r.tube ? 20 - 0.42 * prev.H : prev.ey - r.oy) : 0), zero: sel === 0, st0: { ...(stage.start || {}) } };
+      C0: p.C, L0: p.L, g0: p.gap ?? 480, l0: p.lat || 0, d0: p.drop ?? (prev ? (r.tube ? 20 - 0.42 * prev.H : prev.ey - r.oy) : 0), zero: sel === 0, st0: { ...(stage.start || {}) } };
     if (nxt && rn) { D.next = nxt; D.n0 = { gap: nxt.gap ?? 480, lat: nxt.lat || 0, rot: nxt.rot || 0, drop: nxt.drop ?? (rn.tube ? 20 - 0.42 * r.H : r.ey - rn.oy) }; }
     setRay(e); D.P0 = D.mode === 'v' ? atVert(h.p, D.nx, D.nz) : atY(h.p[1]); return D.P0 ? D : null;
   }
@@ -178,7 +178,7 @@
       if (B < 0.05 * A) { delete p.turn; delete p.R; p.L = clampv(snap(A, A > 12000 ? 500 : 100), 500, 40000); }
       else { const th = 2 * Math.atan2(B, A) * 57.2958, R = clampv((A * A + B * B) / (2 * B), 1500, 60000); delete p.L; p.turn = clampv(snap(th, 0.5), 10, 360); p.R = snap(R, R < 10000 ? 10 : 100); }
       const len = p.turn ? p.turn * 0.0174533 * p.R : p.L, c = snap(D.oldEnd[1] + d[1] - D.oldStart[1], 50);
-      if (Math.abs(c + SLOPE * len) > 100) p.C = clampv(c, -4000, 4000); else delete p.C;
+      if (d[1] !== 0) { if (Math.abs(c + SLOPE * len) > 100) p.C = clampv(c, -4000, 4000); else delete p.C; } else if (D.C0 !== undefined) p.C = D.C0; else delete p.C; // only an Alt (vertical) drag changes the slope
       setStatus((p.turn ? 'Curve: ' + p.turn + ' deg, radius ' + p.R : 'Straight, length ' + p.L) + (p.C ? ', climb ' + p.C + (p.C < 0 ? ' (steeper down)' : ' (up)') : ''));
     } else {
       const f = d[0] * dir0[0] + d[2] * dir0[2], sd = d[0] * rt0[0] + d[2] * rt0[2];
