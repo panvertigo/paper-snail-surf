@@ -53,3 +53,10 @@ Dropped: the Quickfolk and Slowfolk split (too Tolkien), quoted one-liners, and 
 - **Central Armature Works:** an implausible snail-steampunk institution, a building the player passes before anything else. Armature also means the wire skeleton inside a clay or stop-motion figure, which fits the clay look. Possible hub in place of the Attic. Brass spiral lifts, slime boilers, shell lathes, pneumatic tubes, a paper room.
 - **Earth:** the first snails came down from the sky (links to the existing sky descent, Level 5). Leylines are their landing trails. The old human rooms (kitchen island, stairwell, box fort) can be read as ruins, with no humans shown. Reaching the soil at the end is visiting Earth.
 - **Links to existing pieces:** stalk growth is survey fatigue; speed thins the shell; the Garden of Shells is where archivists end; music highs are the moments a first-snail mark is found.
+
+## Update 2026-11-19: no eyestalk growth, snails are majestic
+- Eyestalk growth is dropped (it read as uncute). Snails are staged as the most majestic beings in the universe: seen in profile like cathedrals, graceful, vast, the music's highs as their theme. Cute and grand at once.
+- Stages stay replayable (Trackmania model). Story lives in ghosts, set dressing and music, so replays still carry it.
+- **Why snails go fast:** leylines only hold while a snail rides them at speed (a trail glows under motion and fades at rest), and gaps in the old lines can only be crossed with momentum. Speed is how the archive stays alive, not a race. Unridden lines go dark.
+- **The sad part:** the other archivists are gone and the Works is nearly empty. One colleague went out on a final survey and never came back. Their ghost file is the only record, and it leaves the official route. You chase it, level by level, and finish their line. Majesty with no audience.
+- Open: how the colleague ended (a fall at a gap, or finished and became a hill), and whether the ghost is a pace-setter you can beat.
