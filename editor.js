@@ -25,7 +25,7 @@
   const F_RING = [['d', 'Ahead', -500, 3000, 50, 'Distance past the previous piece\'s end'], ['y', 'Height', -1500, 3000, 50], ['s', 'Lane', -1500, 1500, 50, 'Blank = where the rider flies'], ['R', 'Radius', 100, 800, 10],
     ['boost', 'Boost (hoop)', 0, 400, 10], ['theme', 'Scene (portal)', 0, 3, 1, '0 moon, 1 atmosphere, 2 sky, 3 Earth'], ['dip', 'Dip (deg)', -30, 60, 5]];
 
-  let stage, sel = 0, selEnd = null, clip = null, hist = [], histI = -1, version = 0, savedJ = null, fresh = false;
+  let stage, sel = 0, multi = new Set([0]), clip = null, hist = [], histI = -1, version = 0, savedJ = null, fresh = false;
   const LEVEL_NAMES = { 1: 'cruise', 2: 'gauntlet', 3: 'descent', 5: 'grand descent' };
   let SONGS = [{ id: 'chicago', name: 'Chicago Meditation' }, { id: 'fleetwood', name: 'Fleetwood Mac' }, { id: 'salt', name: 'Salt for Mushroom Field' }, { id: 'bowl', name: 'Bowl mix' }, { id: 'descent', name: 'Demo (generated)' }];
   let botRes = null, entries = {}, pathLine = null, selObjs = [], busy = false, pendingRun = null;
@@ -70,7 +70,7 @@
   function setHover(i) { if (i === hoverI) return; hoverI = i; disposeObjs(hoverObjs); if (i >= 0 && i !== sel && ramps[i]) { const f = fillOf(ramps[i], 0xffffff, 0.28); if (f) hoverObjs.push(f); } }
   function drawSelection() {
     disposeObjs(selObjs); hoverI = -2; disposeObjs(hoverObjs); const r = ramps[sel]; if (!r) return;
-    { const f = fillOf(r, 0xffe14a, 0.32); if (f) selObjs.push(f); }
+    for (const j of ids()) { const rj = ramps[j]; if (!rj) continue; const f = fillOf(rj, 0xffe14a, j === sel ? 0.36 : 0.24); if (f) selObjs.push(f); }
     const pts = [];
     if (r.tube) { const T = r.tube; for (let t = 0; t <= T.sweep; t += 0.08) { const a = T.th0 + t, c = Math.cos(a), s = Math.sin(a), q = T.shift(t); pts.push([T.ox + T.R * (c * T.e1[0] + s * T.e2[0]) + T.ax[0] * q, T.oy + T.R * (c * T.e1[1] + s * T.e2[1]) + T.ax[1] * q, T.oz + T.R * (c * T.e1[2] + s * T.e2[2]) + T.ax[2] * q]); } }
     else { const n = Math.max(4, Math.ceil(r.L / 300)); for (let i = 0; i <= n; i++) { const u = r.L * i / n, c = ridgeAt(r, u); pts.push([c[0], r.oy + zOf(r, u) + r.H + 40, c[1]]); } }
@@ -78,69 +78,87 @@
     const b = r.tube ? [r.tube.ox, r.tube.oy, r.tube.oz] : [r.sx, r.oy + r.H, r.sz];
     E.focusPoint = b; drawHandles();
   }
-  // ---------- drag handles: shape and place the selected piece right in the 3D view ----------
-  // purple diamond = slope (auto net climb), pink ball on a turn = radius. green ball = move along the ground (gap + sideways), blue diamond = raise / lower (drop), yellow = length (turn angle on a turn), orange = width
-  const HCOL = { move: 0x4be07a, rise: 0x4aa8ff, len: 0xffe14a, wid: 0xff9a3c, slope: 0xc77dff, rad: 0xff5fa2, ext: 0x2de2e6 }, HNAME = { move: 'Move (gap and sideways)', rise: 'Raise / lower', len: 'Length', wid: 'Width', slope: 'Slope (auto climb)', rad: 'Sweep radius', ext: 'Extend: drag out a new ramp (it bends toward where you drag)' };
+  // ---------- direct manipulation: click a block, drag it anywhere (hold Alt to lift / lower), drag the white squares to resize it ----------
+  // Blocks are stored relative to the block before them, so every move also re-aims the NEXT block: only the blocks you touch change, the rest of the course stays where it is.
+  const HNAME = { len: 'Length', wid: 'Width' };
   let hObjs = [], hDrag = null, lastRb = 0, dirty = false;
   const snap = (v, st) => Math.round(v / st) * st, clampv = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ids = () => [...multi].filter(i => i < stage.pieces.length).sort((a, b) => a - b);
+  function selectOnly(i) { sel = i; multi = new Set([i]); }
+  function toggleSel(i) { if (multi.has(i)) { if (multi.size > 1) { multi.delete(i); if (sel === i) { const a = ids(); sel = a[a.length - 1]; } } } else { multi.add(i); sel = i; } }
+  function selectRange(a, b) { multi = new Set(); for (let i = Math.min(a, b); i <= Math.max(a, b); i++) multi.add(i); sel = b; }
+  const refreshSel = () => { drawSelection(); renderList(); renderInspector(); };
   function handlePoints() {
-    const r = ramps[sel], p = stage.pieces[sel]; if (!r || !p) return [];
-    const out = [], s = r.tube ? [r.tube.ox, r.tube.oy, r.tube.oz] : [r.sx, r.oy + r.H, r.sz];
-    if (sel > 0) { out.push({ k: 'move', p: s }); out.push({ k: 'rise', p: s }); }
-    if (!r.tube) {
-      out.push({ k: 'len', p: [r.ex, r.ey + r.H, r.ez] });
-      const u = r.L / 2, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u);
-      out.push({ k: 'wid', p: [c[0] + rt[0] * r.W, r.oy + zOf(r, u), c[1] + rt[2] * r.W], c, rt });
-      out.push({ k: 'ext', p: [r.ex, r.ey + r.H, r.ez] });
-      { const us = r.L * 0.7, cs = ridgeAt(r, us); out.push({ k: 'slope', p: [cs[0], r.oy + zOf(r, us) + r.H, cs[1]] }); }
-      if (r.k) { const um = r.L * 0.5, cm = ridgeAt(r, um), ox = (cm[0] - r.cx) / r.Rc, oz = (cm[1] - r.cz) / r.Rc; out.push({ k: 'rad', p: [cm[0], r.oy + zOf(r, um) + r.H, cm[1]], out: [ox, oz] }); }
-    }
+    const r = ramps[sel], p = stage.pieces[sel]; if (!r || !p || r.tube || multi.size > 1) return [];
+    const u = r.L / 2, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u), out = [{ k: 'len', p: [r.ex, r.ey + r.H, r.ez] }];
+    for (const sd of [1, -1]) out.push({ k: 'wid', p: [c[0] + rt[0] * r.W * sd, r.oy + zOf(r, u), c[1] + rt[2] * r.W * sd], c, rt });
     return out;
   }
   function drawHandles() {
     disposeObjs(hObjs);
     for (const h of handlePoints()) {
-      const m = new THREE.Mesh(h.k === 'rise' || h.k === 'slope' || h.k === 'ext' ? new THREE.OctahedronGeometry(1) : new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: HCOL[h.k], depthTest: false, transparent: true, opacity: 0.95 }));
-      m.renderOrder = 12; m.userData = { k: h.k, base: h.p }; m.position.set(h.p[0], h.p[1], h.p[2]); scene.add(m); hObjs.push(m);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.95 }));
+      m.renderOrder = 12; m.userData = { k: h.k, rec: h, base: h.p }; m.position.set(h.p[0], h.p[1], h.p[2]); scene.add(m); hObjs.push(m);
     }
     placeHandles();
   }
   E.handleScreen = k => { const m = hObjs.find(o => o.userData.k === k); if (!m) return null; const v = m.position.clone().project(camera), rc = renderer.domElement.getBoundingClientRect(); return [(v.x * 0.5 + 0.5) * rc.width + rc.left, (-v.y * 0.5 + 0.5) * rc.height + rc.top]; }; // for tests
-  E.select = i => { sel = i; drawSelection(); focusSel(); renderList(); renderInspector(); };
-  function placeHandles() { const hs = cam.dist * 0.013; for (const m of hObjs) { m.scale.setScalar(m.userData.k === 'rise' || m.userData.k === 'slope' || m.userData.k === 'ext' ? hs * 0.9 : hs); const b = m.userData.base; m.position.set(b[0], b[1] + (m.userData.k === 'rise' || m.userData.k === 'slope' ? hs * 3 : m.userData.k === 'ext' ? hs * 6 : 0), b[2]); } }
+  E.select = i => { selectOnly(i); drawSelection(); focusSel(); renderList(); renderInspector(); };
+  function placeHandles() { const hs = cam.dist * 0.011; for (const m of hObjs) { m.scale.setScalar(hs); const b = m.userData.base; m.position.set(b[0], b[1], b[2]); } }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   function setRay(e) { const rc = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height * 2 - 1)); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); ray.setFromCamera(ndc, camera); }
-  function hitHandle(e) { setRay(e); const hit = ray.intersectObjects(hObjs, false)[0]; return hit ? hit.object.userData.k : null; }
+  function hitHandle(e) { setRay(e); const hit = ray.intersectObjects(hObjs, false)[0]; return hit ? hit.object.userData.rec : null; }
   const atY = y => { const o = ray.ray.origin, d = ray.ray.direction; if (Math.abs(d.y) < 1e-4) return null; const t = (y - o.y) / d.y; return t > 0 ? [o.x + d.x * t, y, o.z + d.z * t] : null; };
   const atVert = (p0, nx, nz) => { const o = ray.ray.origin, d = ray.ray.direction, den = d.x * nx + d.z * nz; if (Math.abs(den) < 1e-4) return null; const t = ((p0[0] - o.x) * nx + (p0[2] - o.z) * nz) / den; return t > 0 ? [o.x + d.x * t, o.y + d.y * t, o.z + d.z * t] : null; };
-  function startHandle(k, e) {
-    const r = ramps[sel], p = stage.pieces[sel], prev = sel > 0 ? ramps[sel - 1] : null, h = handlePoints().find(q => q.k === k);
-    const D = { k, p, gap0: p.gap ?? 480, lat0: p.lat || 0, L0: p.L, turn0: p.turn, nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw), d1: r.tube ? null : dirOf(r.h1), c: h.c, rt: h.rt, hp: h.p, C0: p.C || 0, R0: p.R, out: h.out, rt1: r.tube ? null : rightOf(r.h1), at: sel };
-    D.drop0 = prev ? (p.drop ?? (r.tube ? 20 - 0.42 * prev.H : prev.ey - r.oy)) : 0;
-    if (prev) { D.pd = dirOf(prev.h1); D.pr = rightOf(prev.h1); }
-    setRay(e); D.P0 = k === 'rise' || k === 'slope' ? atVert(h.p, D.nx, D.nz) : atY(h.p[1]); if (!D.P0) return null; return D;
+  // resize handles (length of a ramp / angle of a turn, half-width)
+  function startHandle(h, e) {
+    const r = ramps[sel], p = stage.pieces[sel], nxt = stage.pieces[sel + 1], rn = ramps[sel + 1];
+    const D = { k: h.k, p, L0: p.L, turn0: p.turn, d1: dirOf(r.h1), c: h.c, rt: h.rt, hp: h.p, W0: r.W, oldEnd: [r.ex, r.ey, r.ez], h1: r.h1, comp: false };
+    if (nxt && rn) { D.next = nxt; D.n0 = { gap: nxt.gap ?? 480, lat: nxt.lat || 0, drop: nxt.drop ?? (rn.tube ? 20 - 0.42 * r.H : r.ey - rn.oy), hadW: nxt.W !== undefined }; }
+    setRay(e); D.P0 = atY(h.p[1]); return D.P0 ? D : null;
+  }
+  function compensate(D) { // keep the next block exactly where it was, whatever happened to this one
+    if (!D.next) return; const i = stage.pieces.indexOf(D.p), r = ramps[i], rn = ramps[i + 1]; if (!r || !rn || r.tube) return;
+    if (D.k === 'wid') { if (!D.n0.hadW) D.next.W = D.W0; return; }
+    const dO = dirOf(D.h1), rO = rightOf(D.h1), sx = D.oldEnd[0] + D.n0.gap * dO[0] + D.n0.lat * rO[0], sz = D.oldEnd[2] + D.n0.gap * dO[2] + D.n0.lat * rO[2], sy = D.oldEnd[1] - D.n0.drop;
+    const dN = dirOf(r.h1), rN = rightOf(r.h1), tx = sx - r.ex, tz = sz - r.ez;
+    D.next.gap = clampv(snap(tx * dN[0] + tz * dN[2], 50), 0, 40000); const lat = clampv(snap(tx * rN[0] + tz * rN[2], 50), -30000, 30000); if (lat) D.next.lat = lat; else delete D.next.lat;
+    D.next.drop = clampv(snap(r.ey - sy, 50), -20000, 40000);
+  }
+  // moving blocks: a run of selected blocks translates as one; the block before the run and the block after it are re-aimed so nothing else moves
+  function makeRuns() {
+    const n = stage.pieces.length, runs = []; let cur = null;
+    for (const i of ids()) { if (cur && i === cur.b + 1) cur.b = i; else { cur = { a: i, b: i }; runs.push(cur); } }
+    const st = i => { const r = ramps[i], pr = ramps[i - 1], p = stage.pieces[i]; return { p, gap: p.gap ?? 480, lat: p.lat || 0, drop: p.drop ?? (r.tube ? 20 - 0.42 * pr.H : pr.ey - r.oy) }; };
+    return runs.map(R => { const o = { a: R.a, b: R.b };
+      if (R.a > 0 && ramps[R.a - 1] && !ramps[R.a - 1].tube && ramps[R.a]) { o.s = st(R.a); o.hs = ramps[R.a - 1].h1; }
+      if (R.b + 1 < n && ramps[R.b] && !ramps[R.b].tube && ramps[R.b + 1]) { o.e = st(R.b + 1); o.he = ramps[R.b].h1; }
+      return o; });
+  }
+  function setSt(s, gap, lat, drop) { const p = s.p; p.gap = clampv(snap(gap, 50), 0, 40000); const l = clampv(snap(lat, 50), -30000, 30000); if (l) p.lat = l; else delete p.lat; p.drop = clampv(snap(drop, 50), -20000, 40000); }
+  function applyRuns(runs, d) {
+    for (const o of runs) { if (!o.s) continue;
+      let dr = dirOf(o.hs), rt = rightOf(o.hs); setSt(o.s, o.s.gap + d[0] * dr[0] + d[2] * dr[2], o.s.lat + d[0] * rt[0] + d[2] * rt[2], o.s.drop - d[1]);
+      if (o.e) { dr = dirOf(o.he); rt = rightOf(o.he); setSt(o.e, o.e.gap - (d[0] * dr[0] + d[2] * dr[2]), o.e.lat - (d[0] * rt[0] + d[2] * rt[2]), o.e.drop + d[1]); } }
+  }
+  function bodyStart(e, hit, wasIn) {
+    const D = { body: true, runs: makeRuns(), hit, wasIn, i: hit.i, mode: e.altKey ? 'v' : 'h', acc: [0, 0, 0], cur: [0, 0, 0], nx: Math.sin(cam.yaw), nz: Math.cos(cam.yaw) };
+    if (!D.runs.some(o => o.s)) setStatus('The first block is where the course starts; it can be resized but not moved.');
+    setRay(e); D.P0 = D.mode === 'v' ? atVert(hit.p, D.nx, D.nz) : atY(hit.p[1]); return D.P0 ? D : null;
   }
   function dragHandle(e) {
-    const D = hDrag; setRay(e); const P = D.k === 'rise' || D.k === 'slope' ? atVert(D.hp, D.nx, D.nz) : atY(D.hp[1]); if (!P) return; const p = D.p;
-    const dx = P[0] - D.P0[0], dz = P[2] - D.P0[2];
-    if (D.k === 'ext') { extDrag(D, dx, dz); return; }
-    if (D.k === 'move') { p.gap = clampv(snap(D.gap0 + dx * D.pd[0] + dz * D.pd[2], 50), 0, 4000); const lat = clampv(snap(D.lat0 + dx * D.pr[0] + dz * D.pr[2], 50), -3000, 3000); if (lat) p.lat = lat; else delete p.lat; setStatus('Move: gap ' + p.gap + ', sideways ' + (p.lat || 0)); }
-    else if (D.k === 'rise') { p.drop = clampv(snap(D.drop0 - (P[1] - D.P0[1]), 50), -2000, 9000); setStatus('Height: drop ' + p.drop); }
-    else if (D.k === 'len') { const a = dx * D.d1[0] + dz * D.d1[2]; if (p.turn) { p.turn = clampv(snap(D.turn0 + a / p.R * 57.2958, 5), 10, 360); setStatus('Turn ' + p.turn + ' deg'); } else { p.L = clampv(snap(D.L0 + a, D.L0 > 12000 ? 500 : 100), 500, 40000); setStatus('Length ' + p.L); } }
-    else if (D.k === 'slope') { const c = clampv(snap(D.C0 + (P[1] - D.P0[1]) * 1.4, 50), -4000, 4000); if (c) p.C = c; else delete p.C; setStatus('Slope: net climb ' + c + (c < 0 ? ' (steeper down ramp)' : c > 0 ? ' (uphill)' : ' (normal)')); }
-    else if (D.k === 'rad') { const d = dx * D.out[0] + dz * D.out[1], arc = D.R0 * p.turn * 0.0174533, R = clampv(D.R0 * Math.exp(d / (0.35 * arc)), 1500, 60000); p.R = snap(R, R < 10000 ? 100 : 500); setStatus('Sweep radius ' + p.R + ' (turn limit about ' + Math.round(Math.sqrt(1000 * p.R)) + ' u/s)'); }
-    else if (D.k === 'wid') { p.W = clampv(snap(Math.abs((P[0] - D.c[0]) * D.rt[0] + (P[2] - D.c[1]) * D.rt[2]), 10), 250, 1300); setStatus('Half-width ' + p.W); }
-    dirty = true; D.moved = true;
-  }
-  // Extend: the new piece is an arc through the dragged point (tangent to where the last ramp ends), or a straight ramp when the point is straight ahead.
-  function extDrag(D, dx, dz) {
-    const a = dx * D.d1[0] + dz * D.d1[2], b = dx * D.rt1[0] + dz * D.rt1[2]; if (a < 500) return;
-    let np; if (Math.abs(b) < 0.1 * a) np = { L: clampv(snap(a, a > 12000 ? 500 : 100), 500, 40000) };
-    else { const R0 = (a * a + b * b) / (2 * Math.abs(b)), th = 2 * Math.atan2(Math.abs(b), a) * 57.2958, R = clampv(R0, 1500, 60000); np = { turn: clampv(snap(th, 5), 10, 360), R: snap(R, R < 10000 ? 100 : 500) }; }
-    const key = JSON.stringify(np) + Math.sign(b); if (key === D.lastKey) return; D.lastKey = key;
-    if (D.idx == null) { stage.pieces.splice(D.at + 1, 0, np); D.idx = D.at + 1; } else stage.pieces[D.idx] = np;
-    if (np.turn) { rebuild(); const r2 = ramps[D.idx]; if (r2 && Math.sign(r2.k) !== -Math.sign(b)) np.zig = true; }
-    setStatus(np.turn ? 'New arc ' + np.turn + ' deg, radius ' + np.R + (np.zig ? ' (zig)' : '') : 'New ramp L ' + np.L); dirty = true;
+    const D = hDrag; setRay(e);
+    if (D.body) {
+      const mode = e.altKey ? 'v' : 'h', P = mode === 'v' ? atVert(D.hit.p, D.nx, D.nz) : atY(D.hit.p[1]); if (!P) return;
+      if (mode !== D.mode) { D.acc = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; D.cur = [0, 0, 0]; D.P0 = P; D.mode = mode; return; }
+      D.cur = mode === 'v' ? [0, P[1] - D.P0[1], 0] : [P[0] - D.P0[0], 0, P[2] - D.P0[2]];
+      const t = [D.acc[0] + D.cur[0], D.acc[1] + D.cur[1], D.acc[2] + D.cur[2]]; applyRuns(D.runs, t); D.moved = true; dirty = true;
+      setStatus('Moving: ' + (mode === 'v' ? 'up / down' : 'along the ground') + ' (hold Alt to lift or lower)'); return;
+    }
+    const P = atY(D.hp[1]); if (!P) return; const p = D.p, dx = P[0] - D.P0[0], dz = P[2] - D.P0[2];
+    if (D.k === 'len') { const a = dx * D.d1[0] + dz * D.d1[2]; if (p.turn) { p.turn = clampv(snap(D.turn0 + a / p.R * 57.2958, 5), 10, 360); setStatus('Turn ' + p.turn + ' deg'); } else { p.L = clampv(snap(D.L0 + a, D.L0 > 12000 ? 500 : 100), 500, 40000); setStatus('Length ' + p.L); } }
+    else { p.W = clampv(snap(Math.abs((P[0] - D.c[0]) * D.rt[0] + (P[2] - D.c[1]) * D.rt[2]), 10), 250, 1300); setStatus('Half-width ' + p.W); }
+    dirty = true; D.moved = true; D.comp = true;
   }
   const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _hit = new THREE.Vector3();
   function rayRamp(e) { // click a ramp's surface: ray against the real faces, nearest wins
@@ -166,7 +184,7 @@
         v.project(camera); if (v.z > 1) continue; const d = Math.hypot((v.x * 0.5 + 0.5) * rc.width + rc.left - e.clientX, (-v.y * 0.5 + 0.5) * rc.height + rc.top - e.clientY); if (d < bd) { bd = d; best = i; }
       }
     });
-    if (best >= 0) { sel = best; selEnd = null; drawSelection(); renderList(); renderInspector(); }
+    if (best >= 0) { if (e.shiftKey) toggleSel(best); else selectOnly(best); drawSelection(); renderList(); renderInspector(); }
   }
   function clearPath() { if (pathLine) { scene.remove(pathLine); pathLine.geometry.dispose(); pathLine.material.dispose(); pathLine = null; } }
   function drawPath(pts) {
@@ -271,11 +289,11 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     box.innerHTML = '';
     stage.pieces.forEach((p, i) => {
       const e = entries[i], d = document.createElement('div');
-      d.className = 'piece' + (i === sel || (selEnd != null && i >= range()[0] && i <= range()[1]) ? ' sel' : '') + (i === failAt || i === failAt + 1 ? ' bad' : '');
+      d.className = 'piece' + (multi.has(i) ? ' sel' : '') + (i === failAt || i === failAt + 1 ? ' bad' : '');
       d.innerHTML = '<span class="n">' + (i + 1) + '</span><span class="t"></span><span class="v"></span>';
       d.querySelector('.t').textContent = label(p, i);
       d.querySelector('.v').textContent = e ? e.speed + ' u/s' : (botRes && i > 0 && !(i in entries) ? 'skipped' : '');
-      d.onclick = ev => { if (ev.shiftKey) selEnd = i; else { sel = i; selEnd = null; } drawSelection(); focusSel(); renderList(); renderInspector(); };
+      d.onclick = ev => { if (ev.shiftKey) selectRange(sel, i); else selectOnly(i); drawSelection(); focusSel(); renderList(); renderInspector(); };
       box.appendChild(d);
     });
   }
@@ -292,38 +310,23 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
   }
   function renderInspector() {
     const box = $id('edinsp'); if (!box) return; box.innerHTML = ''; const p = stage.pieces[sel]; if (!p) return;
-    const k = kind(p), ch = () => { change(); }, h = document.createElement('h3'); h.textContent = 'Piece ' + (sel + 1) + ': ' + k; box.appendChild(h);
-    if (sel > 0) F_COMMON.slice(0, 3).forEach(s => numField(box, p, s, ch));
-    if (k === 'ramp') { F_RAMP.forEach(s => numField(box, p, s, ch)); checkField(box, p, 'zig', 'Zigzag', ch); checkField(box, p, 'cp', 'Checkpoint', ch); }
-    else if (k === 'turn') { F_TURN.forEach(s => numField(box, p, s, ch)); checkField(box, p, 'zig', 'Zigzag', ch); checkField(box, p, 'cp', 'Checkpoint', ch); }
-    else { F_LOOP.forEach(s => numField(box, p.loop, s, ch)); }
-    numField(box, p, F_COMMON[3], ch);
-    const rh = document.createElement('h3'); rh.textContent = 'Rings in the flight before this piece'; box.appendChild(rh);
-    (p.rings || []).forEach((rg, ri) => {
-      const d = document.createElement('div'); d.className = 'ring';
-      const top = document.createElement('div'); top.className = 'row'; const sl = document.createElement('select');
-      for (const o of ['hoop', 'portal']) { const op = document.createElement('option'); op.value = op.textContent = o; sl.appendChild(op); } sl.value = rg.kind || 'hoop';
-      sl.onchange = () => { rg.kind = sl.value; change(); renderInspector(); };
-      const del = document.createElement('button'); del.textContent = 'remove'; del.className = 'danger'; del.onclick = () => { p.rings.splice(ri, 1); if (!p.rings.length) delete p.rings; change(); renderInspector(); };
-      top.append(sl, del); d.appendChild(top);
-      F_RING.filter(s => !(rg.kind === 'portal' && s[0] === 'boost') && !(rg.kind !== 'portal' && s[0] === 'theme')).forEach(s => numField(d, rg, s, ch)); box.appendChild(d);
-    });
-    if (sel === 0) { const n = document.createElement('small'); n.textContent = 'Rings need a previous piece to measure from.'; box.appendChild(n); }
-    else { const a = document.createElement('button'); a.textContent = '+ Hoop'; a.onclick = () => { (p.rings = p.rings || []).push(clone(RING_PRESETS.hoop)); change(); renderInspector(); };
-      const b = document.createElement('button'); b.textContent = '+ Portal'; b.onclick = () => { (p.rings = p.rings || []).push(clone(RING_PRESETS.portal)); change(); renderInspector(); }; box.append(a, b); }
-    const ops = document.createElement('div'); ops.style.marginTop = '8px';
-    const btn = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; ops.appendChild(b); };
-    btn('▲ move up', () => move(-1)); btn('▼ move down', () => move(1)); btn('duplicate', dup); btn('delete', del, 'danger'); btn('focus (F)', () => focusSel()); box.appendChild(ops);
+    const k = kind(p), ch = () => { change(); }, h = document.createElement('h3');
+    h.textContent = multi.size > 1 ? multi.size + ' blocks selected: drag to move them together' : 'Selected block ' + (sel + 1) + ' (' + k + ')'; box.appendChild(h);
+    if (multi.size > 1) return;
+    if (k === 'ramp') F_RAMP.forEach(s => numField(box, p, s, ch));
+    else if (k === 'turn') { F_TURN.forEach(s => numField(box, p, s, ch)); numField(box, p, F_RAMP[2], ch); }
+    else F_LOOP.forEach(s => numField(box, p.loop, s, ch));
+    if (k !== 'loop' && k !== 'swirl') { checkField(box, p, 'zig', 'Zigzag', ch); checkField(box, p, 'cp', 'Checkpoint', ch); }
+    const d = document.createElement('details'); d.innerHTML = '<summary style="cursor:pointer;color:#8fa2d6;font-size:12px;margin:6px 0">Exact position numbers</summary>';
+    F_COMMON.forEach(s => numField(d, p, s, ch)); box.appendChild(d);
   }
-  const range = () => selEnd == null ? [sel, sel] : [Math.min(sel, selEnd), Math.max(sel, selEnd)];
-  function copyRange() { const [a, b] = range(); clip = clone(stage.pieces.slice(a, b + 1)); setStatus('Copied ' + clip.length + ' piece' + (clip.length > 1 ? 's' : '') + '. Ctrl+V pastes after the selection.'); }
-  function pasteRange() { if (!clip) { setStatus('Nothing copied yet (select pieces, Ctrl+C).'); return; } const at = range()[1] + 1; stage.pieces.splice(at, 0, ...clone(clip)); sel = at; selEnd = at + clip.length - 1; change(); renderInspector(); }
-  function move(d) { const j = sel + d; if (j < 0 || j >= stage.pieces.length) return; [stage.pieces[sel], stage.pieces[j]] = [stage.pieces[j], stage.pieces[sel]]; sel = j; change(); renderInspector(); }
-  function dup() { stage.pieces.splice(sel + 1, 0, clone(stage.pieces[sel])); sel++; change(); renderInspector(); }
-  function del() { const [a, b] = range(); if (stage.pieces.length - (b - a + 1) < 1) return; stage.pieces.splice(a, b - a + 1); sel = Math.min(a, stage.pieces.length - 1); selEnd = null; change(); renderInspector(); }
+  function copyRange() { const a = ids(); clip = clone(a.map(i => stage.pieces[i])); setStatus('Copied ' + clip.length + ' block' + (clip.length > 1 ? 's' : '') + '. Ctrl+V pastes after the selection.'); }
+  function pasteRange() { if (!clip) { setStatus('Nothing copied yet (select blocks, Ctrl+C).'); return; } const at = ids().pop() + 1; stage.pieces.splice(at, 0, ...clone(clip)); selectRange(at, at + clip.length - 1); change(); renderInspector(); }
+  function dup() { copyRange(); pasteRange(); }
+  function del() { const a = ids(); if (stage.pieces.length - a.length < 1) return; for (let k = a.length - 1; k >= 0; k--) stage.pieces.splice(a[k], 1); selectOnly(Math.min(a[0], stage.pieces.length - 1)); change(); renderInspector(); }
   function add(key) {
-    const made = PRESETS[key].piece(), list = Array.isArray(made) ? made : [made];
-    stage.pieces.splice(sel + 1, 0, ...list); sel++; change(); focusSel(); renderInspector();
+    const made = PRESETS[key].piece(), list = Array.isArray(made) ? made : [made], at = ids().pop() + 1;
+    stage.pieces.splice(at, 0, ...list); selectRange(at, at + list.length - 1); sel = at; change(); focusSel(); renderInspector();
   }
   function modal(title, text, onOk) {
     const m = document.createElement('div'); m.id = 'edmodal'; m.innerHTML = '<div><b></b><textarea spellcheck="false"></textarea><div style="margin-top:8px"></div></div>';
@@ -404,10 +407,14 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const crow = list => { const r = document.createElement('div'); r.style.cssText = 'display:flex;gap:6px;margin:4px 0'; for (const [t, f, cls] of list) { const b = document.createElement('button'); b.textContent = t; b.onclick = f; b.style.cssText = 'flex:1;padding:9px 4px;font-size:13px;font-weight:600;margin:0;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); r.appendChild(b); } return r; };
     cb.appendChild(crow([['New', newCourse], ['Copy...', copyFrom], ['Open...', openCourse]])); cb.appendChild(crow([['Save', saveCourse, 'go'], ['Save as...', saveAs], ['Delete', deleteCourse, 'danger']])); cb.appendChild(crow([['Share link', shareLink], ['Export file', exportFile], ['Import file', importFile]]));
     ed.appendChild(cb); updateBar();
-    const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;line-height:1.5';
-    how.innerHTML = '<b>How to build</b><br>1. Press <b>+ Ramp</b> below, then <b>click any ramp</b> in the 3D view to select it; <b>drag the ramp itself</b> to place it.<br>2. Drag the balls on the selected ramp:<br><span style="color:#ffe14a">&#9679;</span> yellow: <b>length</b> (turn angle on a turn) &nbsp;<span style="color:#ff9a3c">&#9679;</span> orange: <b>width</b><br><span style="color:#4be07a">&#9679;</span> green: <b>move</b> along the ground and sideways &nbsp;<span style="color:#4aa8ff">&#9670;</span> blue: <b>raise / lower</b><br><span style="color:#c77dff">&#9670;</span> purple: <b>slope</b> (drag up = uphill, down = steeper down ramp; sets the climb for you) &nbsp;<span style="color:#ff5fa2">&#9679;</span> pink on a turn: <b>sweep radius</b> (drag outward = bigger, wider sweep)<br>3. The coloured line is the bot riding it; red rows are where it falls. Press <b>Play</b> to try it yourself.';
+    const how = document.createElement('div'); how.style.cssText = 'background:#16204a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;line-height:1.55';
+    how.innerHTML = '<b>Click a block</b> to select it. <b>Drag it</b> to move it (hold <b>Alt</b> to lift or lower it). <b>Shift-click</b> to select several. Drag the <b>white squares</b> to make it longer or wider. The rest of the course stays where it is.';
     ed.appendChild(how);
-    const top = document.createElement('div'); top.innerHTML = '<h3 style="margin-top:0">Course settings</h3>'; ed.appendChild(top);
+    const bar = document.createElement('div'); bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px'; const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; b.style.cssText = 'margin:0;padding:7px 9px;font-size:13px;' + (cls === 'go' ? 'background:#1f7a4a;' : cls === 'danger' ? 'background:#5a2330;' : ''); bar.appendChild(b); };
+    bt('+ Ramp', () => add('ramp')); bt('+ Turn', () => add('turn')); bt('+ Zigzag', () => add('zig')); bt('Duplicate', dup); bt('Delete', del, 'danger'); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1)); bt('Top view', toggleTop);
+    bt('▶ Play', () => play(), 'go'); bt('▶ Play from selected', () => play(sel));
+    ed.appendChild(bar);
+    const det = document.createElement('details'); det.innerHTML = '<summary style="cursor:pointer;color:#8fa2d6;font-size:12px;margin:4px 0">More settings (scenery, music, physics)</summary>'; const top = document.createElement('div'); det.appendChild(top);
     const sr = document.createElement('div'); sr.className = 'row'; sr.innerHTML = '<label>Scenery</label>';
     const sc = document.createElement('select'); for (const o of ['plain', 'descent']) { const op = document.createElement('option'); op.value = op.textContent = o; sc.appendChild(op); } sc.value = stage.scenery || 'plain';
     sc.onchange = () => { stage.scenery = sc.value; change(); }; sr.appendChild(sc);
@@ -422,12 +429,8 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     const pn = document.createElement('input'); pn.type = 'number'; pn.step = '0.05'; pn.min = '0'; pn.max = '1'; pn.value = stage.pull ?? 0; pn.onchange = () => { stage.pull = +pn.value || 0; if (!stage.pull) delete stage.pull; change(); }; fr2.prepend(pn); top.appendChild(fr2);
     const fr3 = document.createElement('div'); fr3.className = 'row'; fr3.innerHTML = '<label>Air gravity</label><small>0 to 1, extra fall in the air</small>';
     const fl = document.createElement('input'); fl.type = 'number'; fl.step = '0.05'; fl.min = '0'; fl.max = '1'; fl.value = stage.fall ?? 0; fl.onchange = () => { stage.fall = +fl.value || 0; if (!stage.fall) delete stage.fall; change(); }; fr3.prepend(fl); top.appendChild(fr3);
-    const bar = document.createElement('div'); const bt = (t, f, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = f; bar.appendChild(b); };
-    bt('▶ Play', () => play()); bt('▶ Play from selected', () => play(sel)); bt('Full check', () => runBots(true)); bt('Top view (T)', toggleTop); bt('Copy', copyRange); bt('Paste', pasteRange); bt('Undo', () => undo(-1)); bt('Redo', () => undo(1));
-    top.appendChild(bar);
-    const ph = document.createElement('h3'); ph.textContent = 'Add after the selected piece'; ed.appendChild(ph);
-    const pal = document.createElement('div'); for (const [k, v] of Object.entries(PRESETS)) { const b = document.createElement('button'); b.textContent = '+ ' + v.label; b.title = v.tip; b.onclick = () => add(k); pal.appendChild(b); } ed.appendChild(pal);
-    const lh = document.createElement('h3'); lh.textContent = 'Pieces (entry speed from the good bot)'; ed.appendChild(lh);
+    ed.appendChild(det);
+    const lh = document.createElement('h3'); lh.textContent = 'Blocks (red = where the bot falls)'; ed.appendChild(lh);
     const list = document.createElement('div'); list.id = 'edlist'; ed.appendChild(list);
     const insp = document.createElement('div'); insp.id = 'edinsp'; ed.appendChild(insp);
     const st = document.createElement('div'); st.id = 'edstat'; ed.appendChild(st);
@@ -441,15 +444,15 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     let moved = 0;
     cv.addEventListener('pointerdown', e => {
       stop(e); e.preventDefault(); moved = 0; cv.setPointerCapture(e.pointerId);
-      const k = e.button === 0 && !e.shiftKey ? hitHandle(e) : null, D = k ? startHandle(k, e) : null;
+      const hk = e.button === 0 && !e.shiftKey ? hitHandle(e) : null, D = hk ? startHandle(hk, e) : null;
       if (D) { hDrag = D; drag = null; cv.style.cursor = 'grabbing'; return; }
-      if (e.button === 0 && !e.shiftKey) { // press on a ramp: select it, and dragging carries it along the ground (same as the green handle)
+      if (e.button === 0) { // press on a block: select it (shift = add / remove from the selection); dragging carries the selection along
         const hit = rayRamp(e);
         if (hit) {
-          if (hit.i !== sel) { sel = hit.i; drawSelection(); renderList(); renderInspector(); }
-          const B = handlePoints().find(q => q.k === 'move') && startHandle('move', e);
-          if (B) { B.hp = hit.p; B.P0 = atY(hit.p[1]); B.body = true; if (B.P0) { hDrag = B; drag = null; cv.style.cursor = 'grabbing'; return; } }
-          drag = { x: e.clientX, y: e.clientY, pan: false }; return;
+          if (e.shiftKey) { toggleSel(hit.i); refreshSel(); drag = { x: e.clientX, y: e.clientY, pan: false, none: true }; return; }
+          const wasIn = multi.has(hit.i); if (!wasIn) { selectOnly(hit.i); refreshSel(); }
+          const B = bodyStart(e, hit, wasIn); if (B) { hDrag = B; drag = null; cv.style.cursor = 'grabbing'; return; }
+          drag = { x: e.clientX, y: e.clientY, pan: false, none: true }; return;
         }
       }
       drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey || e.button === 1 };
@@ -457,7 +460,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     cv.addEventListener('pointermove', e => {
       stop(e);
       if (hDrag) { dragHandle(e); return; }
-      if (!drag) { const k = hitHandle(e); let h = null; if (!k && performance.now() - lastHover > 50) { lastHover = performance.now(); h = rayRamp(e); setHover(h ? h.i : -1); }
+      if (!drag) { const hr = hitHandle(e), k = hr && hr.k; let h = null; if (!k && performance.now() - lastHover > 50) { lastHover = performance.now(); h = rayRamp(e); setHover(h ? h.i : -1); }
         cv.style.cursor = k ? 'grab' : (hoverI >= 0 || (h && h.i === sel)) ? 'pointer' : 'default'; setHint(k ? 'drag: ' + HNAME[k] : hoverI >= 0 ? 'click to select this ramp, drag to move it' : ''); return; }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
       if (drag.pan) { const k = cam.dist * 0.0012, cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw); cam.tx += (-dx * cy) * k; cam.tz += (dx * sy) * k; cam.ty += dy * k; }
@@ -465,18 +468,24 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     }, true);
     const up = e => {
       stop(e);
-      if (hDrag) { const nomove = hDrag.body && !hDrag.moved; if (hDrag.k === 'ext' && hDrag.idx != null) { sel = hDrag.idx; selEnd = null; } hDrag = null; cv.style.cursor = 'default'; if (nomove) return; dirty = false; snapshot(); rebuild(); renderList(); renderInspector(); renderStatus(); return; }
-      if (drag && moved < 6 && e.button === 0) pickPiece(e);
+      if (hDrag) {
+        const D = hDrag; hDrag = null; cv.style.cursor = 'default';
+        if (D.body && !D.moved) { if (D.wasIn && multi.size > 1) { selectOnly(D.i); refreshSel(); } return; }
+        if (D.comp) { rebuild(); compensate(D); }
+        dirty = false; snapshot(); rebuild(); renderList(); renderInspector(); renderStatus(); return;
+      }
+      if (drag && !drag.none && moved < 6 && e.button === 0) pickPiece(e);
       drag = null;
     }; cv.addEventListener('pointerup', up, true); cv.addEventListener('pointercancel', up, true);
     cv.addEventListener('contextmenu', e => e.preventDefault());
     cv.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(300, Math.min(900000, cam.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
     addEventListener('keydown', e => {
       e.stopImmediatePropagation(); if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) return;
-      if (e.key === 'ArrowUp') { selEnd = null; sel = Math.max(0, sel - 1); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
-      else if (e.key === 'ArrowDown') { selEnd = null; sel = Math.min(stage.pieces.length - 1, sel + 1); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
+      if (e.key === 'ArrowUp') { selectOnly(Math.max(0, sel - 1)); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { selectOnly(Math.min(stage.pieces.length - 1, sel + 1)); drawSelection(); focusSel(); renderList(); renderInspector(); e.preventDefault(); }
       else if (e.key === 'Delete') del(); else if (e.key === 'f' || e.key === 'F') focusSel(); else if (e.key === 'd' || e.key === 'D') dup();
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { copyRange(); e.preventDefault(); } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { pasteRange(); e.preventDefault(); } else if (e.key === 't' || e.key === 'T') toggleTop();
+      else if (e.key === 'PageUp' || e.key === 'PageDown') { const dy = (e.key === 'PageUp' ? 1 : -1) * (e.shiftKey ? 500 : 100), runs = makeRuns(); applyRuns(runs, [0, dy, 0]); change(); e.preventDefault(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { undo(e.shiftKey ? 1 : -1); e.preventDefault(); } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { undo(1); e.preventDefault(); }
     }, true);
     addEventListener('keyup', e => e.stopImmediatePropagation(), true);
@@ -484,7 +493,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
   function frame(dt, now) {
     const cp = Math.cos(cam.pitch);
     camera.position.set(cam.tx + Math.sin(cam.yaw) * cp * cam.dist, cam.ty + Math.sin(cam.pitch) * cam.dist, cam.tz + Math.cos(cam.yaw) * cp * cam.dist);
-    if (dirty && now - lastRb > 90) { dirty = false; lastRb = now; rebuild(); renderList(); }
+    if (dirty && now - lastRb > 90) { dirty = false; lastRb = now; rebuild(); if (hDrag && hDrag.comp) { compensate(hDrag); rebuild(); } renderList(); }
     placeHandles();
     camera.lookAt(cam.tx, cam.ty, cam.tz); camera.fov = 50; camera.near = Math.max(10, cam.dist / 3000); camera.far = 4e6; camera.updateProjectionMatrix();
     scene.fog.far = FOG_FAR * 3; tickTheme(dt); updateSky(dt, now); updateRings(dt, now); stars.position.copy(camera.position);
@@ -499,7 +508,7 @@ return { P, ramps, checkpoints, fin, pos, vel, cmd, step, spawnOn, local, ridgeA
     css(); stage = load(); if (!stage.id) stage.id = Courses.uid();
     if (Courses.has(stage.id)) savedJ = Courses.json(stage.id); else if (fresh) { Courses.save(stage); savedJ = Courses.json(stage.id); } else { stage.name = stage.name || 'Recovered draft'; Courses.save(stage); savedJ = Courses.json(stage.id); setTimeout(() => setStatus('Your earlier editor work was saved as "' + stage.name + '" in My courses.'), 600); }
     snapshot(); setupInput(); addEventListener('beforeunload', e => { if (unsaved()) { e.preventDefault(); e.returnValue = ''; } });
-    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>drag: orbit · right-drag / shift-drag: pan · wheel: zoom · ↑↓: select · F: focus · D: duplicate · T: top view · shift-click list: select a range · Ctrl+C / Ctrl+V: copy and paste · cyan diamond: drag out a new ramp or arc · Del: delete · Ctrl+Z: undo · click a ramp: select · drag a ramp: move it'; document.body.appendChild(h);
+    const h = document.createElement('div'); h.id = 'edhelp'; h.innerHTML = '<b id="edhint"></b><br>click: select · drag: move · Alt-drag: up / down · shift-click: select several · white squares: resize · empty-space drag: orbit · right-drag: pan · wheel: zoom · T: top view · Ctrl+Z: undo · Del: delete · Ctrl+C / V: copy / paste'; document.body.appendChild(h);
     refresh(true);
   }
   init();
