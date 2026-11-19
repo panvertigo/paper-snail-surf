@@ -5,7 +5,7 @@
 (function () {
   const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
   let ctx = null, master = null, sfxBus = null, cfg = null, bufs = {}, ready = false, loading = null;
-  let cur = null, pending = null, wanted = null, groups = [], timer = null, speed = 0, events = [], deferredAt = null, progress = 0;
+  let cur = null, pending = null, wanted = null, groups = [], timer = null, speed = 0, events = [], deferredAt = null, progress = 0, ending = false;
   let musicVol = 0.7, sfxVol = 0.8;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -110,7 +110,7 @@
     const now = ctx.currentTime; groups = groups.filter(g => !g.dead && g.end + 6 > now);
     if (!cur) { if (wanted && cfg.sections[wanted]) startSection(wanted, now + 0.1); else return; }
     if (pending) { const tb = boundary(pending.quant, Math.max(now + 0.12, pending.tmin || 0)); if (tb < now + 0.5) commit(tb); }
-    if (cur && cur.once && cur.iters >= 1 && cur.nextStart < now + 0.5) { const nx = cfg.linear ? linearNext() : cur.next; if (nx && cfg.sections[nx]) startSection(nx, cur.nextStart); } // an intro hands over to its loop with no gap; a linear song picks its next phrase here
+    if (!ending && cur && cur.once && cur.iters >= 1 && cur.nextStart < now + 0.5) { const nx = cfg.linear ? linearNext() : cur.next; if (nx && cfg.sections[nx]) startSection(nx, cur.nextStart); } // an intro hands over to its loop with no gap; a linear song picks its next phrase here
     while (cur && cur.nextStart < now + 0.5 && !(cur.once && cur.iters >= 1)) { scheduleIter(cur.id, cur.nextStart); cur.nextStart += cur.loopLen; cur.iters++; } // once: play the section a single time (an outro), then silence
     for (const g of groups) if (!g.dead && g.start < now + 0.5 && g.end > now) g.gains.forEach((n, i) => n.gain.setTargetAtTime(layerTarget(g.sec, i), now, 0.35)); // speed layers
   }
@@ -158,7 +158,7 @@
         if (t) Music.goto(t.section, { quantize: t.quantize, lead });
       } catch (e) { console.warn('music trigger failed', ev0, e); } // music must never take the game down
     },
-    at(piece, o) { // the section in force when you are at piece i (used on start and after a respawn)
+    at(piece, o) { ending = false; // the section in force when you are at piece i (used on start and after a respawn)
       if (!cfg || !ready) { deferredAt = piece; return; }
       if (cfg.linear) { const playing = cur && (cfg.linear.includes(cur.id) || (cfg.linearLong || []).includes(cur.id)); if (o && o.respawn && playing) return; Music.goto(order()[0], { quantize: 'beat', restart: true }); return; } // a splat does not restart the song; a new run does
       if (cfg.journey) { let n = 0; for (const e of events) if (e.ev === 'checkpoint' && e.at <= piece) n++; if (n > 0) { Music.goto(journeySection(n), o || { quantize: 'beat' }); return; } }
@@ -167,12 +167,13 @@
       const t = ev ? match(ev) : (cfg.triggers || []).find(x => x.on === 'start');
       if (t) Music.goto((t.on === 'start' && o && o.respawn && t.respawn) || t.section, o || { quantize: 'beat' }); // respawn: don't replay the intro after a splat
     },
+    end() { if (!cur || pending || Music.lenFor('finish')) return; ending = true; cur.once = true; }, // at the finish line with no outro: let the phrase in progress end, then silence (no looping the last clip)
     setSpeed(v) { speed = v; },
     setProgress(p) { progress = p; },
     finishQ() { return cfg && cfg.linear ? 'phrase' : 'bar'; },
     setVolume(v) { musicVol = v; if (master) master.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     setSfxVolume(v) { sfxVol = v; if (sfxBus) sfxBus.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
-    stop(fade = 0.6) { wanted = null; pending = null; if (!ctx) return; const t = ctx.currentTime + fade; for (const g of groups) fadeStop(g, t); cur = null; },
+    stop(fade = 0.6) { ending = false; wanted = null; pending = null; if (!ctx) return; const t = ctx.currentTime + fade; for (const g of groups) fadeStop(g, t); cur = null; },
     get debug() { return ctx && cur ? { now: ctx.currentTime, origin: cur.origin, id: cur.id, bar: cfg.bar, pending: pending && pending.id, groups: groups.length } : null; },
     get status() { return 'ctx:' + (ctx ? ctx.state : 'none') + ' cfg:' + (cfg ? 'y' : 'n') + ' ready:' + (ready ? 'y' : 'n') + ' sec:' + (cur ? cur.id : '-') + (lastErr ? ' err:' + lastErr : ''); },
     get playing() { return !!cur; }, get section() { return cur && cur.id; }, get ready() { return ready; },

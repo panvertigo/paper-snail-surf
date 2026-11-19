@@ -74,7 +74,7 @@ canvas{display:block;touch-action:none}
 <div id="msg"></div>
 <div id="flash"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="music.js?v=68"></script>
+<script src="music.js?v=69"></script>
 <script src="racers.js"></script>
 <script src="courses.js?v=1"></script>
 <script>
@@ -1041,11 +1041,18 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
   });
   if (!stageMeta.park) { // finish pad
     const w = fin.half * 2, d = fin.u1 - fin.u0;
-    const t = gridTex('#7be495', '#2f8f52'); t.repeat.set(w / 256, d / 256);
+    const t = gridTex('#efdcb8', '#cfae7c'); t.repeat.set(w / 256, d / 256); // warm clay paper, not a green lawn
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, 60, d), new THREE.MeshLambertMaterial({ map: t }));
     const um = (fin.u0 + fin.u1) / 2;
     m.position.set(fin.x + fin.dir[0] * um, fin.y - 30, fin.z + fin.dir[2] * um); m.rotation.y = fin.h;
     addObj(m);
+    { // survey arch: two clay posts and a lintel at the start of the pad, with a glowing seal ring in the opening
+      const clay = new THREE.MeshLambertMaterial({ color: 0xc8744a }), ph = Math.min(2600, w * 0.9), pw = Math.max(90, w * 0.05), g = new THREE.Group();
+      for (const sd of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(pw, ph, pw), clay); p.position.set(sd * (w / 2 - pw), ph / 2, 0); g.add(p); }
+      const lin = new THREE.Mesh(new THREE.BoxGeometry(w, pw * 1.2, pw * 1.4), clay); lin.position.set(0, ph + pw * 0.6, 0); g.add(lin);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(Math.min(w * 0.3, ph * 0.38), pw * 0.18, 8, 40), new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.85, depthWrite: false })); ring.position.set(0, ph * 0.55, 0); g.add(ring);
+      g.position.set(fin.x + fin.dir[0] * (fin.u0 + 40), fin.y, fin.z + fin.dir[2] * (fin.u0 + 40)); g.rotation.y = fin.h; addObj(g);
+    }
   }
   { // void floor grid for height reference
     let minY = 0, sx = 0, sz = 0;
@@ -1617,7 +1624,7 @@ function fail() {
   state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
 }
 function finish() {
-  state = 'done'; Sfx.finish(); if (!aheadFin) Music.trigger('finish');
+  state = 'done'; Sfx.finish(); if (!aheadFin) Music.trigger('finish'); Music.end();
   if (flow.score > flow.best) { flow.best = flow.score; flow.newBest = true; store.set('surf_style_L' + LKEY, String(Math.round(flow.score))); }
   const pb = !best || tRun < best;
   if (pb) { best = tRun; bestFalls = falls; store.set(BK, best); store.set(BFK, falls); store.set('surf_ghost_L' + LKEY, JSON.stringify(ghostRec)); }
@@ -1627,6 +1634,9 @@ function finish() {
 
 // ---------- Input ----------
 let pid = null, lastX = 0, anchorY = 0;
+// Lift-off filter: moves are applied LIFT_HOLD ms late, and a lift (pointerup / cancel) throws away the moves still waiting. The slip as a thumb leaves the glass lands in that window, so it never steers.
+const LIFT_HOLD = 35, LIFT_MAXDX = 60, moveQ = [];
+function flushMoves(nowT) { while (moveQ.length && nowT - moveQ[0].t >= LIFT_HOLD) { const m = moveQ.shift(); turn(-m.dx * P.sens); if (Math.abs(m.dx) > 0.5) cmd.touch = Math.sign(m.dx); } }
 const PITCH_ON = false, /* the lean control is retired (physics code kept; replays read 0) */ PITCH_DEAD = 14, PITCH_RANGE = 100; // px: dead zone, then full lean
 function turn(r) { if (state === 'run') cmd.turn += r; else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
 const cv = renderer.domElement;
@@ -1641,15 +1651,14 @@ cv.addEventListener('pointerdown', e => {
 cv.addEventListener('pointermove', e => {
   if (e.pointerId !== pid) return;
   e.preventDefault();
-  const dx = e.clientX - lastX; lastX = e.clientX;
-  turn(-dx * P.sens);
-  if (Math.abs(dx) > 0.5) cmd.touch = Math.sign(dx);
+  const dx = Math.max(-LIFT_MAXDX, Math.min(LIFT_MAXDX, e.clientX - lastX)); lastX = e.clientX; // one move event never turns more than LIFT_MAXDX px (a slipping sweaty thumb sends spikes)
+  moveQ.push({ t: e.timeStamp, dx }); flushMoves(e.timeStamp);
   if (PITCH_ON) { // lean: finger below where it landed = nose up, above = nose down; the anchor follows if you drag past full lean
     let dy = e.clientY - anchorY; if (dy > PITCH_RANGE) anchorY = e.clientY - (dy = PITCH_RANGE); else if (dy < -PITCH_RANGE) anchorY = e.clientY - (dy = -PITCH_RANGE);
     cmd.pitch = Math.abs(dy) < PITCH_DEAD ? 0 : Math.sign(dy) * (Math.abs(dy) - PITCH_DEAD) / (PITCH_RANGE - PITCH_DEAD);
   }
 });
-const up = e => { if (e.pointerId === pid) { pid = null; cmd.touch = 0; cmd.pitch = 0; fingerDown = false; } };
+const up = e => { if (e.pointerId === pid) { moveQ.length = 0; pid = null; cmd.touch = 0; cmd.pitch = 0; fingerDown = false; } };
 cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 addEventListener('keydown', e => {
@@ -1827,6 +1836,7 @@ let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
 let hudT = 0;
 function frame(now) {
+  if (moveQ.length) flushMoves(performance.now());
   const dt = Math.min(0.1, (now - last) / 1000); { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
   if (state === 'run') {
