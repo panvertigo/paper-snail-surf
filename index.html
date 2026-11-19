@@ -852,9 +852,9 @@ function buildTowns() { // night levels: one lakeside town (inspired by Tiny Gla
   let ax = 0, az = 0; for (const r of ramps) { ax += r.sx; az += r.sz; } ax /= ramps.length; az /= ramps.length;
   const patch = (x, z, rad, y) => { const m = new THREE.Mesh(new THREE.CircleGeometry(rad, 28), new THREE.MeshBasicMaterial({ color: 0x20163a, fog: false, transparent: true, opacity: 0.92, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = -25; scene.add(m); townPatches.push(m); };
   { // the town: a village on a lake shore, tall half-timbered houses with warm windows, round trees, a church spire, lamps along the quay and glints on the water
-    const ti = Math.floor((ramps.length - 1) * 0.68), r = ramps[ti], rt = rightOf(r.h0); let lo = Infinity; for (let q = Math.max(0, ti - 3); q < Math.min(ramps.length, ti + 4); q++) lo = Math.min(lo, ramps[q].oy, ramps[q].ey);
-    const ty = lo - 2600, tx = r.sx + rt[0] * 6500, tz = r.sz + rt[2] * 6500, dx = r.sx - tx, dz = r.sz - tz; // local +z points from the village out over the lake toward the course
-    town = new THREE.Group(); town.position.set(tx, ty, tz); town.rotation.y = Math.atan2(dx, dz); town.scale.setScalar(1.2);
+    let ti = Math.floor((ramps.length - 1) * 0.68); for (let q = 0; q < ramps.length; q++) if (Math.min(ramps[q].oy, ramps[q].ey) <= minY + 1) { ti = Math.max(0, q - 4); break; }
+    const r = ramps[ti], rt = rightOf(r.h0), ty = fy + 4, tx = r.sx + rt[0] * 6500, tz = r.sz + rt[2] * 6500, dx = r.sx - tx, dz = r.sz - tz; // local +z points from the village out over the lake toward the course
+    town = new THREE.Group(); town.position.set(tx, ty, tz); town.rotation.y = Math.atan2(dx, dz); town.scale.setScalar(2.4);
     const Bp = [], Bc = [], Wp = [], Wc = [], Wt = [], Hp = [], Hc = [], Ht = [], L = [0.35, 0.94];
     const tri = (a, b, c, col) => { Bp.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); for (let i = 0; i < 3; i++) Bc.push(col[0], col[1], col[2]); };
     const shade = (c, nx, nz) => { const k = 0.55 + 0.45 * Math.max(0, nx * L[0] + nz * L[1]); return [c[0] * k, c[1] * k, c[2] * k]; };
@@ -895,12 +895,12 @@ function buildTowns() { // night levels: one lakeside town (inspired by Tiny Gla
     for (let i = 0; i < 480; i++) { const q = HZ[(rn() * HZ.length) | 0]; if (!q) break; Hp.push(q[0] + (rn() - 0.5) * 120, 36, q[1] + (rn() - 0.5) * 120); Hc.push(0.9, 0.6, 0.28); Ht.push(0.26 + rn() * 0.45); } // street lamps
     const qg = new THREE.BufferGeometry(); qg.setAttribute('position', new THREE.Float32BufferAttribute(Qp, 3)); qg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Qp.length), 3)); const qp = new THREE.Points(qg, new THREE.PointsMaterial({ size: 330, map: glowTexA(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, fog: false })); qp.frustumCulled = false; town.add(qp);
     const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(Hp, 3)); hg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Hp.length), 3));
-    townPts = new THREE.Points(hg, new THREE.PointsMaterial({ size: 150, map: glowTexA(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, fog: false })); townPts.frustumCulled = false; town.add(townPts);
+    townPts = new THREE.Points(hg, new THREE.PointsMaterial({ size: 330, map: glowTexA(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, fog: false })); townPts.frustumCulled = false; town.add(townPts);
     town.userData = { bldMat, land, sets: [{ g: hg, th: Float32Array.from(Ht), base: Float32Array.from(Hc), n: Ht.length, k: 1 }, { g: qg, th: Float32Array.from(Qt), base: Float32Array.from(Qc), n: Qt.length, k: 1 }] };
     scene.add(town); townMeta = { sets: town.userData.sets, tick: 0 }; lampP = -9;
   }
   { // ferris wheel: fixed, face-on to the middle of the course, a colourful reference point
-    const r = ramps[Math.floor(ramps.length * 0.45)], rt = rightOf(r.h0), wx = r.sx + rt[0] * 7000, wz = r.sz + rt[2] * 7000, Rw = 2000, wy = Math.min(ramps[Math.floor(ramps.length * 0.45)].oy, ramps[Math.floor(ramps.length * 0.45)].ey) - 3400, hy = wy + Rw * 1.15, nx = ax - wx, nz = az - wz, nl = Math.hypot(nx, nz) || 1, px = -nz / nl, pz = nx / nl; // plane axis
+    const r = ramps[Math.floor(ramps.length * 0.45)], rt = rightOf(r.h0), wx = r.sx + rt[0] * 7000, wz = r.sz + rt[2] * 7000, Rw = 2000, wy = fy + 4, hy = wy + Rw * 1.15, nx = ax - wx, nz = az - wz, nl = Math.hypot(nx, nz) || 1, px = -nz / nl, pz = nx / nl; // plane axis
     wheel = new THREE.Group(); const P = (phi, rr) => [wx + px * Math.cos(phi) * rr, hy + Math.sin(phi) * rr, wz + pz * Math.cos(phi) * rr], wp = [], wl = [], N = 56, G = 14, ox = nx / nl * 45, oz = nz / nl * 45;
     for (let i = 0; i < N; i++) { const a = P(i / N * 6.2832, Rw), b = P((i + 1) / N * 6.2832, Rw); for (const s of [-1, 1]) wl.push(a[0] + ox * s, a[1], a[2] + oz * s, b[0] + ox * s, b[1], b[2] + oz * s); wp.push(a[0], a[1], a[2]); }
     for (let i = 0; i < G; i++) { const a = P(i / G * 6.2832 + 0.26, Rw); wl.push(wx, hy, wz, a[0], a[1], a[2]); wp.push(a[0], a[1] - 90, a[2]); } // spokes, and a gondola hanging at each tip
@@ -914,7 +914,7 @@ function buildTowns() { // night levels: one lakeside town (inspired by Tiny Gla
 }
 const _wc = new THREE.Color();
 function updateTowns(now) {
-  if (!townPts) return; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd); } for (const m of townPatches) m.material.color.copy(dayNow.gnd); if (town) { const u = town.userData; u.bldMat.color.copy(dayNow.mid).lerp(_wc.setRGB(1, 1, 1), 0.5).multiplyScalar(0.85); u.land.material.color.copy(dayNow.gnd); }
+  if (!townPts) return; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd); } for (const m of townPatches) m.material.color.copy(dayNow.gnd); if (town && town.userData.land) town.userData.land.material.color.copy(dayNow.gnd).multiplyScalar(1.04); if (town) { const u = town.userData; u.bldMat.color.copy(dayNow.mid).lerp(_wc.setRGB(1, 1, 1), 0.5).multiplyScalar(0.85); u.land.material.color.copy(dayNow.gnd); }
   if (Math.abs(dayP - lampP) > 0.002) { lampP = dayP; // only re-light the towns when the evening has moved on
     for (const s of townMeta.sets) { const arr = s.g.attributes.color.array; for (let i = 0; i < s.n; i++) { const x = (dayP - s.th[i]) / 0.06, k = (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)) * s.k; arr[i * 3] = s.base[i * 3] * k; arr[i * 3 + 1] = s.base[i * 3 + 1] * k; arr[i * 3 + 2] = s.base[i * 3 + 2] * k; } s.g.attributes.color.needsUpdate = true; }
   }
