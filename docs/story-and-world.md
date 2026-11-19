@@ -45,3 +45,21 @@ Songs were chosen from the music folder by tempo and feel; I have not heard Coun
 2. Is the song order above right? Which songs feel like which moods to you?
 3. Mender spider (and the Attic hub), or no characters at all and only environmental echoes?
 4. Clay everywhere (a lot of art work) or clay world with a paper snail (recommended)?
+
+## Canon lore: why snails are among the fast life forms (draft)
+Rule: told in short plain lines, one fact per echo or Mender remark, never a lecture.
+1. **Everyone in the house is either Quickfolk or Slowfolk.** Quickfolk: snails, moths, mayflies, sparks, drips. Slowfolk: stones, moss, trees, rooms, the house itself. The Slowfolk think time is a place. The Quickfolk know it is a road.
+2. **Snails are the fastest of the Quickfolk on the ground.** The slow-snail rumor was started by the Slowfolk, who only ever see the trail a snail leaves, never the snail.
+3. **The reason is the shell.** A shell is a house you carry, so a snail has nowhere to be but where it is going. Anything that has to come back is slow. A snail never has to come back.
+4. **Leylines run downhill because time does.** Leylines are the growth lines of old shells and the old rooms they remember. Time only runs downhill, so a snail that rides one gains speed from every step it loses. (This is the game's physics: speed comes from height lost.)
+5. **Speed is not free.** The faster a snail goes, the more the wind stretches its eyestalks and the thinner its shell gets. The fastest snails are the oldest ones. Nobody finds that funny at the end.
+6. **A snail's slime is the road.** Every trail is a thin new leyline for the next one. The leylines in the house were laid by snails nobody remembers.
+7. **The big shells.** Old snails stop at the Garden of Shells, lie down and become hills. A hill with a small door is a snail that finished.
+8. **Moths are fast too, but they only go toward light.** Snails go toward the end of the line. That is the difference.
+
+Sample one-liners (8 words or fewer each):
+- "Snails? Fastest thing in the house. Ask the dust." (Mender)
+- "Slow is just what the stones call it."
+- "You can only go fast with nothing left behind."
+- "Your trail is someone's road now."
+- "Stones never see you. They see where you were."
