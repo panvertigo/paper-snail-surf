@@ -48,39 +48,39 @@
    "turn": 30,
    "R": 2500,
    "zig": true,
-   "drop": 150
+   "drop": 120
   },
   {
    "turn": 30,
    "R": 2500,
    "zig": true,
-   "drop": 150
-  },
-  {
-   "turn": 30,
-   "R": 2500,
-   "zig": true,
-   "C": 150,
-   "drop": 150
-  },
-  {
-   "turn": 30,
-   "R": 2500,
-   "zig": true,
-   "drop": 150
+   "drop": 120
   },
   {
    "turn": 30,
    "R": 2500,
    "zig": true,
    "C": 150,
-   "drop": 150
+   "drop": 120
   },
   {
    "turn": 30,
    "R": 2500,
    "zig": true,
-   "drop": 150
+   "drop": 120
+  },
+  {
+   "turn": 30,
+   "R": 2500,
+   "zig": true,
+   "C": 150,
+   "drop": 120
+  },
+  {
+   "turn": 30,
+   "R": 2500,
+   "zig": true,
+   "drop": 120
   },
   {
    "L": 1100,
@@ -130,26 +130,26 @@
    "turn": 30,
    "R": 2500,
    "zig": true,
-   "drop": 150
+   "drop": 120
   },
   {
    "turn": 30,
    "R": 2500,
    "zig": true,
-   "drop": 150
+   "drop": 120
   },
   {
    "turn": 30,
    "R": 2500,
    "zig": true,
    "C": 150,
-   "drop": 150
+   "drop": 120
   },
   {
    "turn": 30,
    "R": 2500,
    "zig": true,
-   "drop": 150
+   "drop": 120
   },
   {
    "L": 1100,

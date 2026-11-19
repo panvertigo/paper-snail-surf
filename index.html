@@ -22,6 +22,7 @@ canvas{display:block;touch-action:none}
 #settings .row{display:flex;gap:6px}
 #settings .row button{flex:1;padding:8px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px}
 #settings .row button.on{background:#3fc1c9;color:#000}
+#settings #lvl{flex-wrap:wrap}#settings #lvl button{flex:1 1 30%;padding:6px 2px;font-size:12px}
 #settings input{width:100%}
 #flow{position:fixed;left:50%;top:38px;transform:translateX(-50%);width:210px;text-align:center;pointer-events:none;opacity:0;transition:opacity .4s;text-shadow:0 1px 4px #000a}
 #flow.on{opacity:1}
@@ -42,7 +43,7 @@ canvas{display:block;touch-action:none}
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-f="kitchen">1<br>kitchen</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="5">5<br>grand descent</button><button data-f="stairwell">stairwell<br>draft</button><button data-f="boxfort">box fort<br>draft</button></div>
+  <div class="row" id="lvl"><button data-f="kitchen">1<br>kitchen</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="5">5<br>grand descent</button><button data-f="stairwell">stairwell<br>draft</button><button data-f="boxfort">box fort<br>draft</button><button data-f="plunge">plunge<br>draft</button></div>
   <label>My and shared courses</label>
   <select id="courses" style="width:100%;padding:6px;border-radius:8px;background:#ffffff22;color:#fff;border:0"><option value="">Choose a course...</option></select>
   <button id="toedit" style="margin-top:6px;width:100%;padding:6px 0;border:0;border-radius:8px;background:#ffffff22;color:#fff;font-size:13px">Course editor (desktop)</button>

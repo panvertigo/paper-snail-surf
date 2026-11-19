@@ -23,5 +23,10 @@
   "file": "boxfort",
   "name": "Box Fort (draft, no walls yet)",
   "author": "Paper Snail Surf"
+ },
+ {
+  "file": "plunge",
+  "name": "Plunge (cinematic, hard)",
+  "author": "Paper Snail Surf"
  }
 ]

@@ -19,6 +19,15 @@ const bf = [
   R(1000, { cp: true, W: 310, label: '4 Garden light' }), T(35, 2500, { zig: true, W: 310 }), T(35, 2500, { zig: true }), T(35, 2500, { zig: true }), T(35, 2500, { zig: true }), R(1400, { zig: true }), R(3000, {}),
 ];
 const SC = +process.env.SC || 1; st.forEach(p => { if (p.L && p.L >= 3000 && p.L < 6000) p.L = Math.round(p.L * SC / 50) * 50; if (p.C) p.C = Math.min(900, Math.round(p.C * SC / 50) * 50); });
+// ---- Plunge: cinematic and hard. Steep DOWN ramps (negative C), two very long ramps, and a "hole" jump: a huge drop onto a narrow ramp in a pit ----
+const pl = [
+  R(6000, { W: 500, label: '1 The edge' }), T(40, 9000, { zig: true }), R(5000, { C: -600, zig: true }), R(5000, { C: -900, zig: true }), T(45, 11000, { zig: true }), R(4000, { C: 600 }), R(4000, { C: 800 }),
+  R(12000, { cp: true, label: '2 The long one', W: 480, C: -1200 }), R(4000, { zig: true }), R(3500, { zig: true }), R(3500, { zig: true }), R(3500, { zig: true, C: -300 }), R(3500, { C: 700 }), R(3500, { C: 800 }),
+  R(3500, { cp: true, label: '3 The hole', W: 420 }), R(3500, { zig: true, C: -800 }), R(3000, { zig: true, gap: 1100, drop: 1500, W: 320 }), R(3000, { zig: true, W: 320 }), R(3200, { C: 400 }), R(3200, { C: 450 }),
+  R(4000, { cp: true, label: '4 Free fall', W: 460 }), R(6000, { zig: true, C: -1500 }), T(60, 12000, { zig: true }), R(16000, { C: -2000 }), T(40, 16000, {}), R(3500, { C: 700 }), R(3500, { C: 800 }),
+  R(3500, { cp: true, label: '5 Landing', W: 400 }), R(3000, { zig: true, W: 340 }), R(3000, { zig: true, W: 320, gap: 900, drop: 600 }), R(3000, { zig: true, W: 300 }), R(4000, { W: 700, gap: 700, drop: 1200 }),
+];
+fs.writeFileSync('levels/plunge.json', JSON.stringify(mk('Plunge', 'descent', 0.1, pl), null, 1));
 fs.writeFileSync('levels/stairwell.json', JSON.stringify(mk('Stairwell', 'stairwell', 0, st), null, 1));
 fs.writeFileSync('levels/boxfort.json', JSON.stringify(mk('Box Fort', 'boxfort', 0, bf), null, 1));
 console.log('wrote levels/stairwell.json and levels/boxfort.json');
