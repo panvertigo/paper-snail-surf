@@ -1677,17 +1677,18 @@ function fail() {
   Sfx.splat(); if (!Music.playing) Music.at(cpRamp, { quantize: 'beat', respawn: true }); // a splat never touches the song: it keeps playing from where it was
   state = 'ready'; showMsg('<b>Splat</b><br>Back to ' + (nextCp ? 'checkpoint ' + nextCp : 'the start') + '<br>Touch to continue'); hud();
 }
-let loopFly = false, loopFloor = -1e9, cannonT = null; const G0 = P.g, LOOP_G = 0.4; // after a cannon shot the clock waits until you touch a ramp, and gravity is lighter on the way back (the flight is free: you steer it yourself)
-function setLoop(b) { loopFly = b; P.g = b ? G0 * LOOP_G : G0; }
-function guardRail() { // guardrails on the flight back: each tick, bend the sideways speed toward what would land on the start (steering still moves you, the rails pull you back)
-  if (!cannonT || contactN) return; const g = P.g, dy = cannonT.y - pos.y, disc = vel.y * vel.y - 2 * g * dy; if (disc < 0) return;
-  const t = (vel.y + Math.sqrt(disc)) / g; if (t < 0.35) return; const k = 1 - Math.exp(-3 * P.dt), nx = (cannonT.x - pos.x) / t, nz = (cannonT.z - pos.z) / t;
-  vel.x += (nx - vel.x) * k; vel.z += (nz - vel.z) * k;
+let loopFly = false, loopFloor = -1e9, cannonT = null; const G0 = P.g, MAXV0 = P.maxvel; let loopG = 0.4; // after a cannon shot the clock waits until you touch a ramp, and gravity is lighter on the way back (the flight is free: you steer it yourself)
+function setLoop(b) { loopFly = b; P.g = b ? G0 * loopG : G0; P.maxvel = b ? 30000 : MAXV0; } // the per-axis speed cap would stop a long shot short, so it is lifted for the flight
+function guardRail() { // guardrails on the flight back: each tick, bend your velocity toward what would arrive above the start (steering still moves you, the rails pull you back); near the start it only brakes sideways and lets you drop onto the ramp
+  if (!cannonT || contactN) return; const hx = cannonT.x - pos.x, hz = cannonT.z - pos.z, hd = Math.hypot(hx, hz), hs = Math.hypot(vel.x, vel.z), tgo = Math.max(1.5, hd / Math.max(hs, 1500)), k = 1 - Math.exp(-3 * P.dt);
+  vel.x += (hx / tgo - vel.x) * k; vel.z += (hz / tgo - vel.z) * k;
+  if (hd > 600) vel.y += ((cannonT.y - pos.y) / tgo + P.g * tgo / 2 - vel.y) * k;
 }
 function fireCannon() { // aim from the pad at the start along a ballistic arc, then hand over: it is normal flight from there (steer, strafe, or even try the course backwards)
   const xyz = o => ({ x: o.x, y: o.y, z: o.z }), P0 = xyz(pos), keepYaw = yaw; spawnOn(0); const H = xyz(pos), hv = xyz(vel), hyaw = yaw; // spawnOn also re-arms the rings and the start
-  const tx = H.x, ty = H.y + 700, tz = H.z, hx = tx - P0.x, hz = tz - P0.z, D = Math.max(1, Math.hypot(hx, hz)), dy = ty - P0.y, g = G0 * LOOP_G;
-  const tan = Math.max(0.9, dy / D + 0.5), tf = Math.sqrt(2 * (D * tan - dy) / g), vh = D / tf; // flight time and horizontal speed that land on the start; the angle is 42 degrees or steeper when the start is high
+  const tx = H.x, ty = H.y + 700, tz = H.z, hx = tx - P0.x, hz = tz - P0.z, D = Math.max(1, Math.hypot(hx, hz)), dy = ty - P0.y, tan = Math.max(0.9, dy / D + 0.5);
+  loopG = 0.4; { const sp0 = Math.hypot(1, tan) * D / Math.sqrt(2 * (D * tan - dy) / (G0 * loopG)); if (sp0 > 7000) loopG = Math.max(0.2, 0.4 * (7000 / sp0) ** 2); } // very long courses: lighter still, so the shot stays under about 7000 u/s
+  const g = G0 * loopG, tf = Math.sqrt(2 * (D * tan - dy) / g), vh = D / tf; // flight time and horizontal speed that land on the start; the angle is 42 degrees or steeper when the start is high
   pos.set(P0.x, P0.y + 30, P0.z); vel.set(hx / D * vh, tan * vh, hz / D * vh); yaw = Math.atan2(-hx, -hz); contactN = null; contactTicks = 0; lastTouched = 0; stuckTicks = 0; setLoop(true); loopFloor = P0.y - 4000; cannonT = { x: tx, y: ty, z: tz };
   flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => { g.material.color.set(0xffe2a0); g.userData.sh.material.color.set(0xffe2a0); });
