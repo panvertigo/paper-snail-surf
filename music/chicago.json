@@ -2,6 +2,7 @@
  "bpm": 140.0,
  "beatsPerBar": 4,
  "quantize": "phrase",
+ "hold": 3,
  "linear": [
   "k02",
   "k03",

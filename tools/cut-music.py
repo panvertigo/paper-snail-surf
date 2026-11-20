@@ -8,7 +8,7 @@ SONGS = {
   # name: source, time of the beat grid, bar number that starts on a downbeat, sections {id: (first bar, bars, extra)}
   # Chicago, hybrid (linear) policy. The song is cut into consecutive 4-bar phrases k01..k22 (bars 1-88) plus the closing arpeggio `earth` (89-100, loops). Short order (Level 3, about 86 s): the build (bars 1-36), then straight to the sky riser (69-88), then earth; the drive sections (37-68) are skipped.
   # Long order (5+ checkpoints, Level 5): the whole song in order. Riser phrases (13-20 and 77-88) are never replayed. No outro (the track's own ending was discordant): the last section just keeps playing.
-  'chicago': dict(fallback='descent', linear=['k%02d' % i for i in list(range(2, 10)) + list(range(18, 23))] + ['earth'], linearLong=['k%02d' % i for i in range(2, 23)] + ['earth'], noHold=['k04', 'k05', 'k20', 'k21', 'k22'],
+  'chicago': dict(fallback='descent', hold=3, linear=['k%02d' % i for i in list(range(2, 10)) + list(range(18, 23))] + ['earth'], linearLong=['k%02d' % i for i in range(2, 23)] + ['earth'], noHold=['k04', 'k05', 'k20', 'k21', 'k22'],
       src='5 Chicago Meditation (radio edit).mp3', grid=0.085 + 60 / BPM, sections={
       **{'k%02d' % i: ((i - 1) * 4 + 1, 4, {'once': True}) for i in range(1, 23)}, 'earth': (89, 12, {})}, # earth is the 2:31-2:51 arpeggio of the track
       triggers=[{'on': 'start', 'section': 'k02'}]),  # k01 (bars 1-4, 0.5-7.4 s) is the intro noise: the song starts on the first piano note, bar 5 (7.37 s)
