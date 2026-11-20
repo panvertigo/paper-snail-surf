@@ -49,6 +49,8 @@ canvas{display:block;touch-action:none}
   <input id="mus" type="range" min="0" max="100" step="5">
   <label>Sound effects <span id="sfxv"></span></label>
   <input id="sfx" type="range" min="0" max="100" step="5">
+  <label>Ghost (your best run)</label>
+  <div class="row" id="gh"><button data-g="1">show</button><button data-g="0">hide</button></div>
   <label>Camera</label>
   <div class="row" id="cam"><button data-c="3">third<br>person</button><button data-c="1">first<br>person</button></div>
   <label>Camera distance <span id="zmv"></span></label>
@@ -119,7 +121,7 @@ const P = {
   airaccel: 400,   // sv_airaccelerate (150 = classic skill surf, 400-800 forgiving)
   wishspeed: 250,  // strafe input speed
   aircap: 30,      // Source caps air wishspeed at 30 inside AirAccelerate
-  maxvel: 3500,    // sv_maxvelocity, per axis
+  maxvel: 1e9,     // no speed limit (was 3500 per axis, sv_maxvelocity)
   r: 16,           // player hull half-width
   sens: 0.011,     // radians of yaw per px of swipe
   dt: 0.01         // 100 Hz fixed physics tick
@@ -1307,6 +1309,7 @@ function updateNpcs(now) {
   } return; }
   const t = state === 'ready' || state === 'done' && false ? tRun : tRun;
   for (const o of npcs.racers) {
+    if (o.ghost && !showGhost) { o.g.visible = false; continue; }
     const f = Math.max(0, Math.min(o.n - 1, t * 10)), i = Math.min(o.n - 2, Math.floor(f)), a = f - i, A = i * 6, B = A + 6, S = o.s;
     const jump = Math.hypot(S[B] - S[A], S[B + 1] - S[A + 1], S[B + 2] - S[A + 2]) > 900, L = k => S[A + k] + (S[B + k] - S[A + k]) * (jump ? 0 : a), n = [L(3) / 100, L(4) / 100, L(5) / 100], nl = Math.hypot(n[0], n[1], n[2]) || 1;
     const up = [n[0] / nl, n[1] / nl, n[2] / nl], dx = S[B] - S[A], dy = S[B + 1] - S[A + 1], dz = S[B + 2] - S[A + 2], sp = Math.hypot(dx, dy, dz) * 10;
@@ -1752,7 +1755,9 @@ addEventListener('keyup', e => {
 // ---------- UI ----------
 $('restart').onclick = e => { e.stopPropagation(); resetRun(); };
 $('gear').onclick = e => { e.stopPropagation(); $('settings').hidden = !$('settings').hidden; };
+let showGhost = store.get('surf_ghostshow') !== '0';
 function syncSettings() {
+  document.querySelectorAll('#gh button').forEach(b => b.classList.toggle('on', (b.dataset.g === '1') === showGhost));
   document.querySelectorAll('#aa button').forEach(b => b.classList.toggle('on', +b.dataset.v === P.airaccel));
   $('sens').value = Math.round(P.sens * 1000); $('sv').textContent = Math.round(P.sens * 1000);
   document.querySelectorAll('#cam button').forEach(b => b.classList.toggle('on', +b.dataset.c === camMode));
@@ -1786,6 +1791,7 @@ document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airac
 $('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
 $('zoomd').oninput = e => { zoomD = +e.target.value / 100; store.set('surf_zoom', e.target.value); syncSettings(); };
 $('fovo').oninput = e => { fovOff = +e.target.value; store.set('surf_fov', fovOff); syncSettings(); };
+document.querySelectorAll('#gh button').forEach(b => b.onclick = () => { showGhost = b.dataset.g === '1'; store.set('surf_ghostshow', showGhost ? '1' : '0'); syncSettings(); });
 document.querySelectorAll('#cam button').forEach(b => b.onclick = () => { camMode = +b.dataset.c; store.set('surf_cam', camMode); syncSettings(); });
 $('mus').oninput = e => { musicVol = e.target.value / 100; store.set('surf_music', musicVol); Music.setVolume(musicVol); syncSettings(); };
 $('sfx').oninput = e => { sfxVol = e.target.value / 100; store.set('surf_sfx', sfxVol); Music.setSfxVolume(sfxVol); Sfx.checkpoint(); syncSettings(); };
