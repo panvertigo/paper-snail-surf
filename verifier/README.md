@@ -82,3 +82,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - input (2026-11-23): swipe acceleration is now a slider 0-300 percent (accAmt, saved as surf_acc; old on/off setting migrates: off -> 0, otherwise 150). Joystick turn mode removed from the menu and forced off (turnMode = 'swipe'; the branch in inputMove is dormant). Checked with the stub harness: 0 percent -> 1.0x, 150 -> 2.46x at 3 px/ms, 300 -> 3.9x.
 
 - scenery (2026-11-23): night levels: the ferris wheel's dark ground patch (the 'shadow') removed and the wheel moved to the village waterfront (town centre + 4000 toward the course + 3500 sideways) instead of 7000 off a different ramp. ?perf counters now cover the whole frame (renderer.info.autoReset off, reset per frame), so calls/tris include every pass. Cosmetic / diagnostics.
+
+- ui (2026-11-23): rocket bar width 120 -> 92 px (about 23 percent shorter). Cosmetic.
