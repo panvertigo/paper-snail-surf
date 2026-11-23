@@ -66,3 +66,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - finish column (2026-11-23, PLAYTEST): `fin` gains cu, cv, cr (560), ch (7000) = the column of light over the pad (centre 45% along the pad, 455 u left of centre, radius 520 + 40 slack, 7000 tall). step() finishes the run the moment the rider is inside that cylinder (above the pad surface, below the top), no landing needed. Landing on the pad still finishes. Headless check: level flight at 2500 u/s through the column at +3000 and +6500 finishes in 37-49 ticks; above the top (+7600) or 1000 u beside it still falls; L3 good bot unchanged (88.8 s). Replays only differ if a replay flies through the column, goldens already stale.
 
 - camera (2026-11-23): lag is projected onto the camera's own back axis (yaw direction), horizontal only: follow distance stretches when you speed up, but the camera never drifts sideways or vertically off the snail. Cosmetic.
+
+- fx tweak (2026-11-23): contrail ribbon half-width 2 + 0.0008 v -> 0.6 + 0.0003 v (about 1.2 u at 2000 u/s); wind streaks back but subtle (alpha 0.3 -> 0.1, length cap 800 -> 450 u, width 6 + 0.0065 v -> 2.5 + 0.0022 v). Cosmetic.

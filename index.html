@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #130 2026-11-23 11:04</div>
+<div id="build">build #131 2026-11-23 11:06</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1648,7 +1648,7 @@ function updateContrails(speed, dt) {
     }
   }
   const n = ctHist.length; ctMesh.visible = k > 0.01 && n > 2; if (!ctMesh.visible) return;
-  const hw0 = 2 + speed * 0.0008, tint = Math.max(0, Math.min(1, (speed - 1500) / 2000));
+  const hw0 = 0.6 + speed * 0.0003, tint = Math.max(0, Math.min(1, (speed - 1500) / 2000));
   for (let s = 0; s < 2; s++) {
     const sg = s ? 1 : -1;
     for (let i = 0; i < NCT; i++) {
@@ -1702,15 +1702,15 @@ function updateStreaks(speed) {
   camera.getWorldDirection(camFwd);
   const behind = p => ((p.x - camera.position.x) * camFwd.x + (p.y - camera.position.y) * camFwd.y + (p.z - camera.position.z) * camFwd.z) < 0;
   const fl = Math.max(0, Math.min(1, (speed - 700) / 1600)) * fxAmt;
-  wind.mesh.visible = false; // retired: contrails from the snail (updateContrails) show speed instead of wind streaks
+  wind.mesh.visible = fl > 0.01; // subtle wind streaks alongside the snail's contrails
   if (wind.mesh.visible) {
-    const len = Math.min(800, speed * 0.17), hw0 = 6 + speed * 0.0065, tint = Math.max(0, Math.min(1, (speed - 1200) / 1800));
+    const len = Math.min(450, speed * 0.1), hw0 = 2.5 + speed * 0.0022, tint = Math.max(0, Math.min(1, (speed - 1200) / 1800));
     for (let i = 0; i < NST; i++) {
       let p = stPts[i];
       if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 3600 * 3600) p = stPts[i] = spawnAround(vTmp, 380, 1100, 300, 2800);
       qTc.set(p.x - camera.position.x, p.y - camera.position.y, p.z - camera.position.z).normalize();
       const side = Math.sqrt(Math.max(0, 1 - Math.pow(qTc.dot(vTmp), 2))), vis = Math.max(0, Math.min(1, (side - 0.2) / 0.35)); // end-on ribbons foreshorten into spikes: fade them out
-      setQuad(wind, i, p, vTmp, len * (0.55 + 0.9 * p.s1), hw0 * (0.7 + 0.6 * p.s2), 0.6, 0.85 - 0.25 * tint, 0.95 - 0.05 * tint, 1, 0.3 * fl * vis);
+      setQuad(wind, i, p, vTmp, len * (0.55 + 0.9 * p.s1), hw0 * (0.7 + 0.6 * p.s2), 0.6, 0.85 - 0.25 * tint, 0.95 - 0.05 * tint, 1, 0.1 * fl * vis);
     }
     wind.geo.attributes.position.needsUpdate = wind.geo.attributes.col.needsUpdate = true;
   }
