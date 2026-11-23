@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #128 2026-11-23 11:01</div>
+<div id="build">build #129 2026-11-23 11:04</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -434,7 +434,8 @@ function buildCourse(S, meta) {
   }
   const last = ramps[ramps.length - 1];
   fin = { x: last.ex, z: last.ez, h: last.h1, dir: dirOf(last.h1), right: rightOf(last.h1),
-          y: last.ey - FIN_DROP, u0: FIN_GAP, u1: FIN_GAP + 5000, half: 1300 };
+          y: last.ey - FIN_DROP, u0: FIN_GAP, u1: FIN_GAP + 5000, half: 1300,
+          cu: FIN_GAP + 5000 * 0.45, cv: -1300 * 0.35, cr: 560, ch: 7000 }; // cu, cv, cr, ch: the column of light over the pad (centre along / across the pad, radius, height). Flying through it finishes the run, no landing needed.
 }
 buildCourse(globalThis.SURF_STAGE || STAGES[globalThis.SURF_LEVEL] || STAGES[1], globalThis.SURF_STAGE ? null : STAGE_META[globalThis.SURF_LEVEL]); // SURF_STAGE: stage data from tools / the editor / #custom
 // Sim state. Input arrives only through cmd, consumed once per tick: turn = yaw radians accumulated since the last tick,
@@ -651,6 +652,7 @@ function step() {
     const dx = pos.x - fin.x, dz = pos.z - fin.z;
     const u = dx * fin.dir[0] + dz * fin.dir[2], v = dx * fin.right[0] + dz * fin.right[2];
     overPad = u > fin.u0 - 60 && u < fin.u1 && Math.abs(v) < fin.half && pos.y > fin.y - 150;
+    if (fin.cr) { const du = u - fin.cu, dv = v - fin.cv; if (du * du + dv * dv <= fin.cr * fin.cr && pos.y > fin.y - 150 && pos.y < fin.y + fin.ch) { finish(); return; } } // through the column of light = finish
     if (overPad && pos.y - P.r <= fin.y) { pos.y = fin.y + P.r; finish(); return; }
   }
   // a tube is a closed circle with no friction: too slow to clear it you would roll back and forth in the trough forever, so that counts as a fall
