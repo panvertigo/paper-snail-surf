@@ -9,7 +9,7 @@ function load(file) {
 let state = 'run', falls = 0, failInfo = null; const ringHits = [];
 function onCheckpoint() {} function onRing(g, off) { ringHits.push([g.kind, off]); } function finish() { state = 'done'; } function fail() { falls++; state = 'fail'; failInfo = { x: pos.x, y: pos.y, z: pos.z, lt: lastTouched }; }
 ` + phys + `
-return { P, ramps, checkpoints, fin, pos, vel, cmd, step, rings, ringHits, inTube, spawnOn, SLOPE, local, ridgeAt, rightOf,
+return { P, rocket, ramps, checkpoints, fin, pos, vel, cmd, step, rings, ringHits, inTube, spawnOn, SLOPE, local, ridgeAt, rightOf,
   g: () => ({ yaw, touchStrafe, state, contactN, lastTouched, cpRamp, falls, failInfo }),
   setYaw: v => yaw = v, setStrafe: v => cmd.touch = v, setState: v => state = v };`)(V, hooks);
 }

@@ -194,6 +194,7 @@
     landing(s) { if (!ok()) return; const t = at(), k = clamp(s, 0.1, 1); tone(120, 48, t, 0.16, 0.55 * k); noise(t, 0.12, 0.25 * k, 900, 120); },
     launch(v) { if (!ok()) return; const t = at(), k = clamp(v / 3000, 0.15, 1); noise(t, 0.28, 0.1 * k, 300, 2600, 1.2); },
     hoop(c) { if (!ok()) return; const t = q(0.25), f = 660 + clamp(c, 0, 1) * 440; tone(f, f, t, 0.35, 0.22, 'triangle'); tone(f * 1.5, f * 1.5, t + 0.04, 0.3, 0.14, 'sine'); },
+    boost() { if (!ok()) return; const t = at(); tone(70, 520, t, 1.8, 0.2, 'sawtooth'); noise(t, 3.2, 0.14, 300, 3500, 1.2); },
     portal() { if (!ok()) return; const t = at(); tone(180, 1800, t, 0.6, 0.18, 'sine'); tone(270, 2700, t + 0.05, 0.6, 0.1, 'triangle'); noise(t, 0.7, 0.12, 400, 5000, 1.5); },
     checkpoint() { if (!ok()) return; const t = q(0.5); [523, 659, 784].forEach((f, i) => tone(f, f, t + i * 0.11, 0.4, 0.2, 'triangle')); },
     splat() { if (!ok()) return; const t = at(); noise(t, 0.3, 0.4, 1200, 90); tone(150, 55, t, 0.25, 0.4); },

@@ -1,0 +1,8 @@
+{
+ "name": "Paper Snail Surf",
+ "short_name": "Snail Surf",
+ "start_url": "./",
+ "display": "fullscreen",
+ "background_color": "#0b0f1a",
+ "theme_color": "#0b0f1a"
+}

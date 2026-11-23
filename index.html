@@ -2,10 +2,16 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Snail Surf">
+<meta name="theme-color" content="#0b0f1a">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Surf Prototype</title>
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#0b0f1a;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:-apple-system,system-ui,sans-serif;color:#fff}
+html,body{-webkit-tap-highlight-color:transparent;margin:0;height:100%;overflow:hidden;background:#0b0f1a;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:-apple-system,system-ui,sans-serif;color:#fff}
 canvas{display:block;touch-action:none}
 #speed{position:fixed;left:16px;bottom:12px;font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;text-shadow:0 2px 6px #000a;pointer-events:none}
 #speed small{font-size:13px;opacity:.7;font-weight:500}
@@ -30,6 +36,9 @@ canvas{display:block;touch-action:none}
 #flowbar{height:6px;border-radius:3px;background:#ffffff26;overflow:hidden}
 #flowbar i{display:block;height:100%;width:0;background:#7be495}
 #flowtxt{font-size:13px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+#rkt{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);width:120px;height:16px;border-radius:8px;background:#ffffff22;overflow:hidden;font-size:10px;font-weight:700;text-align:center;line-height:16px;pointer-events:none;opacity:.85}
+#rkt i{position:absolute;left:0;top:0;bottom:0;width:100%;background:#7be495;transform-origin:left}
+#rkt span{position:relative;text-shadow:0 1px 3px #000a}
 #build{position:fixed;right:10px;bottom:8px;font-size:12px;opacity:.75;pointer-events:none;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000a}
 #flash{position:fixed;inset:0;background:#f33;opacity:0;pointer-events:none;transition:opacity .3s}
 </style>
@@ -41,7 +50,8 @@ canvas{display:block;touch-action:none}
 <div id="flow"><div id="flowbar"><i></i></div><div id="flowtxt"></div></div>
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
-<div id="build">build #125 2026-11-23 10:41</div>
+<div id="rkt"><i></i><span></span></div>
+<div id="build">build #126 2026-11-23 10:54</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -61,6 +71,10 @@ canvas{display:block;touch-action:none}
   <input id="fovo" type="range" min="-15" max="25" step="1">
   <label>Swipe sensitivity <span id="sv"></span></label>
   <input id="sens" type="range" min="4" max="30" step="1">
+  <label>Turn control</label>
+  <div class="row" id="tc"><button data-t="swipe">swipe</button><button data-t="joy">joystick</button></div>
+  <label>Swipe acceleration (fast flicks turn more)</label>
+  <div class="row" id="sa"><button data-a="1">on</button><button data-a="0">off</button></div>
   <label>Speed effects <span id="fxv"></span></label>
   <input id="fx" type="range" min="0" max="150" step="5">
   <details><summary>More (saved courses, air grip, game speed)</summary>
@@ -78,7 +92,7 @@ canvas{display:block;touch-action:none}
 <div id="msg"></div>
 <div id="flash"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="music.js?v=70"></script>
+<script src="music.js?v=71"></script>
 <script src="racers.js"></script>
 <script src="courses.js?v=1"></script>
 <script>
@@ -122,6 +136,7 @@ const P = {
   g: 800,          // sv_gravity
   airaccel: 400,   // sv_airaccelerate (150 = classic skill surf, 400-800 forgiving)
   wishspeed: 250,  // strafe input speed
+  rocketTicks: 350, rocketPeak: 400, rocketCD: 1200,
   gripArc: 0.3491, // rad (20 deg): max nose-to-path angle that steering grip counts in the air
   aircap: 30,     // Source caps air wishspeed at 30 inside AirAccelerate
   maxvel: 1e9,     // no speed limit (was 3500 per axis, sv_maxvelocity)
@@ -427,9 +442,12 @@ buildCourse(globalThis.SURF_STAGE || STAGES[globalThis.SURF_LEVEL] || STAGES[1],
 const pos = new V(), vel = new V();
 let stuckTicks = 0, contactN = null, contactTube = false, contactTicks = 0, lastTouched = 0, nextCp = 0, cpRamp = 0, squash = 0;
 let yaw = 0, touchStrafe = 0, keyStrafe = 0;
-const cmd = { turn: 0, touch: 0, key: 0, pitch: 0 }; // pitch: -1..1 lean (nose up positive), held like touch / key; replays that predate it read as 0
+const cmd = { turn: 0, touch: 0, key: 0, pitch: 0, boost: 0 }; // boost: 1 = double tap this tick (consumed in step) // pitch: -1..1 lean (nose up positive), held like touch / key; replays that predate it read as 0
+// Rocket: a double tap lights it. Thrust along your velocity, shaped u^2(1-u) over rocketTicks (slow start, builds fast, fades); rocketPeak = peak accel (u/s^2); total gain about rocketPeak * 1.97 u/s. One use per rocketCD ticks (counted from the trigger).
+const rocket = { t: -1, cd: 0 }; // t: tick into the burn (-1 = off), cd: ticks until it can be lit again
 const PITCH_G = 0.35; // full lean = a sideways pull worth this fraction of gravity
 function spawnOn(i) { // ridge top of ramp i, a hair onto the face you'll ride
+  rocket.t = -1;
   if (stageMeta.park) { // park: start on the wall just under the lip and slide down it
     const x = 0, z = 5650, n = parkNormal(x, z);
     pos.set(x + n[0] * 40, parkH(x, z) + 40, z + n[2] * 40); vel.set(0, 0, -300); yaw = 0; lastTouched = 0; contactN = null; contactTicks = 0; parkTicks = 0;
@@ -550,6 +568,8 @@ function aboveRampAhead() {
 }
 function step() {
   yaw += cmd.turn; cmd.turn = 0; touchStrafe = cmd.touch; keyStrafe = cmd.key;
+  if (cmd.boost) { cmd.boost = 0; if (rocket.cd <= 0 && rocket.t < 0) { rocket.t = 0; rocket.cd = P.rocketCD; } }
+  if (rocket.cd > 0) rocket.cd--;
   vel.y -= P.g * P.dt;
   if (stageMeta.fall > 0 && !contactN && vel.y < 0 && vel.y > -3000) vel.y -= P.g * stageMeta.fall * P.dt; // build speed as you fall: extra pull while dropping through the air
   if (stageMeta.park && parkTicks > 0) parkCarve();
@@ -578,6 +598,11 @@ function step() {
   if (cmd.pitch && !contactN) { // lean: a small acceleration at right angles to your velocity in the vertical plane. It does no work, so energy is conserved; nose up (pitch > 0) flattens the arc, nose down steepens it
     const hs = dhypot(vel.x, vel.z), sp3 = dhypot(hs, vel.y);
     if (hs > 50) { const a = cmd.pitch * PITCH_G * P.g * P.dt / sp3, k = a * -vel.y / hs; vel.x += vel.x * k; vel.z += vel.z * k; vel.y += hs * a; }
+  }
+  if (rocket.t >= 0) {
+    const u = rocket.t / P.rocketTicks, sp = dhypot(vel.x, vel.y, vel.z);
+    if (sp > 50) { const a = P.rocketPeak * 6.75 * u * u * (1 - u) * P.dt / sp; vel.x += vel.x * a; vel.y += vel.y * a; vel.z += vel.z * a; }
+    if (++rocket.t >= P.rocketTicks) rocket.t = -1;
   }
   vel.x = Math.max(-P.maxvel, Math.min(P.maxvel, vel.x));
   vel.y = Math.max(-P.maxvel, Math.min(P.maxvel, vel.y));
@@ -643,6 +668,7 @@ const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return
                 set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
 P.airaccel = +(store.get('surf_aa') || P.airaccel);
 P.sens = +(store.get('surf_sens_v2') || P.sens);
+let turnMode = store.get('surf_tc') === 'joy' ? 'joy' : 'swipe', swipeAccel = store.get('surf_sa') !== '0'; // turn control: swipe | joystick; swipe acceleration on by default
 const LEVEL = globalThis.SURF_LEVEL, LEVEL_LABEL = LEVEL === 'custom' ? (stageMeta.name || 'Custom stage') : 'Level ' + LEVEL, LKEY = LEVEL + (globalThis.SURF_COURSE ? '_' + globalThis.SURF_COURSE : ''), BK = 'surf_best_L' + LKEY, BFK = 'surf_bestf_L' + LKEY;
 let best = +(store.get(BK) || 0), bestFalls = +(store.get(BFK) || 0);
 
@@ -1644,6 +1670,15 @@ const $ = id => document.getElementById(id);
 const msg = $('msg');
 function showMsg(html) { msg.innerHTML = html; msg.style.display = html ? 'block' : 'none'; }
 function toast(t) { if (!stageMeta.park && !/^Checkpoint/.test(t)) return; /* score pop-ups (Air, Clean, Spin, Loop, flow) only where the style bar is shown */ const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.opacity = 0, 1200); }
+let rktLast = '';
+function rocketHud(now) { // bar under the speed: burning = orange draining, recharging = blue filling, ready = green
+  const el = $('rkt'); let fill, col, txt;
+  if (rocket.t >= 0) { fill = 1 - rocket.t / P.rocketTicks; col = '#ff9d4d'; txt = 'BOOST'; }
+  else if (rocket.cd > 0) { const d = now - rktDenied < 600; fill = 1 - rocket.cd / P.rocketCD; col = d ? '#ff6b6b' : '#5aa0d8'; txt = d ? 'recharging' : ''; }
+  else { fill = 1; col = '#7be495'; txt = 'rocket: double tap'; }
+  const key = fill.toFixed(2) + col + txt; if (key === rktLast) return; rktLast = key;
+  const b = el.firstChild; b.style.transform = 'scaleX(' + fill + ')'; b.style.background = col; el.lastChild.textContent = txt;
+}
 function hud() {
   $('best').textContent = LEVEL_LABEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');
   $('prog').textContent = stageMeta.park ? 'Free skate' : 'Checkpoint ' + nextCp + '/' + checkpoints.length + (falls ? '  ·  falls ' + falls : '');
@@ -1672,7 +1707,7 @@ function musicAhead(speed) {
   }
 }
 function resetRun() {
-  intro.on = false;
+  intro.on = false; rocket.cd = 0; rocket.t = -1;
   setLoop(false); flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => { g.material.color.set(0xffe2a0); g.userData.sh.material.color.set(0xffe2a0); });
   spawnOn(0); prevPos.copy(pos); setTheme(0, true); Music.at(0);
@@ -1720,18 +1755,41 @@ function finish() {
 }
 
 // ---------- Input ----------
-let pid = null, lastX = 0, anchorY = 0;
-// Lift-off filter: moves are applied LIFT_HOLD ms late, and a lift (pointerup / cancel) throws away the moves still waiting. The slip as a thumb leaves the glass lands in that window, so it never steers.
-const LIFT_HOLD = 35, LIFT_MAXDX = 60, moveQ = [];
+let pid = null, lastX = 0, anchorX = 0, anchorY = 0;
+// Swipe mode: every move turns the snail at once (no delay). A lift undoes the moves of the last LIFT_UNDO ms: the thumb slips as it leaves the glass.
+// Swipe acceleration (setting): a fast swipe turns up to 1 + ACC_MAX times more per pixel (smoothed pointer speed, px/ms, so jitter doesn't flicker the gain).
+// Joystick mode (setting): how far the finger is from where it touched sets the turn RATE; past JOY_RANGE the anchor is dragged along, so reversing is quick.
+// Double tap (two short still taps within 350 ms) lights the rocket.
+const LIFT_UNDO = 35, LIFT_MAXDX = 60, applied = [], ACC_V0 = 0.3, ACC_V1 = 2.0, ACC_MAX = 1.5, JOY_DEAD = 6, JOY_RANGE = 80, JOY_RATE = 300; // JOY_RATE: full deflection turns P.sens * JOY_RATE rad/s
+let lastT = 0, pxSpeed = 0, moved = 0, downT = 0, startedRun = false, joyOff = 0, tapT = -1e9, tapX = 0, tapY = 0, rktDenied = -1e9;
 // Strafe sign follows the NET swipe direction, not the last move event: acc is a clamped running sum of dx, and the sign only flips once acc crosses the opposite threshold, so a 1px wobble can't push against your turn.
 let steerAcc = 0; const STEER_CLAMP = 5, STEER_FLIP = 2;
-function flushMoves(nowT) {
-  while (moveQ.length && nowT - moveQ[0].t >= LIFT_HOLD) {
-    const m = moveQ.shift(); turn(-m.dx * P.sens);
-    steerAcc = Math.max(-STEER_CLAMP, Math.min(STEER_CLAMP, steerAcc + m.dx));
-    if (!cmd.touch) { if (Math.abs(m.dx) > 0.5) cmd.touch = Math.sign(m.dx); }
-    else if (steerAcc * cmd.touch < -STEER_FLIP) cmd.touch = -cmd.touch;
+function steerSign(dx) {
+  steerAcc = Math.max(-STEER_CLAMP, Math.min(STEER_CLAMP, steerAcc + dx));
+  if (!cmd.touch) { if (Math.abs(dx) > 0.5) cmd.touch = Math.sign(dx); }
+  else if (steerAcc * cmd.touch < -STEER_FLIP) cmd.touch = -cmd.touch;
+}
+function inputMove(x, t) {
+  const dx = Math.max(-LIFT_MAXDX, Math.min(LIFT_MAXDX, x - lastX)), dt = Math.max(4, t - lastT); lastX = x; lastT = t; moved += Math.abs(dx);
+  if (turnMode === 'joy') {
+    let off = x - anchorX; if (off > JOY_RANGE) anchorX = x - (off = JOY_RANGE); else if (off < -JOY_RANGE) anchorX = x - (off = -JOY_RANGE);
+    joyOff = off; if (Math.abs(off) > JOY_DEAD) cmd.touch = Math.sign(off);
+    return;
   }
+  pxSpeed += (Math.abs(dx) / dt - pxSpeed) * 0.5;
+  const g = swipeAccel ? 1 + ACC_MAX * Math.max(0, Math.min(1, (pxSpeed - ACC_V0) / (ACC_V1 - ACC_V0))) : 1, r = -dx * P.sens * g;
+  turn(r); applied.push({ t, r }); while (applied.length && t - applied[0].t > 200) applied.shift();
+  steerSign(dx);
+}
+function joyFrame(dt) { // joystick: turn rate from the finger's offset, once per frame
+  if (turnMode !== 'joy' || pid === null) return; const m = Math.abs(joyOff); if (m <= JOY_DEAD) return;
+  const f = Math.min(1, (m - JOY_DEAD) / (JOY_RANGE - JOY_DEAD));
+  turn(-Math.sign(joyOff) * P.sens * JOY_RATE * Math.pow(f, 1.5) * dt);
+}
+function lightRocket() { // double tap or B / space
+  if (state !== 'run') return;
+  if (rocket.cd > 0 || rocket.t >= 0) { rktDenied = performance.now(); return; }
+  cmd.boost = 1; Sfx.boost();
 }
 const PITCH_ON = false, /* the lean control is retired (physics code kept; replays read 0) */ PITCH_DEAD = 14, PITCH_RANGE = 100; // px: dead zone, then full lean
 function turn(r) { if (state === 'run') cmd.turn += r; else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
@@ -1740,28 +1798,37 @@ cv.addEventListener('pointerdown', e => {
   e.preventDefault(); $('settings').hidden = true;
   if (pid !== null) return;
   if (intro.on) { intro.on = false; showMsg(START_MSG); return; } // tap skips the flyover, never drops in blind
-  pid = e.pointerId; lastX = e.clientX; anchorY = e.clientY; fingerDown = true; steerAcc = 0;
+  pid = e.pointerId; lastX = anchorX = e.clientX; lastT = downT = e.timeStamp; anchorY = e.clientY; fingerDown = true; steerAcc = 0; pxSpeed = 0; moved = 0; joyOff = 0; applied.length = 0; startedRun = state !== 'run';
   if (state === 'ready') { state = 'run'; showMsg(''); }
   else if (state === 'done') resetRun();
 });
 cv.addEventListener('pointermove', e => {
   if (e.pointerId !== pid) return;
   e.preventDefault();
-  const dx = Math.max(-LIFT_MAXDX, Math.min(LIFT_MAXDX, e.clientX - lastX)); lastX = e.clientX; // one move event never turns more than LIFT_MAXDX px (a slipping sweaty thumb sends spikes)
-  moveQ.push({ t: e.timeStamp, dx }); flushMoves(e.timeStamp);
-  if (PITCH_ON) { // lean: finger below where it landed = nose up, above = nose down; the anchor follows if you drag past full lean
-    let dy = e.clientY - anchorY; if (dy > PITCH_RANGE) anchorY = e.clientY - (dy = PITCH_RANGE); else if (dy < -PITCH_RANGE) anchorY = e.clientY - (dy = -PITCH_RANGE);
-    cmd.pitch = Math.abs(dy) < PITCH_DEAD ? 0 : Math.sign(dy) * (Math.abs(dy) - PITCH_DEAD) / (PITCH_RANGE - PITCH_DEAD);
-  }
+  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null; // every sample the browser saw, not just the last one per frame
+  for (const c of (evs && evs.length ? evs : [e])) inputMove(c.clientX, c.timeStamp);
 });
-const up = e => { if (e.pointerId === pid) { moveQ.length = 0; steerAcc = 0; pid = null; cmd.touch = 0; cmd.pitch = 0; fingerDown = false; } };
+const up = e => {
+  if (e.pointerId !== pid) return;
+  for (const a of applied) if (e.timeStamp - a.t < LIFT_UNDO) turn(-a.r); // undo the slip as the thumb leaves the glass
+  applied.length = 0;
+  if (e.type === 'pointerup' && !startedRun && e.timeStamp - downT < 220 && moved < 12) { // a short still tap: two of them in a row light the rocket
+    if (e.timeStamp - tapT < 350 && Math.hypot(e.clientX - tapX, e.clientY - tapY) < 70) { tapT = -1e9; lightRocket(); } else { tapT = e.timeStamp; tapX = e.clientX; tapY = e.clientY; }
+  }
+  steerAcc = 0; joyOff = 0; pid = null; cmd.touch = 0; cmd.pitch = 0; fingerDown = false;
+};
 cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+// no magnifier / text selection / context menu / pinch on a held finger (iOS Safari)
+cv.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+for (const g of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(g, e => e.preventDefault());
 document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 addEventListener('keydown', e => {
   if (e.key === 'a' || e.key === 'A') cmd.key = -1;
   if (e.key === 'd' || e.key === 'D') cmd.key = 1;
   if (e.key === 'ArrowLeft') turn(0.08); if (e.key === 'ArrowRight') turn(-0.08);
   if (e.key === 'r' || e.key === 'R') resetRun();
+  if (e.key === 'b' || e.key === 'B' || e.key === ' ') lightRocket();
   if (PITCH_ON) { if (e.key === 'ArrowUp') cmd.pitch = -1; if (e.key === 'ArrowDown') cmd.pitch = 1; }
   if (e.key === 'c' || e.key === 'C') { camMode = camMode === 1 ? 3 : 1; store.set('surf_cam', camMode); syncSettings(); }
   if (intro.on) { intro.on = false; showMsg(START_MSG); cmd.key = 0; return; }
@@ -1780,6 +1847,8 @@ let showGhost = store.get('surf_ghostshow') !== '0';
 function syncSettings() {
   document.querySelectorAll('#gh button').forEach(b => b.classList.toggle('on', (b.dataset.g === '1') === showGhost));
   document.querySelectorAll('#aa button').forEach(b => b.classList.toggle('on', +b.dataset.v === P.airaccel));
+  document.querySelectorAll('#tc button').forEach(b => b.classList.toggle('on', b.dataset.t === turnMode));
+  document.querySelectorAll('#sa button').forEach(b => b.classList.toggle('on', (b.dataset.a === '1') === swipeAccel));
   $('sens').value = Math.round(P.sens * 1000); $('sv').textContent = Math.round(P.sens * 1000);
   document.querySelectorAll('#cam button').forEach(b => b.classList.toggle('on', +b.dataset.c === camMode));
   $('zoomd').value = Math.round(zoomD * 100); $('zmv').textContent = Math.round(zoomD * 100) + '%';
@@ -1809,6 +1878,8 @@ $('lvl').addEventListener('click', e => {
   $('toedit').onclick = () => { location.hash = 'edit'; location.reload(); }; if (navigator.maxTouchPoints > 0) $('toedit').style.display = 'none'; // the editor is desktop only
 }
 document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airaccel = +b.dataset.v; store.set('surf_aa', P.airaccel); syncSettings(); });
+document.querySelectorAll('#tc button').forEach(b => b.onclick = () => { turnMode = b.dataset.t; store.set('surf_tc', turnMode); joyOff = 0; syncSettings(); });
+document.querySelectorAll('#sa button').forEach(b => b.onclick = () => { swipeAccel = b.dataset.a === '1'; store.set('surf_sa', swipeAccel ? '1' : '0'); syncSettings(); });
 $('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
 $('zoomd').oninput = e => { zoomD = +e.target.value / 100; store.set('surf_zoom', e.target.value); syncSettings(); };
 $('fovo').oninput = e => { fovOff = +e.target.value; store.set('surf_fov', fovOff); syncSettings(); };
@@ -1935,8 +2006,8 @@ let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
 let hudT = 0;
 function frame(now) {
-  if (moveQ.length) flushMoves(performance.now());
   const dt = Math.min(0.1, (now - last) / 1000); { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
+  joyFrame(dt); rocketHud(now);
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
   if (state === 'run') {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
