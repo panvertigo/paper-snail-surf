@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #131 2026-11-23 11:06</div>
+<div id="build">build #132 2026-11-23 11:06</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1524,7 +1524,7 @@ function updateDrops(speed) {
 const NK = 140, kPos = new Float32Array(NK * 3), kVel = new Float32Array(NK * 3), kLife = new Float32Array(NK), kMax = new Float32Array(NK), kA = new Float32Array(NK);
 const kGeo = new THREE.BufferGeometry(); kGeo.setAttribute('position', new THREE.BufferAttribute(kPos, 3));
 const kTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'); x.fillStyle = '#1a1030'; x.beginPath(); x.moveTo(16, 3); x.lineTo(28, 15); x.lineTo(19, 29); x.lineTo(6, 20); x.lineTo(8, 9); x.closePath(); x.fill(); return new THREE.CanvasTexture(c); })(); // a ragged little scrap
-const kMesh = new THREE.Points(kGeo, new THREE.PointsMaterial({ size: 9, map: kTex, transparent: true, opacity: 0.85, depthWrite: false, sizeAttenuation: true, fog: false, alphaTest: 0.05 }));
+const kMesh = new THREE.Points(kGeo, new THREE.PointsMaterial({ size: 3, map: kTex, transparent: true, opacity: 0.8, depthWrite: false, sizeAttenuation: true, fog: false, alphaTest: 0.05 }));
 kMesh.frustumCulled = false; scene.add(kMesh); for (let i = 0; i < NK; i++) kPos[i * 3 + 1] = -1e6;
 let kNext = 0, kAcc = 0;
 function updateSpecks(speed, dt) {
@@ -1532,7 +1532,7 @@ function updateSpecks(speed, dt) {
   if (state === 'run' && t > 0) {
     kAcc += speed * dt / 120 * (0.3 + t) * fxAmt;
     while (kAcc >= 1) { kAcc -= 1; const i = kNext = (kNext + 1) % NK, o = i * 3;
-      kPos[o] = snail.position.x + (Math.random() - 0.5) * 120; kPos[o + 1] = snail.position.y + 10 + Math.random() * 90; kPos[o + 2] = snail.position.z + (Math.random() - 0.5) * 120;
+      kPos[o] = snail.position.x + (Math.random() - 0.5) * 50; kPos[o + 1] = snail.position.y + 10 + Math.random() * 40; kPos[o + 2] = snail.position.z + (Math.random() - 0.5) * 50;
       kVel[o] = vel.x * 0.03 + (Math.random() - 0.5) * 180; kVel[o + 1] = (Math.random() - 0.4) * 260; kVel[o + 2] = vel.z * 0.03 + (Math.random() - 0.5) * 180; kMax[i] = kLife[i] = 0.8 + Math.random() * 0.9; }
   }
   let live = false;

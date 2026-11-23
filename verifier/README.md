@@ -68,3 +68,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - camera (2026-11-23): lag is projected onto the camera's own back axis (yaw direction), horizontal only: follow distance stretches when you speed up, but the camera never drifts sideways or vertically off the snail. Cosmetic.
 
 - fx tweak (2026-11-23): contrail ribbon half-width 2 + 0.0008 v -> 0.6 + 0.0003 v (about 1.2 u at 2000 u/s); wind streaks back but subtle (alpha 0.3 -> 0.1, length cap 800 -> 450 u, width 6 + 0.0065 v -> 2.5 + 0.0022 v). Cosmetic.
+
+- fx tweak (2026-11-23): ink specks (the dark flecks behind the snail) point size 9 -> 3, spawn area 120 -> 50 u, opacity 0.85 -> 0.8. Cosmetic.
