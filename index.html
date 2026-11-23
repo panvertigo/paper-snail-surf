@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #126 2026-11-23 10:54</div>
+<div id="build">build #127 2026-11-23 10:57</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1195,7 +1195,7 @@ let zoomD = +(store.get('surf_zoom') || 60) / 100, fovOff = +(store.get('surf_fo
 let camMode = +(store.get('surf_cam') || 3), gameSpeed = +(store.get('surf_speed') || 1.07);
 let musicVol = store.get('surf_music') === null ? 0 : +store.get('surf_music'), sfxVol = store.get('surf_sfx') === null ? 0.8 : +store.get('surf_sfx');
 let fxAmt = store.get('surf_fx') === null ? 1 : +store.get('surf_fx'); // speed-effects intensity (ribbons, clouds, edge shimmer, camera lag, long stalks); 0 = off
-const camOff = new THREE.Vector3(0, CAM_UP, CAM_BACK), camLag = new THREE.Vector3(), lagT = new THREE.Vector3(); // camLag: camera trails the snail as speed builds, then catches up
+const camOff = new THREE.Vector3(0, CAM_UP, CAM_BACK), camLag = new THREE.Vector3(), camV = new THREE.Vector3(), camC = new THREE.Vector3(); // camLag: how far the camera trails the snail; it grows while you speed up and shrinks again when speed holds
 function paperTex(draw, size = 256) {
   const c = document.createElement('canvas'); c.width = c.height = size;
   const x = c.getContext('2d'); draw(x, size);
@@ -1477,7 +1477,7 @@ function updateTrail(speed) {
 }
 // Speed sparkles: what the snail leaves behind. Slow: a few cream motes. Faster: cool aqua glints. Faster still: two spiralling strands plus bursts of big stars, icy white at the top end.
 // Cool aqua / mint on purpose: it contrasts the warm peach and violet sky instead of blending in. Cosmetic only.
-const ND = 360, dPos = new Float32Array(ND * 3), dCol = new Float32Array(ND * 3), dVel = new Float32Array(ND * 3), dLife = new Float32Array(ND), dMax = new Float32Array(ND), dHue = new Float32Array(ND), dSize = new Float32Array(ND), dK = new Float32Array(ND);
+const ND = 600, dPos = new Float32Array(ND * 3), dCol = new Float32Array(ND * 3), dVel = new Float32Array(ND * 3), dLife = new Float32Array(ND), dMax = new Float32Array(ND), dHue = new Float32Array(ND), dSize = new Float32Array(ND), dK = new Float32Array(ND);
 const dGeo = new THREE.BufferGeometry(); dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3)); dGeo.setAttribute('aColor', new THREE.BufferAttribute(dCol, 3)); dGeo.setAttribute('aSize', new THREE.BufferAttribute(dSize, 1));
 const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, '#fff'); g.addColorStop(0.35, 'rgba(255,255,255,0.8)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const dU = { map: { value: dotTex }, scale: { value: 400 } };
@@ -1494,8 +1494,8 @@ function updateDrops(speed) {
   const t = Math.max(0, Math.min(1, (speed - 2000) / 1600)); // nothing below 2000 u/s, full effect around 3600
   if (state === 'run' && speed > 2000) {
     dV.set(vel.x, vel.y, vel.z); dLat.crossVectors(dV, sUp); if (dLat.lengthSq() < 1e-6) dLat.set(1, 0, 0); dLat.normalize();
-    const tanA = 0.015 + 0.2 * t; // half-angle of the cone behind you: a narrow thread at first, then it opens wide
-    dAcc += speed * dt / 60 * (0.5 + t * 1.2 + Math.random() * 0.5) * fxAmt;
+    const tanA = 0.008 + 0.07 * t; // half-angle of the cone behind you: a narrow thread at first, then it opens wide
+    dAcc += speed * dt / 40 * (0.5 + t * 1.2 + Math.random() * 0.5) * fxAmt; // many fine motes, not a few big ones
     while (dAcc >= 1) {
       dAcc -= 1; const i = dNext = (dNext + 1) % ND, o = i * 3, helix = t > 0.2 && Math.random() < 0.35 + t * 0.4, star = t > 0.5 && Math.random() < 0.1;
       // every bead is born at the snail and drifts outward sideways: its lateral speed is speed * tan(cone angle), so the trail it leaves behind is a cone of that angle
@@ -1503,7 +1503,7 @@ function updateDrops(speed) {
       let ca, sa; if (helix) { dPhase += 0.55; const ph = dPhase + (i & 1) * Math.PI; ca = Math.cos(ph); sa = Math.sin(ph); } else { const ph = Math.random() * 6.283, r = Math.sqrt(Math.random()); ca = Math.cos(ph) * r; sa = Math.sin(ph) * r; }
       const lv = speed * tanA * (helix ? 0.85 : 0.6 + Math.random() * 0.5);
       dVel[o] = vel.x * 0.04 + (dLat.x * ca + sUp.x * sa) * lv; dVel[o + 1] = vel.y * 0.04 + (dLat.y * ca + sUp.y * sa) * lv + 20; dVel[o + 2] = vel.z * 0.04 + (dLat.z * ca + sUp.z * sa) * lv;
-      dMax[i] = dLife[i] = (star ? 1.4 : 0.6) + Math.random() * 0.6 + t * 0.5; dHue[i] = Math.random() * 0.5; dK[i] = star ? 1.6 : 1;
+      dMax[i] = dLife[i] = (star ? 0.9 : 0.45) + Math.random() * 0.45 + t * 0.35; dHue[i] = Math.random() * 0.5; dK[i] = star ? 1.35 : 1;
     }
   }
   spC.copy(SP_CREAM).lerp(SP_AQUA, Math.min(1, t * 3)); if (t > 0.5) spC.lerp(SP_MINT, (t - 0.5) * 1.4); if (t > 0.85) spC.lerp(SP_ICE, (t - 0.85) * 5); // warm cream to cool aqua, mint and icy white with speed
@@ -1513,7 +1513,7 @@ function updateDrops(speed) {
     dLife[i] -= dt; dVel[o + 1] -= 60 * dt;
     dPos[o] += dVel[o] * dt; dPos[o + 1] += dVel[o + 1] * dt; dPos[o + 2] += dVel[o + 2] * dt;
     const age = 1 - Math.max(0, dLife[i] / dMax[i]), k = 1 - Math.pow(age, 1.8), a = k * (0.65 + 0.35 * Math.sin(now / 38 + i * 7.3)), j = dHue[i] * 0.25; // twinkle as they fade
-    dSize[i] = (5 + 48 * Math.pow(age, 0.7)) * (0.6 + 1.0 * t) * dK[i]; // tiny at the snail, blooming as they drift back and out
+    dSize[i] = (2.5 + 11 * Math.pow(age, 0.7)) * (0.7 + 0.6 * t) * dK[i]; // fine mist: tiny at the snail, softening a little as it drifts back
     dCol[o] = Math.min(1, spC.r + j * 0.2) * a; dCol[o + 1] = Math.min(1, spC.g) * a; dCol[o + 2] = Math.min(1, spC.b + j * 0.2) * a;
   }
   dGeo.attributes.position.needsUpdate = dGeo.attributes.aColor.needsUpdate = dGeo.attributes.aSize.needsUpdate = true;
@@ -1522,7 +1522,7 @@ function updateDrops(speed) {
 const NK = 140, kPos = new Float32Array(NK * 3), kVel = new Float32Array(NK * 3), kLife = new Float32Array(NK), kMax = new Float32Array(NK), kA = new Float32Array(NK);
 const kGeo = new THREE.BufferGeometry(); kGeo.setAttribute('position', new THREE.BufferAttribute(kPos, 3));
 const kTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'); x.fillStyle = '#1a1030'; x.beginPath(); x.moveTo(16, 3); x.lineTo(28, 15); x.lineTo(19, 29); x.lineTo(6, 20); x.lineTo(8, 9); x.closePath(); x.fill(); return new THREE.CanvasTexture(c); })(); // a ragged little scrap
-const kMesh = new THREE.Points(kGeo, new THREE.PointsMaterial({ size: 26, map: kTex, transparent: true, opacity: 0.85, depthWrite: false, sizeAttenuation: true, fog: false, alphaTest: 0.05 }));
+const kMesh = new THREE.Points(kGeo, new THREE.PointsMaterial({ size: 9, map: kTex, transparent: true, opacity: 0.85, depthWrite: false, sizeAttenuation: true, fog: false, alphaTest: 0.05 }));
 kMesh.frustumCulled = false; scene.add(kMesh); for (let i = 0; i < NK; i++) kPos[i * 3 + 1] = -1e6;
 let kNext = 0, kAcc = 0;
 function updateSpecks(speed, dt) {
@@ -1622,12 +1622,54 @@ function spawnAround(dir, offMin, offMax, aheadMin, aheadMax) { // random point 
   return { x: rp.x + dir.x * ahead + sideV.x * off, y: rp.y + dir.y * ahead + sideV.y * off, z: rp.z + dir.z * ahead + sideV.z * off,
            s1: Math.random(), s2: Math.random() };
 }
+// Contrails: two thin ribbons shed from either side of the snail's shell and left hanging in the air along its path. Sampled by TIME, so they get longer as you speed up. They fade in from about 900 u/s.
+const NCT = 36, CT_DT = 0.03, ctHist = [], ctAcc = { t: 0 };
+const ctPos = new Float32Array(2 * NCT * 2 * 3), ctCol = new Float32Array(2 * NCT * 2 * 3), ctGeo = new THREE.BufferGeometry();
+ctGeo.setAttribute('position', new THREE.BufferAttribute(ctPos, 3)); ctGeo.setAttribute('color', new THREE.BufferAttribute(ctCol, 3));
+{ const idx = []; for (let s = 0; s < 2; s++) for (let i = 0; i < NCT - 1; i++) { const a = (s * NCT + i) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } ctGeo.setIndex(idx); }
+const ctMesh = new THREE.Mesh(ctGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+ctMesh.frustumCulled = false; ctMesh.renderOrder = 4; ctMesh.visible = false; scene.add(ctMesh);
+const ctT = new THREE.Vector3(), ctV = new THREE.Vector3(), ctW = new THREE.Vector3();
+function updateContrails(speed, dt) {
+  const k = Math.max(0, Math.min(1, (speed - 900) / 1500)) * fxAmt;
+  if (state !== 'run') ctHist.length = 0;
+  else {
+    ctAcc.t += dt;
+    if (ctAcc.t >= CT_DT) {
+      ctAcc.t = 0;
+      ctV.set(vel.x, vel.y, vel.z); if (ctV.lengthSq() > 1) ctV.normalize(); else ctV.set(0, 0, -1);
+      ctW.crossVectors(ctV, sUp); if (ctW.lengthSq() < 1e-6) ctW.set(1, 0, 0); ctW.normalize();
+      const l = ctHist[0], cx = snail.position.x + sUp.x * 45, cy = snail.position.y + sUp.y * 45, cz = snail.position.z + sUp.z * 45;
+      if (l && (cx - l.x) ** 2 + (cy - l.y) ** 2 + (cz - l.z) ** 2 > 1500 * 1500) ctHist.length = 0; // teleport (respawn): no streak across the course
+      ctHist.unshift({ x: cx, y: cy, z: cz, wx: ctW.x * 62, wy: ctW.y * 62, wz: ctW.z * 62 });
+      if (ctHist.length > NCT) ctHist.pop();
+    }
+  }
+  const n = ctHist.length; ctMesh.visible = k > 0.01 && n > 2; if (!ctMesh.visible) return;
+  const hw0 = 3 + speed * 0.0016, tint = Math.max(0, Math.min(1, (speed - 1500) / 2000));
+  for (let s = 0; s < 2; s++) {
+    const sg = s ? 1 : -1;
+    for (let i = 0; i < NCT; i++) {
+      const j = Math.min(i, n - 1), p = ctHist[j], pa = ctHist[Math.max(0, j - 1)], pb = ctHist[Math.min(n - 1, j + 1)];
+      const px = p.x + p.wx * sg, py = p.y + p.wy * sg, pz = p.z + p.wz * sg;
+      ctT.set(pb.x - pa.x, pb.y - pa.y, pb.z - pa.z); // tangent
+      ctW.set(camera.position.x - px, camera.position.y - py, camera.position.z - pz); ctW.crossVectors(ctT, ctW);
+      const wl = ctW.length(); if (wl < 1e-6) ctW.set(0, 1, 0); else ctW.divideScalar(wl);
+      const age = j / (NCT - 1), hw = hw0 * (1 - 0.85 * age), a = i < n ? k * 0.5 * Math.pow(1 - age, 1.4) * Math.min(1, i / 2 + 0.4) : 0, o = (s * NCT + i) * 6;
+      ctPos[o] = px - ctW.x * hw; ctPos[o + 1] = py - ctW.y * hw; ctPos[o + 2] = pz - ctW.z * hw;
+      ctPos[o + 3] = px + ctW.x * hw; ctPos[o + 4] = py + ctW.y * hw; ctPos[o + 5] = pz + ctW.z * hw;
+      const r = a * (0.9 - 0.3 * tint), g = a * (0.97 - 0.05 * tint), b = a;
+      ctCol[o] = ctCol[o + 3] = r; ctCol[o + 1] = ctCol[o + 4] = g; ctCol[o + 2] = ctCol[o + 5] = b;
+    }
+  }
+  ctGeo.attributes.position.needsUpdate = ctGeo.attributes.color.needsUpdate = true;
+}
 function updateStreaks(speed) {
   vTmp.set(vel.x, vel.y, vel.z); const sp = vTmp.length(); if (sp > 1) vTmp.divideScalar(sp); else vTmp.set(0, 0, -1);
   camera.getWorldDirection(camFwd);
   const behind = p => ((p.x - camera.position.x) * camFwd.x + (p.y - camera.position.y) * camFwd.y + (p.z - camera.position.z) * camFwd.z) < 0;
   const fl = Math.max(0, Math.min(1, (speed - 700) / 1600)) * fxAmt;
-  wind.mesh.visible = fl > 0.01;
+  wind.mesh.visible = false; // retired: contrails from the snail (updateContrails) show speed instead of wind streaks
   if (wind.mesh.visible) {
     const len = Math.min(800, speed * 0.17), hw0 = 6 + speed * 0.0065, tint = Math.max(0, Math.min(1, (speed - 1200) / 1800));
     for (let i = 0; i < NST; i++) {
@@ -1794,8 +1836,11 @@ function lightRocket() { // double tap or B / space
 const PITCH_ON = false, /* the lean control is retired (physics code kept; replays read 0) */ PITCH_DEAD = 14, PITCH_RANGE = 100; // px: dead zone, then full lean
 function turn(r) { if (state === 'run') cmd.turn += r; else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
 const cv = renderer.domElement;
+cv.tabIndex = -1; cv.style.outline = 'none'; // so the page can put keyboard focus on the game
+function focusGame() { try { window.focus(); if (document.activeElement && document.activeElement !== cv && document.activeElement !== document.body) document.activeElement.blur(); cv.focus({ preventScroll: true }); } catch (e) {} }
+addEventListener('load', focusGame); addEventListener('focus', focusGame); document.addEventListener('visibilitychange', () => { if (!document.hidden) focusGame(); });
 cv.addEventListener('pointerdown', e => {
-  e.preventDefault(); $('settings').hidden = true;
+  e.preventDefault(); $('settings').hidden = true; focusGame();
   if (pid !== null) return;
   if (intro.on) { intro.on = false; showMsg(START_MSG); return; } // tap skips the flyover, never drops in blind
   pid = e.pointerId; lastX = anchorX = e.clientX; lastT = downT = e.timeStamp; anchorY = e.clientY; fingerDown = true; steerAcc = 0; pxSpeed = 0; moved = 0; joyOff = 0; applied.length = 0; startedRun = state !== 'run';
@@ -2006,7 +2051,7 @@ let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
 let hudT = 0;
 function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000); { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
+  const dt = Math.min(0.05, (now - last) / 1000); { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
   joyFrame(dt); rocketHud(now);
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
   if (state === 'run') {
@@ -2024,9 +2069,15 @@ function frame(now) {
     folPos.set(rp.x + (Math.random() - 0.5) * shake, rp.y + FP_EYE + (Math.random() - 0.5) * shake, rp.z);
     folLook.set(rp.x + fx * 600, rp.y + FP_EYE - 100, rp.z + fz * 600);
   } else {
-  lagT.set(-vel.x, -vel.y * 0.5, -vel.z).multiplyScalar(0.05 * fxAmt * Math.min(1, speed / 700));
-  if (lagT.length() > 170 * fxAmt) lagT.setLength(170 * fxAmt);
-  camLag.lerp(lagT, 1 - Math.exp(-dt * 2.4)); // slow follow: lags on acceleration, settles when speed holds
+  { // rig point camC moves with a SMOOTHED velocity and is pulled gently back to the snail: at steady speed it sits on the snail (no lag); when speed jumps it falls behind, then catches up
+    const kv = 1 - Math.exp(-dt * 1.3), kp = 1 - Math.exp(-dt * 1.8);
+    if (camC.distanceToSquared(rp) > 1500 * 1500 || state !== 'run') { camC.copy(rp); camV.set(vel.x, vel.y, vel.z); } // respawn / not running: snap
+    camV.x += (vel.x - camV.x) * kv; camV.y += (vel.y - camV.y) * kv; camV.z += (vel.z - camV.z) * kv;
+    camC.x += camV.x * dt; camC.y += camV.y * dt; camC.z += camV.z * dt;
+    camC.x += (rp.x - camC.x) * kp; camC.y += (rp.y - camC.y) * kp; camC.z += (rp.z - camC.z) * kp;
+    camLag.copy(camC).sub(rp); const mx = 280 * fxAmt; if (camLag.length() > mx) { camLag.setLength(mx); camC.copy(rp).add(camLag); }
+    camLag.y *= 0.5;
+  }
   folPos.set(rp.x + camOff.x + camLag.x + (Math.random() - 0.5) * shake, rp.y + camOff.y + camLag.y + (Math.random() - 0.5) * shake, rp.z + camOff.z + camLag.z);
   folLook.set(rp.x + fx * CAM_AHEAD, rp.y + 30, rp.z + fz * CAM_AHEAD);
   }
@@ -2043,7 +2094,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovOff + fovKick + warpK * 9; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
-  updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   if (now - hudT > 90) { hudT = now; speedEl.style.color = `hsl(${180 + hue * 140},${hue * 90}%,${100 - hue * 30}%)`; speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>'; } // the speed readout updates about 11 times a second, not every frame (each DOM write costs a style pass on iOS)
   timerEl.textContent = tRun.toFixed(2);
