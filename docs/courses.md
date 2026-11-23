@@ -49,3 +49,6 @@ Export file, drop the JSON in `levels/`, add `{ "file": "<filename without .json
 
 ## Stage palette (2026-11-23)
 `palette: [ { top, mid, bot, gnd }, ... ]` (hex numbers, 2+ keyframes, optional `t` 0..1) replaces the built-in time of day for that course: the sky, haze, mountain tint and fog follow your progress through the keyframes. The Intro uses a bright glacier morning (see tools/gen-intro.js).
+
+## Ramp grades: s0 / s1 (2026-11-23)
+A ramp or curve can set its own downhill grade at the start (`s0`) and end (`s1`): tan of the angle, 0.08 = the normal 4.6 deg, 0.58 = 30, 0.7 = 35, 0.84 = 40, 1.73 = 60. The grade changes smoothly along the piece (same Hermite curve as `C`; the net drop defaults to the average grade times the length, `C` overrides it). Chain pieces so each `s0` equals the previous `s1` and the course bends smoothly into a steep run. Two physics facts that decide every design: (1) a kink at speed is a ski jump, the surface falls away faster than you do, so steepen gradually; (2) you only land softly on a ramp FLATTER than your flight path (a landing steeper than your fall just runs away from you), so a dive works as: fly off at the lip, fall about 50 deg, land on a 40 deg ramp. Convex bends need radius of about v^2 / (g cos angle) to keep you on. Speed is altitude: v = sqrt(2 g drop).

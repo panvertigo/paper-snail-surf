@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #140 2026-11-23 11:39</div>
+<div id="build">build #141 2026-11-23 11:49</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -146,9 +146,12 @@ const P = {
 const SLOPE = 0.08;      // downhill grade along a normal ramp
 // Ridge height above r.oy at distance u: normal ramps fall at SLOPE. Uphill ramps (r.C = net climb) follow a cubic
 // that climbs, rounds over a crest and exits at the normal -SLOPE grade, so the transfer after it is a normal one.
-function zOf(r, u) { if (!r.C) return -SLOPE * u; const t = u / r.L, c = r.C / r.L, m0 = 1.5 * c + SLOPE;
+// Pieces can set their own grades: s0 = downhill grade at the start, s1 = at the end (0.08 = the normal 4.6 deg, 0.7 = 35 deg, 1.73 = 60 deg). They are stored as slopes r.m0 / r.m1 and follow the same Hermite curve, so a ramp can steepen smoothly into a drop instead of kinking (a kink at speed is a ski jump).
+function zOf(r, u) { if (r.m0 !== undefined) { const t = u / r.L, c = r.C / r.L; return r.L * ((t * t * t - 2 * t * t + t) * r.m0 + (3 * t * t - 2 * t * t * t) * c + (t * t * t - t * t) * r.m1); }
+  if (!r.C) return -SLOPE * u; const t = u / r.L, c = r.C / r.L, m0 = 1.5 * c + SLOPE;
   return r.L * ((t * t * t - 2 * t * t + t) * m0 + (3 * t * t - 2 * t * t * t) * c - (t * t * t - t * t) * SLOPE); }
-function zD(r, u) { if (!r.C) return -SLOPE; const t = u / r.L, c = r.C / r.L, m0 = 1.5 * c + SLOPE; // dz/du
+function zD(r, u) { if (r.m0 !== undefined) { const t = u / r.L, c = r.C / r.L; return (3 * t * t - 4 * t + 1) * r.m0 + (6 * t - 6 * t * t) * c + (3 * t * t - 2 * t) * r.m1; }
+  if (!r.C) return -SLOPE; const t = u / r.L, c = r.C / r.L, m0 = 1.5 * c + SLOPE; // dz/du
   return (3 * t * t - 4 * t + 1) * m0 + (6 * t - 6 * t * t) * c - (3 * t * t - 2 * t) * SLOPE; }
 const dirOf = h => [-dsin(h), 0, -dcos(h)];  // yaw h faces along -Z at 0
 const rightOf = h => [dcos(h), 0, -dsin(h)];
@@ -163,8 +166,9 @@ function ridgeAt(r, u) {
   const rt = rightOf(r.h0 + r.k * u);
   return [r.cx + r.sk * rt[0] * r.Rc, r.cz + r.sk * rt[2] * r.Rc];
 }
-function makeRamp(sx, oy, sz, h0, L, k, W, H, sec, tex, side, C = 0) {
+function makeRamp(sx, oy, sz, h0, L, k, W, H, sec, tex, side, C = 0, sl = null) {
   const r = { sx, oy, sz, h0, L, k, W, H, sec, tex, side, C, d0: dirOf(h0), r0: rightOf(h0) };
+  if (sl) { r.m0 = -sl[0]; r.m1 = -sl[1]; }
   if (k) { r.sk = Math.sign(k); r.Rc = 1 / Math.abs(k); r.cx = sx - r.sk * r.r0[0] * r.Rc; r.cz = sz - r.sk * r.r0[2] * r.Rc; }
   const e = ridgeAt(r, L); r.ex = e[0]; r.ez = e[1]; r.h1 = h0 + k * L; r.ey = oy + zOf(r, L);
   return r;
@@ -413,7 +417,7 @@ function buildCourse(S, meta) {
     let L = p.L, k = 0;
     if (p.turn) { L = p.turn * Math.PI / 180 * p.R; k = -side / p.R; } // banked: always turn toward the face you're riding
     if (p.loop) { const lp = makeLoop(x, y, z, h, p.loop, i, tex, side); ramps.push(lp); tex += lp.tube.sweep * p.loop.R; }
-    else { ramps.push(makeRamp(x, y, z, h, L, k, W, W * (p.hr || 1.25), i, tex, side, p.C || 0)); /* hr: face height / half-width, default 1.25 (about 51 deg); lower = a flatter ramp (editor slider) */ tex += L; }
+    else { const sg = (p.s0 !== undefined || p.s1 !== undefined) ? [p.s0 ?? SLOPE, p.s1 ?? SLOPE] : null; ramps.push(makeRamp(x, y, z, h, L, k, W, W * (p.hr || 1.25), i, tex, side, sg ? (p.C ?? -(sg[0] + sg[1]) / 2 * L) : (p.C || 0), sg)); /* hr: face height / half-width, default 1.25 (about 51 deg); lower = a flatter ramp (editor slider) */ tex += L; }
     ramps[ramps.length - 1].hue = hue; if (p.half && !p.loop) ramps[ramps.length - 1].half = side; // half: single-sided ramp, only the face you ride exists (the other side is open air)
     // rings sit in the flight just before this piece, placed from the previous piece's end: d ahead, s to the right, y above its end height
     const allRings = (p.rings || []).concat((stageMeta.riskRings || []).filter(q => q.piece === i));
@@ -1065,7 +1069,7 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
         }
         continue;
       }
-      const slant = Math.hypot(r.W, r.H) / T, n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 120)) : 1;
+      const slant = Math.hypot(r.W, r.H) / T, n = (r.k || r.C || r.m0 !== undefined) ? Math.max(2, Math.ceil(r.L / 120)) : 1;
       for (let j = 0; j < n; j++) {
         const ua = r.L * j / n, ub = r.L * (j + 1) / n, ta = (r.tex + ua) / T, tb = (r.tex + ub) / T;
         for (const sd of (r.half ? [r.half] : [1, -1])) {

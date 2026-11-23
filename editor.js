@@ -18,8 +18,8 @@
   const RING_PRESETS = { hoop: { kind: 'hoop', d: 400, y: 380 }, portal: { kind: 'portal', d: 500, y: 380, R: 280, theme: 1 } };
   // field specs: [key, label, min, max, step, tip]
   const F_COMMON = [['gap', 'Gap before', -30000, 40000, 1, 'Distance from the previous piece\'s end'], ['drop', 'Drop', -2000, 9000, 50, 'Height below the previous piece (blank = automatic)'], ['lat', 'Sideways', -3000, 3000, 50, 'Shift left / right (negative = left)'], ['hue', 'Colour (0-1)', 0, 1, 0.01, 'Blank = follows previous']];
-  const F_RAMP = [['L', 'Length', 500, 40000, 100], ['W', 'Half-width', 250, 1300, 10, 'Carries on to later ramps'], ['C', 'Climb', -4000, 4000, 50, 'Net climb: positive = uphill, negative = a steeper down ramp']];
-  const F_TURN = [['turn', 'Turn (deg)', 10, 360, 5], ['R', 'Radius', 1500, 60000, 100, 'Bigger = a wider, faster sweep'], ['W', 'Half-width', 250, 1300, 10]];
+  const F_RAMP = [['L', 'Length', 500, 40000, 100], ['W', 'Half-width', 250, 1300, 10, 'Carries on to later ramps'], ['C', 'Climb', -12000, 4000, 50, 'Net climb: positive = uphill, negative = a steeper down ramp'], ['s0', 'Start grade', 0, 2.5, 0.02, 'Downhill grade at the start (tan of the angle: 0.08 = 4.6 deg, 0.58 = 30, 0.7 = 35, 0.84 = 40, 1.73 = 60). Blank = normal. Set it with End grade for a ramp that steepens or flattens smoothly (chain pieces so each start equals the previous end).'], ['s1', 'End grade', 0, 2.5, 0.02, 'Downhill grade at the end. Blank = normal 0.08.']];
+  const F_TURN = [['turn', 'Turn (deg)', 10, 360, 5], ['R', 'Radius', 1500, 60000, 100, 'Bigger = a wider, faster sweep'], ['W', 'Half-width', 250, 1300, 10], ['s0', 'Start grade', 0, 2.5, 0.02, 'Downhill grade at the start (tan of the angle: 0.08 = 4.6 deg, 0.58 = 30, 0.7 = 35, 0.84 = 40, 1.73 = 60). Blank = normal. Set it with End grade for a ramp that steepens or flattens smoothly (chain pieces so each start equals the previous end).'], ['s1', 'End grade', 0, 2.5, 0.02, 'Downhill grade at the end. Blank = normal 0.08.']];
   const F_LOOP = [['R', 'Radius', 500, 3000, 50, 'Bigger = needs more speed'], ['phi', 'Entry angle', 0, 1.2, 0.05, 'Quarter-pipe you drop onto (rad)'], ['phi2', 'Exit angle', 0, 1, 0.05, 'Launch angle (blank: 0.3, banked: 0)'],
     ['turns', 'Turns', 1, 4, 1, '1 = loop, 2+ = corkscrew / swirl'], ['bank', 'Bank (deg)', 0, 80, 5, '0 = vertical loop, high = flat swirl'], ['W', 'Half-width', 300, 900, 10], ['dir', 'Side (1 / -1)', -1, 1, 2, 'Which way the turns drift'], ['off', 'Lane offset', -600, 600, 10]];
   const F_RING = [['d', 'Ahead', -500, 3000, 50, 'Distance past the previous piece\'s end'], ['y', 'Height', -1500, 3000, 50], ['s', 'Lane', -1500, 1500, 50, 'Blank = where the rider flies'], ['R', 'Radius', 100, 800, 10],
@@ -34,7 +34,7 @@
   // ---------- stage helpers ----------
   const kind = p => p.loop ? (p.loop.bank ? 'swirl' : 'loop') : p.turn ? 'turn' : 'ramp';
   function sane(st) { // drop numbers a draft should never contain (NaN, infinite, absurd sizes) so a bad value cannot hang the course builder
-    const lim = { L: [500, 40000], R: [1500, 60000], turn: [10, 360], W: [100, 1500], hr: [0.15, 2.5], C: [-4000, 4000], gap: [0, 40000], lat: [-30000, 30000], drop: [-20000, 40000], rot: [-720, 720] };
+    const lim = { L: [500, 40000], R: [1500, 60000], turn: [10, 360], W: [100, 1500], hr: [0.15, 2.5], C: [-12000, 4000], s0: [0, 3], s1: [0, 3], gap: [0, 40000], lat: [-30000, 30000], drop: [-20000, 40000], rot: [-720, 720] };
     st.pieces = st.pieces.slice(0, 400).filter(p => p && typeof p === 'object');
     for (const p of st.pieces) for (const k in lim) if (p[k] !== undefined) { const v = +p[k]; if (!Number.isFinite(v)) delete p[k]; else p[k] = Math.max(lim[k][0], Math.min(lim[k][1], v)); }
     if (st.start && !['x', 'y', 'z'].every(k => Number.isFinite(+st.start[k] || 0))) delete st.start;
@@ -67,7 +67,7 @@
   function lineOf(pts, color) { const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0], p[1], p[2]))); const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })); l.renderOrder = 10; l.frustumCulled = false; scene.add(l); return l; }
   function fillOf(r, color, op) { // translucent wash over a ramp's two faces, so the selected / hovered ramp is obvious
     if (r.tube) return null;
-    const n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 150)) : Math.max(1, Math.ceil(r.L / 800)), pos = [];
+    const n = (r.k || r.C || r.m0 !== undefined) ? Math.max(2, Math.ceil(r.L / 150)) : Math.max(1, Math.ceil(r.L / 800)), pos = [];
     const Pt = (u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; };
     for (let j = 0; j < n; j++) for (const sd of (r.half ? [r.half] : [1, -1])) { const ua = r.L * j / n, ub = r.L * (j + 1) / n, A = Pt(ua, 0, r.H), B = Pt(ua, sd * r.W, 0), A2 = Pt(ub, 0, r.H), B2 = Pt(ub, sd * r.W, 0); pos.push(...A, ...B, ...B2, ...A, ...B2, ...A2); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -264,7 +264,7 @@
     setRay(e); let best = null, bd = 1e18;
     ramps.forEach((r, i) => {
       if (r.tube) return;
-      const n = (r.k || r.C) ? Math.max(2, Math.ceil(r.L / 150)) : Math.max(1, Math.ceil(r.L / 800));
+      const n = (r.k || r.C || r.m0 !== undefined) ? Math.max(2, Math.ceil(r.L / 150)) : Math.max(1, Math.ceil(r.L / 800));
       const Pt = (u, v, y, t) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return t.set(q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v); };
       for (let j = 0; j < n; j++) for (const sd of (r.half ? [r.half] : [1, -1])) {
         const ua = r.L * j / n, ub = r.L * (j + 1) / n;
