@@ -78,5 +78,8 @@ Goals: wondrous, symbolic, whimsical; easy to see from the air (glow or spiral);
 - A moonlit puddle on the balcony that reflects the sky: the exit from the house for the last stage.
 Recommendation: one signature pad per room so each stage ends on a different small wonder: sunbeam and cat bed (bedroom), spinning record (living room), open storybook (study), paper boat (bathroom), crayon house (the final one). Cheap to build as a flat painted card plus a glow and a particle burst on landing.
 
+## The opening and Track 1 (2026-11-23)
+See docs/opening-and-intro.md: song timeline, the 39 s exposition options (The Docket recommended), the Track 1 shape mapped to the music (about 103 s, dive at t=51), and six open questions for Jeffry. Music data and the fadeIn / campaign engine hooks are done; the exposition scene, a New campaign menu entry, retiming the Intro to the song, and a trough piece are not.
+
 ## Story and world (2026-11-19)
 See docs/story-and-world.md: paper snail in a clay world, leylines (ramps) as the house's memory-lines, eyestalks that grow with lifetime distance, echoes at checkpoints, an Attic hub. Open decisions are listed at the bottom of that file. First cheap step: eyestalk growth (about 1 hour).

@@ -22,7 +22,7 @@ const P = [
   GT(40, 57000, 0.04, 0.03, { hue: 0.52, label: '4 Homeward' }), G(20000, 0.03, 0.03), GT(40, 57000, 0.03, 0.03), G(30000, 0.03, 0.03),
 ];
 const stage = {
-  name: 'Glacier (intro)', author: 'Paper Snail Surf', scenery: 'plain', theme0: 0, music: 'salt', pull: 0.3, fall: 0,
+  name: 'Glacier (intro)', author: 'Paper Snail Surf', scenery: 'plain', theme0: 0, music: 'windmill', pull: 0.3, fall: 0,
   // a bright cold morning, nothing like the pink and violet evening of the night levels: the sky deepens a little and warms toward the end
   palette: [
     { top: 0x4a90dc, mid: 0xa8d9f3, bot: 0xe6f6fb, gnd: 0xcfe9f1 },

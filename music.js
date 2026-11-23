@@ -85,6 +85,7 @@
     const sec = cfg.sections[id], B = bufs[id], g = { id, start: t, end: t + sec.loopLen, srcs: [], gains: [], sec };
     B.layers.forEach((buf, i) => {
       const src = ctx.createBufferSource(); src.buffer = buf; const gn = ctx.createGain(); gn.gain.value = layerTarget(sec, i);
+      if (sec.fadeIn && i === 0) { const tg = gn.gain.value; gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(tg, t + sec.fadeIn); g.fadeEnd = t + sec.fadeIn; } // fadeIn (seconds): the section starts silent and reaches full volume by then
       src.connect(gn); gn.connect(master); src.start(t); g.srcs.push(src); g.gains.push(gn);
       if (B.tails && B.tails[i]) { const ts = ctx.createBufferSource(); ts.buffer = B.tails[i]; ts.connect(gn); ts.start(t + sec.loopLen); g.srcs.push(ts); }
     });
@@ -112,7 +113,7 @@
     if (pending) { const tb = boundary(pending.quant, Math.max(now + 0.12, pending.tmin || 0)); if (tb < now + 0.5) commit(tb); }
     if (!ending && cur && cur.once && cur.iters >= 1 && cur.nextStart < now + 0.5) { const nx = cfg.linear ? linearNext() : cur.next; if (nx && cfg.sections[nx]) startSection(nx, cur.nextStart); } // an intro hands over to its loop with no gap; a linear song picks its next phrase here
     while (cur && cur.nextStart < now + 0.5 && !(cur.once && cur.iters >= 1)) { scheduleIter(cur.id, cur.nextStart); cur.nextStart += cur.loopLen; cur.iters++; } // once: play the section a single time (an outro), then silence
-    for (const g of groups) if (!g.dead && g.start < now + 0.5 && g.end > now) g.gains.forEach((n, i) => n.gain.setTargetAtTime(layerTarget(g.sec, i), now, 0.35)); // speed layers
+    for (const g of groups) if (!g.dead && g.start < now + 0.5 && g.end > now && !(g.fadeEnd && now < g.fadeEnd)) g.gains.forEach((n, i) => n.gain.setTargetAtTime(layerTarget(g.sec, i), now, 0.35)); // speed layers
   }
 
   // linear (hybrid) policy: the song plays in order, phrase by phrase, steered by course progress (0..1). Ahead of the course: replay the phrase. Far behind: jump to where the course is. The last entry loops.
@@ -152,9 +153,9 @@
     trigger(ev0, arg, eta) {
       if (!cfg) return;
       try {
-        if (cfg.linear && ev0 !== 'finish' && ev0 !== 'finishNear') return; // a linear song ignores checkpoints and portals: it follows progress
+        if (cfg.linear && ev0 !== 'finish' && ev0 !== 'finishNear' && ev0 !== 'campaign') return; // a linear song ignores checkpoints and portals: it follows progress
         const early = ev0 === 'approach' || ev0 === 'finishNear', ev = ev0 === 'approach' ? 'checkpoint' : ev0 === 'finishNear' ? 'finish' : ev0; // 'approach' / 'finishNear' fire just before the real event, when the snail is on pace for it
-        const lead = early || ev === 'finish' ? 0 : (cfg.lead ?? 2); // a real checkpoint or portal: let the old section play on a couple of bars first; anticipated ones are already early; finish: the outro lands right away
+        const lead = early || ev === 'finish' || ev === 'campaign' ? 0 : (cfg.lead ?? 2); // a real checkpoint or portal: let the old section play on a couple of bars first; anticipated ones are already early; finish: the outro lands right away
         if (ev === 'checkpoint' && cfg.journey) { const to = journeySection(arg); Music.goto(bridgeFor(to, eta) || to, { quantize: cfg.transition || 'phrase', lead }); return; } // song order spread over however many checkpoints the level has
         const t = (cfg.triggers || []).find(x => x.on === ev && (ev === 'checkpoint' ? x.n === arg : ev === 'portal' ? x.theme === arg : true));
         if (t) Music.goto(t.section, { quantize: t.quantize, lead });
@@ -162,7 +163,7 @@
     },
     at(piece, o) { ending = false; // the section in force when you are at piece i (used on start and after a respawn)
       if (!cfg || !ready) { deferredAt = piece; return; }
-      if (cfg.linear) { const playing = cur && (cfg.linear.includes(cur.id) || (cfg.linearLong || []).includes(cur.id)); if (o && o.respawn && playing) return; Music.goto(order()[0], { quantize: 'beat', restart: true }); return; } // a splat does not restart the song; a new run does
+      if (cfg.linear) { const playing = cur && (cfg.linear.includes(cur.id) || (cfg.linearLong || []).includes(cur.id)); if (o && o.respawn && playing) return; { const st = (cfg.triggers || []).find(x => x.on === 'start'); Music.goto(st ? st.section : order()[0], { quantize: 'beat', restart: true }); } return; } // a splat does not restart the song; a new run does (at the 'start' trigger's section: for a song with an exposition ahead of the track, a restart must not replay the exposition)
       if (cfg.journey) { let n = 0; for (const e of events) if (e.ev === 'checkpoint' && e.at <= piece) n++; if (n > 0) { Music.goto(journeySection(n), o || { quantize: 'beat' }); return; } }
       const match = e => (cfg.triggers || []).find(x => x.on === e.ev && (e.ev === 'checkpoint' ? x.n === e.n : x.theme === e.theme));
       let ev = null; for (const e of events) if (e.at <= piece && match(e)) ev = e; // only events this song reacts to (a manifest may ignore portals)

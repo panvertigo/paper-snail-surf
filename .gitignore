@@ -3,3 +3,7 @@ music/*.wav
 music/5 Chicago*
 art/ChatGPT*
 tools/.fleetwood_bars.npy
+
+# full-length source tracks stay local (the cut loops are tracked)
+music/The Old Windmill*
+desktop.ini

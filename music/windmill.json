@@ -1,0 +1,33 @@
+{
+ "bpm": 60,
+ "beatsPerBar": 1,
+ "quantize": "bar",
+ "startOffset": 0.0251,
+ "linear": [
+  "expo",
+  "track"
+ ],
+ "sections": {
+  "expo": {
+   "file": "windmill_expo.mp3",
+   "bars": 39.0,
+   "once": true,
+   "fadeIn": 2.0
+  },
+  "track": {
+   "file": "windmill_track.mp3",
+   "bars": 105.0,
+   "once": true
+  }
+ },
+ "triggers": [
+  {
+   "on": "start",
+   "section": "track"
+  },
+  {
+   "on": "campaign",
+   "section": "expo"
+  }
+ ]
+}
