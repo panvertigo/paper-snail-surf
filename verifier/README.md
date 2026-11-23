@@ -78,3 +78,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - ui (2026-11-23): build label moved to the top left under the checkpoint line; rocket bar is vertical on the right edge (fills from the bottom, no text); moon sprite loses its crater blotches (read as a shadow). Cosmetic.
 
 - ui (2026-11-23): rocket bar horizontal again, bottom left just above the speed readout (120 x 8 px). Cosmetic.
+
+- input (2026-11-23): swipe acceleration is now a slider 0-300 percent (accAmt, saved as surf_acc; old on/off setting migrates: off -> 0, otherwise 150). Joystick turn mode removed from the menu and forced off (turnMode = 'swipe'; the branch in inputMove is dormant). Checked with the stub harness: 0 percent -> 1.0x, 150 -> 2.46x at 3 px/ms, 300 -> 3.9x.

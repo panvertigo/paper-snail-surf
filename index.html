@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #136 2026-11-23 11:23</div>
+<div id="build">build #137 2026-11-23 11:25</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -71,10 +71,8 @@ canvas{display:block;touch-action:none}
   <input id="fovo" type="range" min="-15" max="25" step="1">
   <label>Swipe sensitivity <span id="sv"></span></label>
   <input id="sens" type="range" min="4" max="30" step="1">
-  <label>Turn control</label>
-  <div class="row" id="tc"><button data-t="swipe">swipe</button><button data-t="joy">joystick</button></div>
-  <label>Swipe acceleration (fast flicks turn more)</label>
-  <div class="row" id="sa"><button data-a="1">on</button><button data-a="0">off</button></div>
+  <label>Swipe acceleration <span id="sav"></span></label>
+  <input id="sacc" type="range" min="0" max="300" step="10">
   <label>Speed effects <span id="fxv"></span></label>
   <input id="fx" type="range" min="0" max="150" step="5">
   <details><summary>More (saved courses, air grip, game speed)</summary>
@@ -670,7 +668,7 @@ const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return
                 set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
 P.airaccel = +(store.get('surf_aa') || P.airaccel);
 P.sens = +(store.get('surf_sens_v2') || P.sens);
-let turnMode = store.get('surf_tc') === 'joy' ? 'joy' : 'swipe', swipeAccel = store.get('surf_sa') !== '0'; // turn control: swipe | joystick; swipe acceleration on by default
+let turnMode = 'swipe', accAmt = store.get('surf_acc') !== null ? +store.get('surf_acc') : (store.get('surf_sa') === '0' ? 0 : 1.5); // turn control is swipe only (joystick removed from the menu); accAmt: extra turn per pixel at full flick speed (1.5 = 2.5x total, 0 = off)
 const LEVEL = globalThis.SURF_LEVEL, LEVEL_LABEL = LEVEL === 'custom' ? (stageMeta.name || 'Custom stage') : 'Level ' + LEVEL, LKEY = LEVEL + (globalThis.SURF_COURSE ? '_' + globalThis.SURF_COURSE : ''), BK = 'surf_best_L' + LKEY, BFK = 'surf_bestf_L' + LKEY;
 let best = +(store.get(BK) || 0), bestFalls = +(store.get(BFK) || 0);
 
@@ -1899,7 +1897,7 @@ let pid = null, lastX = 0, anchorX = 0, anchorY = 0;
 // Swipe acceleration (setting): a fast swipe turns up to 1 + ACC_MAX times more per pixel (smoothed pointer speed, px/ms, so jitter doesn't flicker the gain).
 // Joystick mode (setting): how far the finger is from where it touched sets the turn RATE; past JOY_RANGE the anchor is dragged along, so reversing is quick.
 // Double tap (two short still taps within 350 ms) lights the rocket.
-const LIFT_UNDO = 35, LIFT_MAXDX = 60, applied = [], ACC_V0 = 0.3, ACC_V1 = 2.0, ACC_MAX = 1.5, JOY_DEAD = 6, JOY_RANGE = 80, JOY_RATE = 300; // JOY_RATE: full deflection turns P.sens * JOY_RATE rad/s
+const LIFT_UNDO = 35, LIFT_MAXDX = 60, applied = [], ACC_V0 = 0.3, ACC_V1 = 2.0, JOY_DEAD = 6, JOY_RANGE = 80, JOY_RATE = 300; // JOY_RATE: full deflection turns P.sens * JOY_RATE rad/s
 let lastT = 0, pxSpeed = 0, moved = 0, downT = 0, startedRun = false, joyOff = 0, tapT = -1e9, tapX = 0, tapY = 0, rktDenied = -1e9;
 // Strafe sign follows the NET swipe direction, not the last move event: acc is a clamped running sum of dx, and the sign only flips once acc crosses the opposite threshold, so a 1px wobble can't push against your turn.
 let steerAcc = 0; const STEER_CLAMP = 5, STEER_FLIP = 2;
@@ -1916,7 +1914,7 @@ function inputMove(x, t) {
     return;
   }
   pxSpeed += (Math.abs(dx) / dt - pxSpeed) * 0.5;
-  const g = swipeAccel ? 1 + ACC_MAX * Math.max(0, Math.min(1, (pxSpeed - ACC_V0) / (ACC_V1 - ACC_V0))) : 1, r = -dx * P.sens * g;
+  const g = 1 + accAmt * Math.max(0, Math.min(1, (pxSpeed - ACC_V0) / (ACC_V1 - ACC_V0))), r = -dx * P.sens * g;
   turn(r); applied.push({ t, r }); while (applied.length && t - applied[0].t > 200) applied.shift();
   steerSign(dx);
 }
@@ -1989,8 +1987,7 @@ let showGhost = store.get('surf_ghostshow') !== '0';
 function syncSettings() {
   document.querySelectorAll('#gh button').forEach(b => b.classList.toggle('on', (b.dataset.g === '1') === showGhost));
   document.querySelectorAll('#aa button').forEach(b => b.classList.toggle('on', +b.dataset.v === P.airaccel));
-  document.querySelectorAll('#tc button').forEach(b => b.classList.toggle('on', b.dataset.t === turnMode));
-  document.querySelectorAll('#sa button').forEach(b => b.classList.toggle('on', (b.dataset.a === '1') === swipeAccel));
+  $('sacc').value = Math.round(accAmt * 100); $('sav').textContent = Math.round(accAmt * 100) + '%';
   $('sens').value = Math.round(P.sens * 1000); $('sv').textContent = Math.round(P.sens * 1000);
   document.querySelectorAll('#cam button').forEach(b => b.classList.toggle('on', +b.dataset.c === camMode));
   $('zoomd').value = Math.round(zoomD * 100); $('zmv').textContent = Math.round(zoomD * 100) + '%';
@@ -2020,8 +2017,7 @@ $('lvl').addEventListener('click', e => {
   $('toedit').onclick = () => { location.hash = 'edit'; location.reload(); }; if (navigator.maxTouchPoints > 0) $('toedit').style.display = 'none'; // the editor is desktop only
 }
 document.querySelectorAll('#aa button').forEach(b => b.onclick = () => { P.airaccel = +b.dataset.v; store.set('surf_aa', P.airaccel); syncSettings(); });
-document.querySelectorAll('#tc button').forEach(b => b.onclick = () => { turnMode = b.dataset.t; store.set('surf_tc', turnMode); joyOff = 0; syncSettings(); });
-document.querySelectorAll('#sa button').forEach(b => b.onclick = () => { swipeAccel = b.dataset.a === '1'; store.set('surf_sa', swipeAccel ? '1' : '0'); syncSettings(); });
+$('sacc').oninput = e => { accAmt = e.target.value / 100; store.set('surf_acc', accAmt); syncSettings(); };
 $('sens').oninput = e => { P.sens = e.target.value / 1000; store.set('surf_sens_v2', P.sens); syncSettings(); };
 $('zoomd').oninput = e => { zoomD = +e.target.value / 100; store.set('surf_zoom', e.target.value); syncSettings(); };
 $('fovo').oninput = e => { fovOff = +e.target.value; store.set('surf_fov', fovOff); syncSettings(); };
