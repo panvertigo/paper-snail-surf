@@ -116,10 +116,12 @@
   }
 
   // linear (hybrid) policy: the song plays in order, phrase by phrase, steered by course progress (0..1). Ahead of the course: replay the phrase. Far behind: jump to where the course is. The last entry loops.
+  const STRAIGHT = true; // songs play straight through in manifest order (set false for the progress-steered hybrid: replay when ahead of the course, jump when far behind)
   function order() { return (cfg.linearLong && events.filter(e => e.ev === 'checkpoint').length >= 5 && cfg.linearLong) || cfg.linear; } // a long level (5+ checkpoints) plays the full song order
   function linearNext() {
     const o = order(), i = o.indexOf(cur.id), nh = cfg.noHold || []; if (i < 0) return cur.next || null; if (i >= o.length - 1) return null;
-    let target = clamp(Math.round(progress * (o.length - 1)), 0, o.length - 1); const nx = i + 1;
+    const nx = i + 1; if (STRAIGHT) return o[nx]; // straight through: no replays, no jumps, whatever the rider does
+    let target = clamp(Math.round(progress * (o.length - 1)), 0, o.length - 1);
     if (i >= 1 && nx > target + (cfg.hold ?? 1) && !nh.includes(o[i])) return o[i]; // ahead of the course: replay this phrase (never a riser: it only makes sense played once)
     if (nx < target - (cfg.skip ?? 2)) { while (target > 1 && nh.includes(o[target]) && nh.includes(o[target - 1])) target--; return o[Math.max(1, target)]; } // far behind: jump to where the course is (to the start of a riser, never into its middle)
     return o[nx];
