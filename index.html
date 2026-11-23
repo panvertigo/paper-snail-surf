@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #141 2026-11-23 11:49</div>
+<div id="build">build #142 2026-11-23 12:05</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -871,6 +871,13 @@ function buildClouds() {
     grp.position.set(r.sx + rt[0] * side * off, (r.oy || 0) + (island ? 2200 : 1400) + rn() * 3200, r.sz + rt[2] * side * off); grp.userData.sp = 0.1 + rn() * 0.2; grp.userData.bob = island; scene.add(grp); scenicClouds.push(grp);
   }
 }
+const townU = { scale: { value: 400 }, map: { value: null }, near: { value: 1500 }, far: { value: 6500 } };
+function townGlow(size) { // like PointsMaterial (vertex colours, additive, size attenuation) but faded out when close: screen-facing glow only reads from far away
+  townU.map.value = townU.map.value || glowTexA();
+  return new THREE.ShaderMaterial({ uniforms: Object.assign({ size: { value: size } }, townU), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+    vertexShader: 'attribute vec3 color; uniform float size; uniform float scale; uniform float near; uniform float far; varying vec3 vC; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); float d = max(1.0, -mv.z); vC = color * smoothstep(near, far, d); gl_PointSize = size * scale / d; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform sampler2D map; varying vec3 vC; void main(){ float a = texture2D(map, gl_PointCoord).a; gl_FragColor = vec4(vC, a); }' });
+}
 let townPatches = [], town = null, townPts = null, townLines = null, townMeta = null, nightGround = null, wheel = null, nightSky = null, lampP = -9, moonAz = 0;
 function buildNightSky() { // stars and a moon on a camera-following shell (inside the far plane, drawn right after the dome and before the hills)
   if (nightSky) return; nightSky = new THREE.Group(); const D = 40000;
@@ -960,7 +967,8 @@ function buildTowns() { // night levels: one lakeside town (inspired by Tiny Gla
         const a = c4[i], b = c4[(i + 1) % 4], ex = b[0] - a[0], ez = b[1] - a[1], len = Math.hypot(ex, ez), tx_ = ex / len, tz_ = ez / len, nx = tz_, nz = -tx_, col = shade(wc, nx, nz), rcol = shade(rc, nx, nz);
         tri([a[0], 0, a[1]], [b[0], 0, b[1]], [b[0], h, b[1]], col); tri([a[0], 0, a[1]], [b[0], h, b[1]], [a[0], h, a[1]], col);
         tri([a[0], h, a[1]], [b[0], h, b[1]], [cx, h + rh, cz], rcol);
-        if (wn < 3 && rn() < 0.55) { const u = 0.25 + rn() * 0.5, yy = 40 + Math.floor(rn() * Math.max(1, (h - 40) / 80)) * 80 + 38, px = a[0] + ex * u + nx * 2, pz = a[1] + ez * u + nz * 2, c = lit(), br = 0.85 + rn() * 0.15, t = 0.3 + rn() * 0.4; wn++; Hp.push(px + nx * 8, yy, pz + nz * 8); Hc.push(c[0] * br, c[1] * br, c[2] * br); Ht.push(t); Hp.push(px + nx * 8, yy + 3, pz + nz * 8); Hc.push(c[0] * br * 0.5, c[1] * br * 0.5, c[2] * br * 0.5); Ht.push(t); } // a warm lit window: a glow point plus a brighter core
+        if (wn < 3 && rn() < 0.55) { const u = 0.25 + rn() * 0.5, yy = Math.min(h - 38, 40 + Math.floor(rn() * Math.max(1, (h - 40) / 80)) * 80 + 38), px = a[0] + ex * u + nx * 2, pz = a[1] + ez * u + nz * 2, c = lit(), br = 0.85 + rn() * 0.15, t = 0.3 + rn() * 0.4; wn++; Hp.push(px + nx * 8, yy, pz + nz * 8); Hc.push(c[0] * br, c[1] * br, c[2] * br); Ht.push(t); Hp.push(px + nx * 8, yy + 3, pz + nz * 8); Hc.push(c[0] * br * 0.5, c[1] * br * 0.5, c[2] * br * 0.5); Ht.push(t);
+          { const qx = px + nx * 1.5, qz = pz + nz * 1.5, hw = 20, hh = 28, X = tx_ * hw, Z = tz_ * hw, P0 = [qx - X, yy - hh, qz - Z], P1 = [qx + X, yy - hh, qz + Z], P2 = [qx + X, yy + hh, qz + Z], P3 = [qx - X, yy + hh, qz - Z]; for (const q of [P0, P1, P2, P0, P2, P3]) Wp.push(q[0], q[1], q[2]); Wc.push(c[0] * br, c[1] * br, c[2] * br); Wt.push(t); } } // a warm lit window: a flat lit pane on the wall (close up) plus a glow point (far away; it fades out when the camera is near)
       }
     };
     const ico = new THREE.IcosahedronGeometry(1, 0).toNonIndexed(), ip = ico.attributes.position.array;
@@ -986,10 +994,15 @@ function buildTowns() { // night levels: one lakeside town (inspired by Tiny Gla
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(GP, 3)); const land = new THREE.Points(lg, new THREE.PointsMaterial({ size: 700, map: glowTexA(), color: 0x1a1840, transparent: true, opacity: 0.9, depthWrite: false, sizeAttenuation: true, fog: true })); land.frustumCulled = false; land.renderOrder = -1; town.add(land);
     const Qp = [], Qc = [], Qt = []; for (let i = 0; i < 300; i++) { const q = HZ[(rn() * HZ.length) | 0]; if (!q) break; Qp.push(q[0] + (rn() - 0.5) * 90, 12, q[1] + (rn() - 0.5) * 90); Qc.push(0.2, 0.11, 0.045); Qt.push(0.28 + rn() * 0.4); } // pools of lamplight on the ground between the houses
     for (let i = 0; i < 480; i++) { const q = HZ[(rn() * HZ.length) | 0]; if (!q) break; Hp.push(q[0] + (rn() - 0.5) * 120, 36, q[1] + (rn() - 0.5) * 120); Hc.push(0.9, 0.6, 0.28); Ht.push(0.26 + rn() * 0.45); } // street lamps
-    const qg = new THREE.BufferGeometry(); qg.setAttribute('position', new THREE.Float32BufferAttribute(Qp, 3)); qg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Qp.length), 3)); const qp = new THREE.Points(qg, new THREE.PointsMaterial({ size: 330, map: glowTexA(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, fog: false })); qp.frustumCulled = false; town.add(qp);
+    const qg = new THREE.BufferGeometry(); qg.setAttribute('position', new THREE.Float32BufferAttribute(Qp, 3)); qg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Qp.length), 3)); const qp = new THREE.Points(qg, townGlow(330)); qp.frustumCulled = false; town.add(qp);
     const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(Hp, 3)); hg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Hp.length), 3));
-    townPts = new THREE.Points(hg, new THREE.PointsMaterial({ size: 330, map: glowTexA(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, fog: false })); townPts.frustumCulled = false; town.add(townPts);
-    town.userData = { bldMat, land, sets: [{ g: hg, th: Float32Array.from(Ht), base: Float32Array.from(Hc), n: Ht.length, k: 1 }, { g: qg, th: Float32Array.from(Qt), base: Float32Array.from(Qc), n: Qt.length, k: 1 }] };
+    townPts = new THREE.Points(hg, townGlow(330)); townPts.frustumCulled = false; town.add(townPts);
+    let winSet = null; try { // flat lit panes on the walls (fail safe: if this ever throws the town still builds, with glow points only)
+      const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(Wp, 3)); wg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Wp.length), 3));
+      const winMesh = new THREE.Mesh(wg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); winMesh.frustumCulled = false; town.add(winMesh);
+      winSet = { g: wg, th: Float32Array.from(Wt), base: Float32Array.from(Wc), n: Wt.length, k: 1.1, per: 6 };
+    } catch (e) { console.warn('town windows skipped', e); }
+    town.userData = { bldMat, land, sets: [...(winSet ? [winSet] : []), { g: hg, th: Float32Array.from(Ht), base: Float32Array.from(Hc), n: Ht.length, k: 1 }, { g: qg, th: Float32Array.from(Qt), base: Float32Array.from(Qc), n: Qt.length, k: 1 }] };
     scene.add(town); townMeta = { sets: town.userData.sets, tick: 0 }; lampP = -9;
   }
   { // ferris wheel: fixed, face-on to the middle of the course, a colourful reference point
@@ -1008,9 +1021,9 @@ function buildTowns() { // night levels: one lakeside town (inspired by Tiny Gla
 }
 const _wc = new THREE.Color();
 function updateTowns(now) {
-  if (!townPts) return; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd); } for (const m of townPatches) m.material.color.copy(dayNow.gnd); if (town && town.userData.land) town.userData.land.material.color.copy(dayNow.gnd).multiplyScalar(1.04); if (town) { const u = town.userData; u.bldMat.color.copy(dayNow.mid).lerp(_wc.setRGB(1, 1, 1), 0.5).multiplyScalar(0.85); u.land.material.color.copy(dayNow.gnd); }
+  if (!townPts) return; townU.scale.value = renderer.domElement.clientHeight * 0.5; if (nightGround) { nightGround.position.x = camera.position.x; nightGround.position.z = camera.position.z; nightGround.material.color.copy(dayNow.gnd); } for (const m of townPatches) m.material.color.copy(dayNow.gnd); if (town && town.userData.land) town.userData.land.material.color.copy(dayNow.gnd).multiplyScalar(1.04); if (town) { const u = town.userData; u.bldMat.color.copy(dayNow.mid).lerp(_wc.setRGB(1, 1, 1), 0.5).multiplyScalar(0.85); u.land.material.color.copy(dayNow.gnd); }
   if (Math.abs(dayP - lampP) > 0.006) { lampP = dayP; // only re-light the towns when the evening has moved on
-    for (const s of townMeta.sets) { const arr = s.g.attributes.color.array; for (let i = 0; i < s.n; i++) { const x = (dayP - s.th[i]) / 0.06, k = (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)) * s.k; arr[i * 3] = s.base[i * 3] * k; arr[i * 3 + 1] = s.base[i * 3 + 1] * k; arr[i * 3 + 2] = s.base[i * 3 + 2] * k; } s.g.attributes.color.needsUpdate = true; }
+    for (const s of townMeta.sets) { const arr = s.g.attributes.color.array; const per = s.per || 1; for (let i = 0; i < s.n; i++) { const x = (dayP - s.th[i]) / 0.06, k = (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)) * s.k; for (let v = 0; v < per; v++) { const o = (i * per + v) * 3; arr[o] = s.base[i * 3] * k; arr[o + 1] = s.base[i * 3 + 1] * k; arr[o + 2] = s.base[i * 3 + 2] * k; } } s.g.attributes.color.needsUpdate = true; }
   }
   if (wheel && ++townMeta.tick % 3 === 0) { // the wheel's bulbs chase through colours once the lights come on
     const w = wheel.userData, on = Math.max(0, Math.min(1, (dayP - 0.3) / 0.1)), arr = w.pts.geometry.attributes.color.array, t = now / 1000;
