@@ -51,12 +51,12 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #139 2026-11-23 11:28</div>
+<div id="build">build #140 2026-11-23 11:39</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-f="kitchen">1<br>kitchen</button><button data-l="2">2<br>gauntlet</button><button data-l="3">3<br>descent</button><button data-l="5">5<br>grand descent</button><button data-f="stairwell">stairwell<br>draft</button><button data-f="boxfort">box fort<br>draft</button><button data-f="plunge">plunge<br>draft</button><button data-f="loft">loft<br>country roads</button></div>
+  <div class="row" id="lvl"><button data-f="intro">Intro<br>glacier</button><button data-l="5">Grand<br>descent</button></div>
   <label>Music <span id="musv"></span></label>
   <input id="mus" type="range" min="0" max="100" step="5">
   <label>Sound effects <span id="sfxv"></span></label>
@@ -96,6 +96,7 @@ canvas{display:block;touch-action:none}
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
 class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
+try { const sl = +localStorage.getItem('surf_level'); if (!location.hash && (!sl || sl < 5)) location.hash = 'file-intro'; } catch (e) {} // new players (and anyone whose saved level no longer exists) start on the intro course
 try { // courses: #custom (the editor's Play), #course-<id> (my courses), #share-<code> (a shared link), #file-<name> (levels/<name>.json)
   const h = location.hash; let S = null, id = '';
   if (/^#custom/.test(h)) { S = JSON.parse(localStorage.getItem('surf_custom_stage')); id = localStorage.getItem('surf_custom_id') || ''; }
@@ -779,7 +780,10 @@ const NIGHT = [ // the night levels: golden hour, into sunset, then a stylized p
 ].map(k => ({ t: k.t, top: new THREE.Color(k.top), mid: new THREE.Color(k.mid), bot: new THREE.Color(k.bot), gnd: new THREE.Color(k.gnd) }));
 const dayNow = { top: new THREE.Color(), mid: new THREE.Color(), bot: new THREE.Color(), gnd: new THREE.Color() };
 let dayP = 0, dayTarget = 0, dayGk = 0; // dayGk: how far the ground (and haze) has darkened toward night
-function daySample(p) { const D = stageMeta.night ? NIGHT : DAY; let i = 0; while (i < D.length - 2 && p > D[i + 1].t) i++; const a = D[i], b = D[i + 1], f = Math.max(0, Math.min(1, (p - a.t) / (b.t - a.t))); for (const k of ['top', 'mid', 'bot', 'gnd']) dayNow[k].copy(a[k]).lerp(b[k], f); }
+// A stage can bring its own sky: stage.palette = [ { t?, top, mid, bot, gnd } ... ] (hex numbers, 2+ keyframes spread over the course; t optional 0..1). It replaces the built-in time of day.
+let palSrc = null, palD = null;
+function palFrames() { if (stageMeta.palette !== palSrc) { palSrc = stageMeta.palette; const A = palSrc; palD = Array.isArray(A) && A.length > 1 ? A.map((k, i) => ({ t: k.t ?? i / (A.length - 1), top: new THREE.Color(k.top), mid: new THREE.Color(k.mid), bot: new THREE.Color(k.bot), gnd: new THREE.Color(k.gnd) })) : null; } return palD; }
+function daySample(p) { const D = palFrames() || (stageMeta.night ? NIGHT : DAY); let i = 0; while (i < D.length - 2 && p > D[i + 1].t) i++; const a = D[i], b = D[i + 1], f = Math.max(0, Math.min(1, (p - a.t) / (b.t - a.t))); for (const k of ['top', 'mid', 'bot', 'gnd']) dayNow[k].copy(a[k]).lerp(b[k], f); }
 function dayProgress() { return ramps.length > 1 ? Math.min(1, lastTouched / (ramps.length - 1)) : 0; }
 function setTheme(i, instant) { if (instant) { dayP = dayTarget = dayProgress(); } } // portals no longer pick a scene; this just snaps the sky to the current progress (start, respawn)
 function tickTheme(dt) {

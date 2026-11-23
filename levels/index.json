@@ -1,37 +1,7 @@
 [
  {
-  "file": "first-steps",
-  "name": "First steps",
-  "author": "Paper Snail Surf"
- },
- {
-  "file": "kitchen",
-  "name": "Kitchen",
-  "author": "Paper Snail Surf"
- },
- {
-  "file": "kitchen-fast",
-  "name": "Kitchen (fast variant)",
-  "author": "Paper Snail Surf"
- },
- {
-  "file": "stairwell",
-  "name": "Stairwell (draft)",
-  "author": "Paper Snail Surf"
- },
- {
-  "file": "boxfort",
-  "name": "Box Fort (draft, no walls yet)",
-  "author": "Paper Snail Surf"
- },
- {
-  "file": "plunge",
-  "name": "Plunge (cinematic, hard)",
-  "author": "Paper Snail Surf"
- },
- {
-  "file": "loft",
-  "name": "Loft",
+  "file": "intro",
+  "name": "Glacier (intro)",
   "author": "Paper Snail Surf"
  }
 ]
