@@ -74,3 +74,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - rocket + sparks (2026-11-23, PLAYTEST): rocketTicks 350 -> 450 (4.5 s burn), rocketPeak 400 -> 315 so the total stays about +800 u/s (sim: v0 1500 -> 2297); cooldown still 2000 ticks from the trigger (15.5 s recharge). Flame phases (cosmetic): red-orange to 78 percent of the burn, then a blue-white burst (40 extra motes, bigger and brighter), then it cuts out and the tail puffs grey smoke for 1.8 s. Skid sparks (cosmetic): when touching a ramp and speed lost beyond what gravity explains exceeds 800 u/s per second (perfect L3 run: 1.5 percent of contact frames, hard landings), 2 to 24 hot sparks. Checked in Node with stubs.
 
 - fx fix (2026-11-23): the ink specks' size was overwritten every frame in updateSpecks (22 + 16 t), so earlier size edits did nothing. Now 4.5 + 3 t and 25 percent fewer. Cosmetic.
+
+- ui (2026-11-23): build label moved to the top left under the checkpoint line; rocket bar is vertical on the right edge (fills from the bottom, no text); moon sprite loses its crater blotches (read as a shadow). Cosmetic.
