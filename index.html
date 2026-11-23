@@ -30,6 +30,7 @@ canvas{display:block;touch-action:none}
 #flowbar{height:6px;border-radius:3px;background:#ffffff26;overflow:hidden}
 #flowbar i{display:block;height:100%;width:0;background:#7be495}
 #flowtxt{font-size:13px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+#build{position:fixed;right:10px;bottom:8px;font-size:10px;opacity:.45;pointer-events:none;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000a}
 #flash{position:fixed;inset:0;background:#f33;opacity:0;pointer-events:none;transition:opacity .3s}
 </style>
 </head>
@@ -40,6 +41,7 @@ canvas{display:block;touch-action:none}
 <div id="flow"><div id="flowbar"><i></i></div><div id="flowtxt"></div></div>
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
+<div id="build">build 2026-11-23 09:38</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -120,7 +122,8 @@ const P = {
   g: 800,          // sv_gravity
   airaccel: 400,   // sv_airaccelerate (150 = classic skill surf, 400-800 forgiving)
   wishspeed: 250,  // strafe input speed
-  aircap: 30,      // Source caps air wishspeed at 30 inside AirAccelerate
+  gripArc: 0.3491, // rad (20 deg): max nose-to-path angle that steering grip counts in the air
+  aircap: 30,     // Source caps air wishspeed at 30 inside AirAccelerate
   maxvel: 1e9,     // no speed limit (was 3500 per axis, sv_maxvelocity)
   r: 16,           // player hull half-width
   sens: 0.011,     // radians of yaw per px of swipe
@@ -562,7 +565,13 @@ function step() {
   }
   if (contactN && contactTube) strafe = 0; // no air control while riding a tube: in a banked tube air-accel against the climb would brake you hard
   if (strafe) { // Source AirAccelerate, wishdir = +/- right vector of view
-    const wx = dcos(yaw) * strafe, wz = -dsin(yaw) * strafe;
+    let sy = yaw;
+    if (!contactN && vel.x * vel.x + vel.z * vel.z > 2500) { // airborne, finger down: push toward the side the nose points, so the path always bends toward the nose. (The push used to follow the swipe sign alone: with the nose trailing the path that push lines up with your velocity and does nothing however far the nose spins.) The nose-to-path angle is capped at P.gripArc so a big flick can't brake or boost wildly.
+      const ph = datan2(-vel.x, -vel.z); let d = yaw - ph; d -= TAU * Math.floor((d + DPI) / TAU);
+      if (d !== 0) strafe = d > 0 ? -1 : 1;
+      sy = ph + (d > P.gripArc ? P.gripArc : d < -P.gripArc ? -P.gripArc : d);
+    }
+    const wx = dcos(sy) * strafe, wz = -dsin(sy) * strafe;
     const add = Math.min(P.wishspeed, P.aircap) - (vel.x * wx + vel.z * wz);
     if (add > 0) { const a = Math.min(P.airaccel * P.wishspeed * P.dt, add); vel.x += a * wx; vel.z += a * wz; }
   }
