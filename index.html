@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #133 2026-11-23 11:10</div>
+<div id="build">build #134 2026-11-23 11:11</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1530,7 +1530,7 @@ let kNext = 0, kAcc = 0;
 function updateSpecks(speed, dt) {
   const t = Math.max(0, Math.min(1, (speed - 2300) / 1500));
   if (state === 'run' && t > 0) {
-    kAcc += speed * dt / 120 * (0.3 + t) * fxAmt;
+    kAcc += speed * dt / 160 * (0.3 + t) * fxAmt;
     while (kAcc >= 1) { kAcc -= 1; const i = kNext = (kNext + 1) % NK, o = i * 3;
       kPos[o] = snail.position.x + (Math.random() - 0.5) * 50; kPos[o + 1] = snail.position.y + 10 + Math.random() * 40; kPos[o + 2] = snail.position.z + (Math.random() - 0.5) * 50;
       kVel[o] = vel.x * 0.03 + (Math.random() - 0.5) * 180; kVel[o + 1] = (Math.random() - 0.4) * 260; kVel[o + 2] = vel.z * 0.03 + (Math.random() - 0.5) * 180; kMax[i] = kLife[i] = 0.8 + Math.random() * 0.9; }
@@ -1538,7 +1538,7 @@ function updateSpecks(speed, dt) {
   let live = false;
   for (let i = 0; i < NK; i++) { const o = i * 3; if (kLife[i] <= 0) { kPos[o + 1] = -1e6; continue; } live = true; kLife[i] -= dt; kVel[o + 1] -= 120 * dt; kPos[o] += kVel[o] * dt; kPos[o + 1] += kVel[o + 1] * dt; kPos[o + 2] += kVel[o + 2] * dt; }
   if (live || t > 0) kGeo.attributes.position.needsUpdate = true;
-  kMesh.material.size = 22 + 16 * t;
+  kMesh.material.size = 4.5 + 3 * t; // fine flecks (was 22-38, which read as big black cubes)
 }
 // Warp: past about 3000 u/s the edges of the screen blur and streak outward and the view stretches wider, so top speed feels like it bends the world.
 const warpEl = (() => { const d = document.createElement('div'); d.id = 'warp'; const m = 'radial-gradient(ellipse at 50% 60%, transparent 34%, #000 88%)';
