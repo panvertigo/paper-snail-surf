@@ -36,8 +36,8 @@ canvas{display:block;touch-action:none}
 #flowbar{height:6px;border-radius:3px;background:#ffffff26;overflow:hidden}
 #flowbar i{display:block;height:100%;width:0;background:#7be495}
 #flowtxt{font-size:13px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
-#rkt{position:fixed;right:14px;top:50%;transform:translateY(-50%);width:12px;height:150px;border-radius:6px;background:#ffffff22;overflow:hidden;pointer-events:none;opacity:.85}
-#rkt i{position:absolute;left:0;right:0;top:0;bottom:0;background:#7be495;transform-origin:bottom}
+#rkt{position:fixed;left:16px;bottom:58px;width:120px;height:8px;border-radius:4px;background:#ffffff22;overflow:hidden;pointer-events:none;opacity:.85}
+#rkt i{position:absolute;left:0;right:0;top:0;bottom:0;background:#7be495;transform-origin:left}
 #rkt span{display:none}
 #build{position:fixed;left:12px;top:48px;font-size:11px;opacity:.6;pointer-events:none;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000a}
 #flash{position:fixed;inset:0;background:#f33;opacity:0;pointer-events:none;transition:opacity .3s}
@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #135 2026-11-23 11:19</div>
+<div id="build">build #136 2026-11-23 11:23</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1816,7 +1816,7 @@ function rocketHud(now) { // bar under the speed: burning = orange draining, rec
   else if (rocket.cd > 0) { const d = now - rktDenied < 600; fill = 1 - rocket.cd / P.rocketCD; col = d ? '#ff6b6b' : '#5aa0d8'; txt = ''; }
   else { fill = 1; col = '#7be495'; txt = ''; }
   const key = fill.toFixed(2) + col + txt; if (key === rktLast) return; rktLast = key;
-  const b = el.firstChild; b.style.transform = 'scaleY(' + fill + ')'; b.style.background = col; el.lastChild.textContent = txt;
+  const b = el.firstChild; b.style.transform = 'scaleX(' + fill + ')'; b.style.background = col; el.lastChild.textContent = txt;
 }
 function hud() {
   $('best').textContent = LEVEL_LABEL + (best ? '  ·  Best ' + best.toFixed(2) + 's' + (bestFalls ? ' (' + bestFalls + ' falls)' : ' clean') : '');

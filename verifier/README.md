@@ -76,3 +76,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - fx fix (2026-11-23): the ink specks' size was overwritten every frame in updateSpecks (22 + 16 t), so earlier size edits did nothing. Now 4.5 + 3 t and 25 percent fewer. Cosmetic.
 
 - ui (2026-11-23): build label moved to the top left under the checkpoint line; rocket bar is vertical on the right edge (fills from the bottom, no text); moon sprite loses its crater blotches (read as a shadow). Cosmetic.
+
+- ui (2026-11-23): rocket bar horizontal again, bottom left just above the speed readout (120 x 8 px). Cosmetic.
