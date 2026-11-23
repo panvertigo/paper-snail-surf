@@ -70,3 +70,5 @@ v38 (look only, physics untouched): fusion look is the default (?look=old restor
 - fx tweak (2026-11-23): contrail ribbon half-width 2 + 0.0008 v -> 0.6 + 0.0003 v (about 1.2 u at 2000 u/s); wind streaks back but subtle (alpha 0.3 -> 0.1, length cap 800 -> 450 u, width 6 + 0.0065 v -> 2.5 + 0.0022 v). Cosmetic.
 
 - fx tweak (2026-11-23): ink specks (the dark flecks behind the snail) point size 9 -> 3, spawn area 120 -> 50 u, opacity 0.85 -> 0.8. Cosmetic.
+
+- rocket + sparks (2026-11-23, PLAYTEST): rocketTicks 350 -> 450 (4.5 s burn), rocketPeak 400 -> 315 so the total stays about +800 u/s (sim: v0 1500 -> 2297); cooldown still 2000 ticks from the trigger (15.5 s recharge). Flame phases (cosmetic): red-orange to 78 percent of the burn, then a blue-white burst (40 extra motes, bigger and brighter), then it cuts out and the tail puffs grey smoke for 1.8 s. Skid sparks (cosmetic): when touching a ramp and speed lost beyond what gravity explains exceeds 800 u/s per second (perfect L3 run: 1.5 percent of contact frames, hard landings), 2 to 24 hot sparks. Checked in Node with stubs.
