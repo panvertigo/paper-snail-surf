@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #149 2026-11-23 21:00</div>
+<div id="build">build #150 2026-11-23 22:21</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -939,61 +939,129 @@ function buildLoft() {
 }
 // ---------- the Transit (scenery 'mains'): giant brass half-arches over the course, cloud sea, orrery rings, stars ----------
 let mains = null, orrery = [], orT = 0; // orrery rings: each is a pivot (slow precession about the vertical) > tilt > spinner (turns about its own axis); rates come from the golden ratio, so no two rings ever line up
-const _qa = new THREE.Quaternion(), _qq = new THREE.Quaternion(), _mv = new THREE.Vector3(), _mm = new THREE.Matrix4(), _m1 = new THREE.Vector3(1, 1, 1), mainsAx = new THREE.Vector3(0, 0, -1);
-// The Transit has no up or down: everything around the course (arches, clouds, rings, stars, the sky dome) rolls about the course line, by the angle mainsTheta() (about 1.25 turns over the run, plus a slow sway). Only the scenery turns; the ramps and gravity do not.
-function mainsTheta() { return 7.85 * dayP + 0.45 * Math.sin(0.09 * orT); }
+const _qa = new THREE.Quaternion(), _qq = new THREE.Quaternion(), _mv = new THREE.Vector3(), _mm = new THREE.Matrix4(), _m1 = new THREE.Vector3(1, 1, 1), _e = new THREE.Euler(), _f = new THREE.Vector3(), _rg = new THREE.Vector3(), _u2 = new THREE.Vector3(), WUP = new THREE.Vector3(0, 1, 0), mainsAx = new THREE.Vector3(0, 0, -1);
+const ss01 = x => x * x * (3 - 2 * x), cl01 = x => Math.max(0, Math.min(1, x));
+// The Transit has no up or down: everything around the course (arches, clouds, rings, tags, stars, the sky and its sun, planet and windmill) rolls about the course line, by the angle mainsTheta(): upright for the first tenth, then a slow easing roll (1.25 turns, fastest in the middle, which is the climax), then it settles. Only the scenery turns; the ramps and gravity do not.
+function mainsTheta() { return 7.85 * ss01(ss01(cl01((dayP - 0.1) / 0.8))) + 0.2 * Math.sin(0.09 * orT); }
+function cvs(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); return t; }
+const mainsTex = {};
+function mTex(name) {
+  if (mainsTex[name]) return mainsTex[name];
+  const D = {
+    sun: () => cvs(256, 256, (x, w) => { const g = x.createRadialGradient(128, 128, 0, 128, 128, 128); g.addColorStop(0, 'rgba(255,246,222,1)'); g.addColorStop(0.2, 'rgba(255,238,196,1)'); g.addColorStop(0.215, 'rgba(255,214,160,0.6)'); g.addColorStop(0.5, 'rgba(255,170,160,0.2)'); g.addColorStop(1, 'rgba(255,170,160,0)'); x.fillStyle = g; x.fillRect(0, 0, w, w); }),
+    planet: () => cvs(256, 256, (x) => { x.translate(128, 128); x.rotate(-0.38); x.strokeStyle = 'rgba(255,226,196,0.8)'; x.lineWidth = 5; x.beginPath(); x.ellipse(0, 0, 118, 28, 0, Math.PI, 2 * Math.PI); x.stroke();
+      const g = x.createRadialGradient(-22, -22, 4, 0, 0, 64); g.addColorStop(0, '#e6dcff'); g.addColorStop(0.6, '#8f7cd0'); g.addColorStop(1, '#3d3280'); x.fillStyle = g; x.beginPath(); x.arc(0, 0, 62, 0, 7); x.fill();
+      x.beginPath(); x.ellipse(0, 0, 118, 28, 0, 0, Math.PI); x.stroke(); }),
+    tower: () => cvs(256, 256, (x) => { x.fillStyle = '#2a2262'; x.beginPath(); x.moveTo(92, 252); x.lineTo(164, 252); x.lineTo(146, 112); x.lineTo(110, 112); x.closePath(); x.fill(); x.beginPath(); x.moveTo(102, 114); x.lineTo(154, 114); x.lineTo(128, 80); x.closePath(); x.fill();
+      x.strokeStyle = '#e0b060'; x.lineWidth = 2.5; x.beginPath(); x.moveTo(92, 252); x.lineTo(110, 112); x.moveTo(164, 252); x.lineTo(146, 112); x.stroke(); x.fillStyle = '#e0b060'; x.beginPath(); x.arc(128, 96, 6, 0, 7); x.fill(); x.fillStyle = '#ffd890'; x.fillRect(122, 160, 12, 18); }),
+    sails: () => cvs(256, 256, (x) => { x.translate(128, 128); for (let i = 0; i < 4; i++) { x.save(); x.rotate(i * Math.PI / 2); x.strokeStyle = '#e0b060'; x.lineWidth = 3; x.strokeRect(10, -11, 112, 22); x.fillStyle = 'rgba(255,214,150,0.28)'; x.fillRect(10, -11, 112, 22); for (let k = 1; k < 5; k++) { x.beginPath(); x.moveTo(10 + k * 22, -11); x.lineTo(10 + k * 22, 11); x.stroke(); } x.beginPath(); x.moveTo(0, 0); x.lineTo(10, 0); x.stroke(); x.restore(); } }),
+    tag: () => cvs(128, 80, (x) => { x.fillStyle = '#f3e6c8'; x.strokeStyle = '#a88a5a'; x.lineWidth = 3; x.beginPath(); x.moveTo(26, 4); x.lineTo(122, 4); x.lineTo(122, 76); x.lineTo(26, 76); x.lineTo(5, 40); x.closePath(); x.fill(); x.stroke(); x.fillStyle = '#a88a5a'; x.beginPath(); x.arc(24, 40, 5, 0, 7); x.fill();
+      x.strokeStyle = 'rgba(90,70,50,0.55)'; x.lineWidth = 2; for (let r = 0; r < 3; r++) { x.beginPath(); for (let i = 0; i <= 14; i++) { const px = 40 + i * 5.4, py = 22 + r * 18 + Math.sin(i * 1.9 + r * 2) * 3; i ? x.lineTo(px, py) : x.moveTo(px, py); } x.stroke(); } })
+  };
+  return (mainsTex[name] = D[name]());
+}
+let starMat = null;
+function mStarMat() { return starMat || (starMat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
+  vertexShader: 'attribute float size, ph; attribute vec3 col; uniform float t; varying vec3 vc; varying float vb; void main(){ vc = col; vb = 0.62 + 0.38 * sin(t * (0.5 + fract(ph * 7.3)) + ph * 40.0); gl_PointSize = size * (0.8 + 0.2 * vb); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'varying vec3 vc; varying float vb; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float a = 1.0 - smoothstep(0.0, 1.0, d); a *= a; gl_FragColor = vec4(vc * vb, a * vb); }' })); }
 function updateMains(dt) {
   orT += dt; if (!mains) return;
-  const th = mainsTheta(), co = Math.cos(th), si = Math.sin(th), sp2 = Math.hypot(vel.x, vel.y, vel.z);
-  if (sp2 > 300) mainsAx.lerp(_mv.set(vel.x / sp2, vel.y / sp2, vel.z / sp2), 1 - Math.exp(-dt * 1.5)).normalize(); // axis for the sky dome: the direction of travel, smoothed
+  const th = mainsTheta(), co = Math.cos(th), si = Math.sin(th);
+  camera.getWorldDirection(_f); mainsAx.lerp(_f, dt ? 1 - Math.exp(-dt * 1.2) : 1).normalize(); // axis for the sky: where you are looking, smoothed
   for (const o of orrery) { o.piv.rotation.y = o.p0 + o.wp * orT; o.spin.rotation.z = o.s0 + o.ws * orT; o.tilt.rotation.x = o.t0 + 0.12 * Math.sin(o.wt * orT + o.p0); }
   const A = mains.arches; if (A) {
-    const la = A.lampGeo.attributes.position.array;
+    const la = A.lampGeo.attributes.position.array, lc = A.lampGeo.attributes.color.array, NL = A.NL;
     for (let i = 0; i < A.recs.length; i++) {
-      const c = A.recs[i]; _qa.setFromAxisAngle(c.f, th); _qq.copy(_qa).multiply(c.q); _mm.compose(c.pos, _qq, _m1); A.im.setMatrixAt(i, _mm);
-      for (let j = 0; j < 7; j++) { _mv.set(c.lx[j], c.ly[j], 0).applyQuaternion(_qq); const o = (i * 7 + j) * 3; la[o] = c.pos.x + _mv.x; la[o + 1] = c.pos.y + _mv.y; la[o + 2] = c.pos.z + _mv.z; }
+      const c = A.recs[i]; _qa.setFromAxisAngle(c.f, th); _qq.copy(_qa).multiply(c.q); _mm.compose(c.pos, _qq, _m1); A.im.setMatrixAt(i, _mm); A.rail.setMatrixAt(i, _mm);
+      for (let j = 0; j < NL; j++) {
+        _mv.set(c.lx[j], c.ly[j], 0).applyQuaternion(_qq); const o = (i * NL + j) * 3; la[o] = c.pos.x + _mv.x; la[o + 1] = c.pos.y + _mv.y; la[o + 2] = c.pos.z + _mv.z;
+        const w = 0.5 + 0.5 * Math.sin(i * 0.6 + j * 0.28 - orT * 2.17), k = 0.28 + 0.72 * w * w * w; lc[o] = k; lc[o + 1] = 0.8 * k; lc[o + 2] = 0.5 * k; // a pulse of light runs along the arches once per phrase (2.9 s, the arpeggio groups)
+      }
     }
-    A.im.instanceMatrix.needsUpdate = true; A.lampGeo.attributes.position.needsUpdate = true;
+    A.im.instanceMatrix.needsUpdate = true; A.rail.instanceMatrix.needsUpdate = true; A.lampGeo.attributes.position.needsUpdate = A.lampGeo.attributes.color.needsUpdate = true;
   }
   for (const c of mains.rolled) { _mv.copy(c.off).applyAxisAngle(c.ax, th).add(c.p); c.obj.position.copy(_mv); }
-  for (const S of mains.pts) { const arr = S.geo.attributes.position.array;
-  for (let i = 0, n = S.n; i < n; i++) {
-    const k = i * 3, ox = S.off[k], oy = S.off[k + 1], oz = S.off[k + 2], ax = S.ax[k], ay = S.ax[k + 1], az = S.ax[k + 2], d = (ax * ox + ay * oy + az * oz) * (1 - co);
-    arr[k] = S.base[k] + ox * co + (ay * oz - az * oy) * si + ax * d; arr[k + 1] = S.base[k + 1] + oy * co + (az * ox - ax * oz) * si + ay * d; arr[k + 2] = S.base[k + 2] + oz * co + (ax * oy - ay * ox) * si + az * d;
+  const T = mains.tags; if (T) {
+    for (let i = 0; i < T.recs.length; i++) {
+      const r = T.recs[i]; _e.set(r.a1 * orT + r.ph, r.a2 * orT, r.a3 * orT); _qq.setFromEuler(_e);
+      _mv.copy(r.off).addScaledVector(r.ax, 3000 * Math.sin(orT * 0.3 + r.ph)).applyAxisAngle(r.ax, th).add(r.p); _mm.compose(_mv, _qq, r.s); T.im.setMatrixAt(i, _mm);
+    }
+    T.im.instanceMatrix.needsUpdate = true;
   }
-  S.geo.attributes.position.needsUpdate = true; }
+  for (const S of mains.pts) { const arr = S.geo.attributes.position.array;
+    for (let i = 0, n = S.n; i < n; i++) {
+      const k = i * 3, ox = S.off[k], oy = S.off[k + 1], oz = S.off[k + 2], ax = S.ax[k], ay = S.ax[k + 1], az = S.ax[k + 2], d = (ax * ox + ay * oy + az * oz) * (1 - co);
+      arr[k] = S.base[k] + ox * co + (ay * oz - az * oy) * si + ax * d; arr[k + 1] = S.base[k + 1] + oy * co + (az * ox - ax * oz) * si + ay * d; arr[k + 2] = S.base[k + 2] + oz * co + (ax * oy - ay * ox) * si + az * d;
+    }
+    S.geo.attributes.position.needsUpdate = true; }
+  const V = mains.trav; if (V) { // travellers: tiny lights sliding along the far-off ghost paths, each with a short tail
+    const G = mains.pts[V.gi].geo.attributes.position.array, P = V.geo.attributes.position.array, C = V.geo.attributes.color.array, TL = [1, 0.5, 0.28, 0.14];
+    for (let k = 0; k < V.list.length; k++) {
+      const v = V.list[k], L = v.line, f = (((v.t0 + v.rate * orT) % 1) + 1) % 1, fade = Math.min(1, f * 8, (1 - f) * 8);
+      for (let m = 0; m < 4; m++) {
+        const ff = cl01(f - Math.sign(v.rate) * m * 0.011), q = L.s + ff * (L.n - 1), i0 = Math.floor(q), i1 = Math.min(i0 + 1, L.s + L.n - 1), fr = q - i0, o = (k * 4 + m) * 3;
+        P[o] = G[i0 * 3] + (G[i1 * 3] - G[i0 * 3]) * fr; P[o + 1] = G[i0 * 3 + 1] + (G[i1 * 3 + 1] - G[i0 * 3 + 1]) * fr; P[o + 2] = G[i0 * 3 + 2] + (G[i1 * 3 + 2] - G[i0 * 3 + 2]) * fr;
+        const b = fade * TL[m]; C[o] = b; C[o + 1] = 0.92 * b; C[o + 2] = 0.78 * b;
+      }
+    }
+    V.geo.attributes.position.needsUpdate = V.geo.attributes.color.needsUpdate = true;
+  }
+  mains.starMat.uniforms.t.value = orT;
+  { const p = dayP; mains.aurMat.opacity = 0.8 * ss01(cl01((p - 0.35) / 0.25)) * (1 - ss01(cl01((p - 0.85) / 0.15))); }
+  // sky layer: sun, ringed planet and a far windmill, held at fixed angles around the view axis and rolled with it
+  _rg.crossVectors(mainsAx, WUP); if (_rg.lengthSq() < 1e-4) _rg.set(1, 0, 0); _rg.normalize(); _u2.crossVectors(_rg, mainsAx);
+  const place = (spr, az, el) => { const ce = Math.cos(el); _mv.set(0, 0, 0).addScaledVector(mainsAx, Math.cos(az) * ce).addScaledVector(_rg, Math.sin(az) * ce).addScaledVector(_u2, Math.sin(el)).applyAxisAngle(mainsAx, th); spr.position.copy(camera.position).addScaledVector(_mv, 880); };
+  const Sy = mains.sky, rise = ss01(cl01((dayP - 0.5) / 0.5)), wm = ss01(cl01((dayP - 0.7) / 0.2));
+  place(Sy.sun, 0.2, 0.2); Sy.sun.scale.setScalar(260 + 300 * rise); place(Sy.sunHalo, 0.2, 0.2); Sy.sunHalo.scale.setScalar(620 + 700 * rise); Sy.sunHalo.material.opacity = 0.35 + 0.35 * rise;
+  place(Sy.planet, -0.34, -0.06); Sy.planet.scale.setScalar(150); Sy.planet.material.rotation = -th * 0.7 - 0.2;
+  place(Sy.tower, -0.04, 0.34); place(Sy.sails, -0.04, 0.34); Sy.tower.scale.setScalar(260); Sy.sails.scale.setScalar(260);
+  Sy.tower.material.rotation = -th; Sy.sails.material.rotation = -th + orT * 0.25; Sy.tower.material.opacity = Sy.sails.material.opacity = wm; Sy.tower.visible = Sy.sails.visible = wm > 0.01;
 }
 function buildMains() {
-  // The Transit: not a closed pipe but an impossibly large one. Giant half-arches of the Works' brass pipe stand over the course (the ride is a speck inside a cathedral), with clouds, drifting orrery rings and stars all around. All of it rolls about the course (updateMains).
-  orrery = []; mains = { arches: null, rolled: [], pts: [] };
+  // The Transit: not a closed pipe but an impossibly large one. Giant brass half-arches over the course with a light running along them, three gates at the dive, clouds, orrery rings, constellations, drifting paper tags, aurora, far-off ghost paths with travellers, and a sun, a ringed planet and a windmill in the sky. All of it rolls about the course (updateMains).
+  orrery = []; mains = { arches: null, rolled: [], pts: [], tags: null, trav: null, starMat: mStarMat(), aurMat: null, sky: null };
   let sd = 5521; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, rA = (a, b) => a + rn() * (b - a);
   const axisAt = (r, u) => { const d = dirOf(r.h0 + (r.k || 0) * u); return new THREE.Vector3(d[0], zD(r, u), d[2]).normalize(); };
   const pt = () => { const r = ramps[Math.floor(rn() * ramps.length)], u = rn() * r.L, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u); return { r, u, p: new THREE.Vector3(c[0], r.oy + zOf(r, u), c[1]), rt, ax: axisAt(r, u) }; };
   const offAt = (P, side, up) => new THREE.Vector3(P.rt[0] * side, up, P.rt[2] * side);
-  // 1) the arches: half rings, radius 22 W (about 28000), every 14000 along each piece, lamps strung along each arch
-  const zAx = new THREE.Vector3(0, 0, 1), recs = [], R = ramps[0].W * 22;
+  const smp = []; for (const r of ramps) { if (r.tube) continue; for (let u = 0; u < r.L; u += 1400) { const c = ridgeAt(r, u); smp.push({ p: new THREE.Vector3(c[0], r.oy + zOf(r, u), c[1]), rt: rightOf(r.h0 + (r.k || 0) * u), ax: axisAt(r, u) }); } }
+  // 1) the arches: half rings (a brass rail inside a teal one), radius 22 W (about 28000), every 14000 along each piece, lamps strung along each arch like beads
+  const zAx = new THREE.Vector3(0, 0, 1), recs = [], R = ramps[0].W * 22, NL = 12;
   for (const r of ramps) {
     if (r.tube) continue;
     for (let u = 4000; u < r.L; u += 14000) {
       const c = ridgeAt(r, u), f = axisAt(r, u), q = new THREE.Quaternion().setFromUnitVectors(zAx, f), lx = [], ly = [];
-      for (let i = 1; i < 8; i++) { const a = i / 8 * Math.PI; lx.push(Math.cos(a) * R); ly.push(Math.sin(a) * R); }
+      for (let i = 1; i <= NL; i++) { const a = i / (NL + 1) * Math.PI, rr = R - 900; lx.push(Math.cos(a) * rr); ly.push(Math.sin(a) * rr); }
       recs.push({ pos: new THREE.Vector3(c[0], r.oy + zOf(r, u) - r.W * 0.4, c[1]), q, f, lx, ly });
     }
   }
   if (recs.length) {
     const im = new THREE.InstancedMesh(new THREE.TorusGeometry(R, 380, 6, 72, Math.PI), new THREE.MeshBasicMaterial({ color: 0x6fb8a8, fog: true }), recs.length);
-    im.frustumCulled = false; im.renderOrder = -20; addObj(im);
-    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(recs.length * 7 * 3), 3));
-    const lp = new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTexA(), color: 0xffcf8a, size: 4200, sizeAttenuation: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
-    lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp); mains.arches = { im, recs, lampGeo: lg };
+    const rail = new THREE.InstancedMesh(new THREE.TorusGeometry(R - 900, 150, 5, 72, Math.PI), new THREE.MeshBasicMaterial({ color: 0xe0b060, fog: true }), recs.length);
+    for (const m of [im, rail]) { m.frustumCulled = false; m.renderOrder = -20; addObj(m); }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(recs.length * NL * 3), 3)); lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(recs.length * NL * 3), 3));
+    const lp = new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTexA(), color: 0xffffff, vertexColors: true, size: 2400, sizeAttenuation: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+    lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp); mains.arches = { im, rail, recs, lampGeo: lg, NL };
   }
-  // 2) clouds: soft puffs scattered around the course, mostly below it to begin with
+  // 2) the dive: three brass gates in a row across the flight, so the fall is a tunnel of rings
+  { const di = (stageMeta.pieces || []).findIndex(p => p.label && /dive/i.test(p.label)), a = ramps[di - 1], b = ramps[di];
+    if (di > 0 && a && b) {
+      const A0 = new THREE.Vector3(a.ex, a.ey, a.ez), B0 = new THREE.Vector3(b.sx, b.oy, b.sz), ch = B0.clone().sub(A0), dir = ch.clone().normalize(), q = new THREE.Quaternion().setFromUnitVectors(zAx, dir), beads = [];
+      for (const t of [0.2, 0.5, 0.8]) {
+        const c = A0.clone().addScaledVector(ch, t); c.y += 4 * 3500 * t * (1 - t);
+        const g = new THREE.Mesh(new THREE.TorusGeometry(11000, 420, 6, 72), new THREE.MeshBasicMaterial({ color: 0xf0c880, fog: true })); g.position.copy(c); g.quaternion.copy(q); g.renderOrder = -19; addObj(g);
+        for (let i = 0; i < 28; i++) { const an = i / 28 * 6.2832; _mv.set(Math.cos(an) * 11000, Math.sin(an) * 11000, 0).applyQuaternion(q).add(c); beads.push(_mv.x, _mv.y, _mv.z); }
+      }
+      const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(beads), 3));
+      const bp = new THREE.Points(bg, new THREE.PointsMaterial({ map: glowTexA(), color: 0xffd490, size: 3000, sizeAttenuation: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); bp.frustumCulled = false; bp.renderOrder = 3; addObj(bp);
+    } }
+  // 3) clouds: soft puffs scattered around the course, mostly below it to begin with
   for (let i = 0; i < 140; i++) {
     const P = pt(), s = rA(24000, 60000);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.5 ? 0xffd2e0 : 0xc8bcff, transparent: true, opacity: rA(0.16, 0.34), depthWrite: false, fog: true }));
     sp.scale.set(s, s * 0.34, 1); sp.renderOrder = -25; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 80000), -rA(14000, 60000)), ax: P.ax });
   }
-  // 3) orrery rings: huge thin brass rings tilted every which way, with small suns riding them; each spins (and sways) on its own golden-ratio rates
+  // 4) orrery rings: huge thin brass rings tilted every which way, with small suns riding them; each spins (and sways) on its own golden-ratio rates
   const brass = new THREE.MeshBasicMaterial({ color: 0xe0b060, fog: true }), PHI = 0.6180339887;
   for (let i = 0; i < 9; i++) {
     const P = pt(), rr = rA(16000, 40000), fr = (i * PHI) % 1;
@@ -1004,30 +1072,60 @@ function buildMains() {
     tilt.add(spin); piv.add(tilt); addObj(piv); mains.rolled.push({ obj: piv, p: P.p, off: offAt(P, (i % 2 ? -1 : 1) * rA(38000, 80000), rA(-6000, 30000)), ax: P.ax });
     orrery.push({ piv, tilt, spin, p0: rn() * 6.283, s0: rn() * 6.283, t0: 0.4 + fr * 1.2, ws: (i % 2 ? -1 : 1) * (0.04 + 0.05 * fr), wp: (i % 3 ? 1 : -1) * 0.012 * (1 + fr), wt: 0.05 + 0.04 * ((i * PHI * PHI) % 1) });
   }
-  // 4) stars: fixed-size points in a wide corridor around the course
-  const N = 1800, base = new Float32Array(N * 3), off = new Float32Array(N * 3), ax = new Float32Array(N * 3);
-  for (let i = 0; i < N; i++) { const P = pt(), o = offAt(P, (rn() < 0.5 ? -1 : 1) * rA(30000, 150000), rA(-50000, 90000)); base.set([P.p.x, P.p.y, P.p.z], i * 3); off.set([o.x, o.y, o.z], i * 3); ax.set([P.ax.x, P.ax.y, P.ax.z], i * 3); }
-  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
-  const st = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xfff0d8, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.85, depthWrite: false, fog: false })); st.frustumCulled = false; st.renderOrder = -27; addObj(st);
-  mains.pts.push({ geo: sg, n: N, base, off, ax });
-  // 5) far-off paths: faint ghost tracks (a ridge line and two edge lines) running alongside the real course at a great distance, each a wandering copy of part of the course, so other ramps and routes are always out there. They roll with everything else.
-  const smp = []; for (const r of ramps) { if (r.tube) continue; for (let u = 0; u < r.L; u += 1400) { const c = ridgeAt(r, u); smp.push({ p: new THREE.Vector3(c[0], r.oy + zOf(r, u), c[1]), rt: rightOf(r.h0 + (r.k || 0) * u), ax: axisAt(r, u) }); } }
-  const NP = 7, vb = [], vo = [], va = [], vc = [], idx = []; let nv = 0;
+  // 5) stars: round soft points in a few sizes that twinkle (shader), in a wide corridor around the course
+  { const N = 1500, base = new Float32Array(N * 3), off = new Float32Array(N * 3), ax = new Float32Array(N * 3), size = new Float32Array(N), ph = new Float32Array(N), col = new Float32Array(N * 3), cs = [[1, 0.94, 0.82], [0.8, 0.86, 1], [1, 0.76, 0.86]];
+    for (let i = 0; i < N; i++) { const P = pt(), o = offAt(P, (rn() < 0.5 ? -1 : 1) * rA(30000, 150000), rA(-50000, 90000)), c = cs[Math.floor(rn() * 3)];
+      base.set([P.p.x, P.p.y, P.p.z], i * 3); off.set([o.x, o.y, o.z], i * 3); ax.set([P.ax.x, P.ax.y, P.ax.z], i * 3); size[i] = rn() < 0.1 ? rA(7, 11) : rA(2.5, 5); ph[i] = rn(); col.set(c, i * 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3)); g.setAttribute('size', new THREE.BufferAttribute(size, 1)); g.setAttribute('ph', new THREE.BufferAttribute(ph, 1)); g.setAttribute('col', new THREE.BufferAttribute(col, 3));
+    const st = new THREE.Points(g, mains.starMat); st.frustumCulled = false; st.renderOrder = -27; addObj(st); mains.pts.push({ geo: g, n: N, base, off, ax }); }
+  // 6) constellations: six little shell spirals of stars joined by faint lines
+  { const NS = 6, NP = 9, base = [], off = [], ax = [], idx = [];
+    for (let s = 0; s < NS; s++) { const P = pt(), side = (rn() < 0.5 ? -1 : 1) * rA(30000, 90000), up = rA(5000, 60000), sc = rA(0.8, 1.6), a0 = rn() * 6.283;
+      for (let i = 0; i < NP; i++) { const ph = a0 + i * 0.85, r2 = (1500 + i * 800) * sc; base.push(P.p.x, P.p.y, P.p.z); off.push(P.rt[0] * (side + Math.cos(ph) * r2), up + Math.sin(ph) * r2, P.rt[2] * (side + Math.cos(ph) * r2)); ax.push(P.ax.x, P.ax.y, P.ax.z); if (i) idx.push(s * NP + i - 1, s * NP + i); } }
+    const n = NS * NP, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3)); g.setIndex(idx);
+    const ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })), pp = new THREE.Points(g, new THREE.PointsMaterial({ map: glowTexA(), color: 0xffe9c0, size: 1700, sizeAttenuation: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+    for (const o of [ln, pp]) { o.frustumCulled = false; o.renderOrder = -26; addObj(o); } mains.pts.push({ geo: g, n, base: new Float32Array(base), off: new Float32Array(off), ax: new Float32Array(ax) }); }
+  // 7) paper tags: small luggage tags tumbling past, from the docket story
+  { const NT = 44, im = new THREE.InstancedMesh(new THREE.PlaneGeometry(900, 560), new THREE.MeshBasicMaterial({ map: mTex('tag'), transparent: true, side: THREE.DoubleSide, fog: true, depthWrite: false }), NT), tr = [];
+    for (let i = 0; i < NT; i++) { const P = pt(), sc = rA(0.8, 1.5); tr.push({ p: P.p, ax: P.ax, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 26000), rA(-9000, 20000)), a1: rA(-0.5, 0.5), a2: rA(-0.5, 0.5), a3: rA(-0.4, 0.4), ph: rn() * 6.283, s: new THREE.Vector3(sc, sc, 1) }); }
+    im.frustumCulled = false; im.renderOrder = 2; addObj(im); mains.tags = { im, recs: tr }; }
+  // 8) aurora: two slow curtains of light that rise in the climax and fade away before the end
+  { mains.aurMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: true });
+    const i0 = Math.floor(smp.length * 0.4), i1 = Math.floor(smp.length * 0.92), base = [], off = [], ax = [], col = [], idx = []; let nv = 0;
+    for (let k = 0; k < 2; k++) {
+      const S0 = (k ? -1 : 1) * rA(34000, 55000), Hh = rA(24000, 34000), U0 = rA(-4000, 12000), ph = rn() * 6.283, c0 = k ? [1, 0.55, 0.72] : [0.3, 0.95, 0.75]; let prev = -1;
+      for (let i = i0; i < i1; i += 2) { const s = smp[i], side = S0 + 12000 * Math.sin(i * 0.17 + ph), up = U0 + 7000 * Math.sin(i * 0.11 + ph * 2), fa = Math.min(1, (i - i0) / 12, (i1 - i) / 12);
+        for (const t of [0, 1]) { base.push(s.p.x, s.p.y, s.p.z); off.push(s.rt[0] * side, up + t * Hh, s.rt[2] * side); ax.push(s.ax.x, s.ax.y, s.ax.z); const b = (t ? 0 : 0.8) * fa; col.push(c0[0] * b, c0[1] * b, c0[2] * b); }
+        if (prev >= 0) idx.push(prev, prev + 1, nv, prev + 1, nv + 1, nv); prev = nv; nv += 2; }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3)); g.setIndex(idx);
+    const m = new THREE.Mesh(g, mains.aurMat); m.frustumCulled = false; m.renderOrder = -23; addObj(m); mains.pts.push({ geo: g, n: nv, base: new Float32Array(base), off: new Float32Array(off), ax: new Float32Array(ax) }); }
+  // 9) far-off paths: faint ghost tracks (a ridge line and two edge lines), each a wandering copy of part of the course, so other routes are always out there; tiny lights travel along them
+  const NP = 7, vb = [], vo = [], va = [], vc = [], idx = [], lines = []; let nv = 0;
   for (let k = 0; k < NP; k++) {
     const f0 = rn() * 0.45, f1 = Math.min(1, f0 + 0.3 + rn() * 0.4), i0 = Math.floor(f0 * smp.length), i1 = Math.floor(f1 * smp.length);
     const S0 = (k % 2 ? -1 : 1) * rA(32000, 75000), U0 = rA(-30000, 35000), As = rA(6000, 22000), Au = rA(3000, 14000), lam = rA(25, 70), ph = rn() * 6.283, ph2 = rn() * 6.283, w = rA(1500, 3000);
     for (const e of [-1, 0, 1]) {
-      let prev = -1;
+      let prev = -1; const s0 = nv;
       for (let i = i0; i < i1; i++) {
         const s = smp[i], t = (i - i0) / Math.max(1, i1 - i0), fade = Math.min(1, t * 6, (1 - t) * 6) * (e ? 0.45 : 1), side = S0 + As * Math.sin(i / lam + ph) + e * w, up = U0 + Au * Math.sin(i / (lam * 1.7) + ph2);
         vb.push(s.p.x, s.p.y, s.p.z); vo.push(s.rt[0] * side, up, s.rt[2] * side); va.push(s.ax.x, s.ax.y, s.ax.z); vc.push(0.75 * fade, 0.7 * fade, 0.95 * fade);
         if (prev >= 0) idx.push(prev, nv); prev = nv; nv++;
       }
+      if (e === 0) lines.push({ s: s0, n: nv - s0 });
     }
   }
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vc), 3)); pg.setIndex(idx);
   const pl = new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); pl.frustumCulled = false; pl.renderOrder = -22; addObj(pl);
   mains.pts.push({ geo: pg, n: nv, base: new Float32Array(vb), off: new Float32Array(vo), ax: new Float32Array(va) });
+  { const list = []; lines.forEach((L, k) => { if (L.n < 8) return; for (let j = 0; j < 2; j++) list.push({ line: L, t0: rn(), rate: (rn() < 0.5 ? -1 : 1) * rA(0.011, 0.02) }); });
+    const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(list.length * 12), 3)); tg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(list.length * 12), 3));
+    const tp = new THREE.Points(tg, new THREE.PointsMaterial({ map: glowTexA(), color: 0xffffff, vertexColors: true, size: 3200, sizeAttenuation: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); tp.frustumCulled = false; tp.renderOrder = -21; addObj(tp);
+    mains.trav = { geo: tg, list, gi: mains.pts.length - 1 }; }
+  // 10) the sky layer: a sun that grows and warms toward the finish, a ringed planet and a far windmill that appears near the end (drawn behind everything, on the sky dome's layer)
+  { const mk = (name, blend) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mTex(name), transparent: true, depthTest: false, depthWrite: false, fog: false, blending: blend || THREE.NormalBlending })); sp.renderOrder = -29; sp.frustumCulled = false; addObj(sp); return sp; };
+    const sky = { sunHalo: mk('sun', THREE.AdditiveBlending), sun: mk('sun'), planet: mk('planet'), tower: mk('tower'), sails: mk('sails') };
+    sky.tower.center.set(0.5, 0.625); sky.sails.material.opacity = sky.tower.material.opacity = 0; mains.sky = sky; }
   updateMains(0);
 }
 function buildTowns() {
@@ -1036,7 +1134,7 @@ function buildTowns() {
   for (const o of townPatches) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); } townPatches = [];
   for (const o of [townPts, townLines, nightGround, wheel, town]) if (o) { scene.remove(o); o.traverse(c => { if (c.geometry) c.geometry.dispose(); }); }
   townPts = townLines = nightGround = wheel = town = null;
-  if (stageMeta.scenery === 'mains' && ramps.length) { buildMains(); return; } // the Pneumatic Mains: ribs and lamps along the course
+  if (stageMeta.scenery === 'mains' && ramps.length) { try { buildMains(); } catch (e) { console.error('buildMains', e); mains = null; } return; } // the Pneumatic Mains: ribs and lamps along the course
   if (stageMeta.scenery === 'loft' && ramps.length) { buildLoft(); return; } // the loft: wooden floor, giant furniture, hanging lamps, rare windows onto the city
   if (!FUSION || !TOWN || !stageMeta.night || !ramps.length || /^#edit/.test(location.hash)) return;
   buildNightSky();
@@ -1201,6 +1299,14 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     g.computeVertexNormals();
     if (FUSION) { addObj(new THREE.Mesh(g, new THREE.MeshToonMaterial({ map: rampPaperTex('#8a92c8'), vertexColors: true, gradientMap: TOON, side: THREE.DoubleSide }))); if (!LITE) addObj(inkEdges(g, 4.5)); }
     else addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: PAPER ? paperSheetTex() : gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
+    if (FUSION && stageMeta.scenery === 'mains') { // brass trim: a thin ribbon along the ridge and each base edge, so the ramps read as built objects
+      const ep = [], quad = (A, B, C, D) => ep.push(...A, ...B, ...C, ...A, ...C, ...D);
+      for (const r of ramps) { if (r.tube) continue; const n = Math.max(1, Math.ceil(r.L / 500));
+        for (let j = 0; j < n; j++) { const ua = r.L * j / n, ub = r.L * (j + 1) / n;
+          quad(Pt(r, ua, -38, r.H + 6), Pt(r, ub, -38, r.H + 6), Pt(r, ub, 38, r.H + 6), Pt(r, ua, 38, r.H + 6));
+          for (const sd of [1, -1]) quad(Pt(r, ua, sd * (r.W - 30), 6), Pt(r, ub, sd * (r.W - 30), 6), Pt(r, ub, sd * (r.W + 30), 6), Pt(r, ua, sd * (r.W + 30), 6)); } }
+      const eg = new THREE.BufferGeometry(); eg.setAttribute('position', new THREE.Float32BufferAttribute(ep, 3)); addObj(new THREE.Mesh(eg, new THREE.MeshBasicMaterial({ color: 0xe8b866, side: THREE.DoubleSide, fog: true })));
+    }
     const cg = new THREE.BufferGeometry();
     cg.setAttribute('position', new THREE.Float32BufferAttribute(cpos, 3));
     cg.setAttribute('color', new THREE.Float32BufferAttribute(ccol, 3));
@@ -2152,9 +2258,9 @@ let baseFov = 70;
 // ---------- Speed look: edge heat shimmer + chromatic fringe + light tunnel vignette (centre stays clear), starts ~900 u/s ----------
 const blurRT = renderer.capabilities.isWebGL2 ? new THREE.WebGLMultisampleRenderTarget(1, 1) : new THREE.WebGLRenderTarget(1, 1);
 const blurMat = new THREE.ShaderMaterial({
-  uniforms: { tDiffuse: { value: blurRT.texture }, strength: { value: 0 }, time: { value: 0 }, sat: { value: 1 }, con: { value: 1 }, hot: { value: 0 } },
+  uniforms: { tDiffuse: { value: blurRT.texture }, strength: { value: 0 }, time: { value: 0 }, sat: { value: 1 }, con: { value: 1 }, hot: { value: 0 }, warm: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength, time, sat, con, hot; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength, time, sat, con, hot, warm; varying vec2 vUv;
     void main(){
       vec2 d = vUv - 0.5; float r = length(d * vec2(1.0, 0.75));
       float e = smoothstep(0.22, 0.75, r) * strength;                       // 0 in the middle, 1 at the edges
@@ -2164,7 +2270,7 @@ const blurMat = new THREE.ShaderMaterial({
       vec3 c = vec3(texture2D(tDiffuse, uv + dir * ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - dir * ca).b);
       c *= 1.0 - 0.5 * strength * smoothstep(0.4, 0.95, r);                  // light tunnel vignette
       if (hot > 0.42) { float k = (hot - 0.42) / 0.58; vec3 acc = c; for (int i = 1; i <= 4; i++) acc += texture2D(tDiffuse, uv - dir * (float(i) * 0.012 * k * smoothstep(0.3, 0.9, r))).rgb; c = acc / 5.0; } // 4.6k+: radial streaks pulled in from the edges
-      vec3 rim = mix(vec3(0.1, 0.75, 1.0), vec3(0.85, 0.35, 1.0), smoothstep(0.15, 0.6, hot)); rim = mix(rim, vec3(1.0, 0.72, 0.4), smoothstep(0.65, 1.0, hot));
+      vec3 rim = mix(vec3(0.1, 0.75, 1.0), vec3(0.85, 0.35, 1.0), smoothstep(0.15, 0.6, hot)); rim = mix(rim, vec3(1.0, 0.72, 0.4), smoothstep(0.65, 1.0, hot)); rim = mix(rim, mix(vec3(1.0, 0.6, 0.72), vec3(1.0, 0.8, 0.5), smoothstep(0.3, 1.0, hot)), warm);
       c += rim * hot * smoothstep(0.35, 0.98, r) * 0.3 * (0.85 + 0.15 * sin(time * 14.0)); // afterburner rim: cyan, then violet, then hot gold
       c += c * c * hot * 0.18;                                               // highlights pop
       float lum = dot(c, vec3(0.299, 0.587, 0.114)); c = mix(vec3(lum), c, sat); c = (c - 0.5) * con + 0.5; // colour grade: more saturation and contrast at flow speeds
@@ -2180,7 +2286,7 @@ function renderFrame(speed) {
   if (s < 0.01) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
   blurMat.uniforms.strength.value = s; blurMat.uniforms.time.value = performance.now() / 1000;
   const hk = Math.max(0, Math.min(1, (speed - 3300) / 2400)), hot = hk * hk * (3 - 2 * hk) * fxAmt; blurMat.uniforms.hot.value = hot;
-  { const g = s * s; blurMat.uniforms.sat.value = 1 + 0.35 * g + 0.4 * hot; blurMat.uniforms.con.value = 1 + 0.18 * g + 0.14 * hot; } // the grade builds up only near top speed (s is 1 at about 2700 u/s, scaled by the Speed effects slider)
+  { const g = s * s, mn = stageMeta.scenery === 'mains'; blurMat.uniforms.warm.value = mn ? 1 : 0; blurMat.uniforms.sat.value = mn ? 1 + 0.12 * g + 0.1 * hot : 1 + 0.35 * g + 0.4 * hot; blurMat.uniforms.con.value = mn ? 1 + 0.06 * g + 0.04 * hot : 1 + 0.18 * g + 0.14 * hot; } // the grade builds up only near top speed (s is 1 at about 2700 u/s, scaled by the Speed effects slider)
   if (blurDirty) { blurDirty = false; const pr = renderer.getPixelRatio(), bw = Math.round(innerWidth * pr), bh = Math.round(innerHeight * pr); if (blurRT.samples !== undefined) blurRT.samples = bw * bh > 1.5e6 ? 2 : 4; blurRT.setSize(bw, bh); }
   renderer.setRenderTarget(blurRT); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(blurScene, blurCam);
@@ -2312,7 +2418,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovOff + fovKick + warpK * 13; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
-  updateMains(dt); updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  try { updateMains(dt); } catch (e) { mains = null; console.error('updateMains', e); } updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   if (now - hudT > 90) { hudT = now; { const cl = (x) => Math.max(0, Math.min(1, x)), u1 = cl((speed - 500) / 3500), u2 = cl((speed - 4000) / 2000), deg = (180 + 110 * u1 + 100 * u2) % 360, gl = cl((speed - 3800) / 2200); // cyan -> violet by 4k, then pink -> hot orange by 6k, glowing
     speedEl.style.color = `hsl(${deg.toFixed(0)},${(90 * cl((speed - 500) / 1500)).toFixed(0)}%,${(100 - 30 * cl((speed - 500) / 3000) + 10 * u2).toFixed(0)}%)`; speedEl.style.textShadow = gl > 0.02 ? `0 2px 6px #000a, 0 0 ${(6 + 14 * gl).toFixed(0)}px hsl(${deg.toFixed(0)},100%,60%)` : ''; } speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>'; } // the speed readout updates about 11 times a second, not every frame (each DOM write costs a style pass on iOS)
