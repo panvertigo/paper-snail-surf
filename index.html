@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #173 2026-11-24 00:59</div>
+<div id="build">build #174 2026-11-24 01:06</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1410,8 +1410,8 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     const c = new THREE.Color(), capC = new THREE.Color();
     const Pt = (r, u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + r.k * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; };
     for (const r of ramps) {
-      const hu = r.hue ?? (0.55 + r.sec * 0.037) % 1;
-      c.setHSL(hu, 0.45, 0.8); capC.setHSL(hu, 0.4, 0.45);
+      const mq = stageMeta.scenery === 'mains', hu = mq ? 0.66 + ((r.sec * 0.043) % 0.12) : (r.hue ?? (0.55 + r.sec * 0.037) % 1); // the Transit: periwinkle to lilac ramps that sit against the rose sky
+      c.setHSL(hu, mq ? 0.5 : 0.45, mq ? 0.76 : 0.8); capC.setHSL(hu, 0.4, 0.45);
       if (r.tube) { // tube piece: the band you ride the inside of; rims a shade darker
         const Tb = r.tube, nt = Math.max(12, Math.ceil(Tb.sweep * Tb.R / 120)), nw = 8, rim = new THREE.Color();
         const Q = (t, w) => { const a = Tb.th0 + t, ca = Math.cos(a), sa = Math.sin(a), q = Tb.shift(t) + w;
