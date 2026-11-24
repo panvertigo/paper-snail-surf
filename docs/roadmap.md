@@ -1,10 +1,30 @@
 # Roadmap, progress log and open questions
 
-Last updated 2026-11-17 (v85). Read this first when picking the project up; decisions.md has the long-term design record, music-notes.md and performance-notes.md have the details for those systems.
+Last updated 2026-11-24 (build #182). Read this first when picking the project up; decisions.md has the long-term design record, music-notes.md and performance-notes.md the system details, stage-transit.md and stage-ink.md the two new stages.
 
 ## Where we are
-Playable on iPhone Safari via GitHub Pages (https://panvertigo.github.io/paper-snail-surf/). Five levels: 1 cruise, 2 gauntlet, 3 descent (night), 4 bowl (free-skate park), 5 grand descent (night, 7 checkpoints). Physics untouched all day except one forgiveness change (EDGE 160 -> 40); golden replays L1-L4 pass.
+Playable on iPhone Safari via GitHub Pages (https://panvertigo.github.io/paper-snail-surf/). The menu offers three levels: Intro (the Transit), Ink (stage 3 prototype) and Level 5 (Grand descent). Physics untouched. The Transit is in good shape visually and Jeffry likes it ("the vibes are almost there"): pink dusk megastructure space, giant arches, aurora curtains, skeletal leylines, two counter-turning backdrop machines (commissioned images), light fog, wind streaks. Ink has the pearl ramp, one water mirror, fog and a half-sunk orrery. Visual work is now verified by real renders (tools/shots/); phone-only artefacts (colour speckle) still need Jeffry's phone.
 
+## Plan (recommended 2026-11-24)
+### Tomorrow
+1. Phone pass on build #182 (10 min, Jeffry): is the coloured speckle gone (if not, `?hide=clouds`, then `mist`, `stars`, `aurora`, `backdrop` to bisect)? `?perf=1` on Transit and Ink (one Reflector now). Do the two backdrop wheels read as turning against each other (math says yes; what did he mean by "outside ring"?).
+2. Decide the Transit source of truth BEFORE editing: the editor overwrites nothing, but tools/gen-intro.js overwrites the editor's edits. Recommended: after the first editor save, retire the generator for the course (keep it for the palette notes).
+3. Editor session on the Transit (Jeffry): tweak pieces, labels, hoops. Watch the editor wishlist below (risk hoops break on reorder; labels).
+4. Retime the Transit to the song: the track is 4:59 (windmill cut 2:35.0 to 4:59.0) but the bot is 74 s. Either slow/lengthen the course or cut the song to the course (103 s timeline planned, dive at t=51). One decision, then check with tools/music-sim.py.
+5. Re-record goldens if physics or pieces changed; run determinism.html on the iPhone (still never run).
+### Short term (this week)
+- Design the next level from scratch (stage 2). Process that worked on the Transit: (1) pick the song and listen, (2) one-sentence mood and a palette of one dominant plus one or two complements, cel shaded, (3) course in the editor first (long ramps, big sweeps, one landmark moment like the dive), (4) scenery as a scripted builder like buildMains with a ?hide= tag per layer, (5) render-check each layer (tools/shots) and phone-check speckle, (6) commit per step. Candidate to pick (ask Jeffry): a warm interior stage (lamplight, the apartment/Armature Works from story-and-world.md) to contrast two big open levels; it also unlocks the landing-pad ideas below.
+- Ink polish: iridescence, speed sensation, orrery on the phone.
+- Medals: calibrate on real players (needs friends with `?perf=1`); anonymous checkpoint-split log for music-sim.py.
+- Menu: order the levels as a campaign (Transit, stage 2, Ink) and show best times.
+### Long term
+- Ghosts and Game Center leaderboards (v1 scope), Capacitor wrap or a cloud Mac build for iOS.
+- Exposition scene and campaign menu; Mender/Echoes only if the story direction is chosen (open decisions in story-and-world.md).
+- Remaining stages per the story table (Cellar, Keepsake chamber, Plunge, Garden finale); reuse Level 5 as the late "Long Night".
+- Backdrop-image pipeline as a house style: commission one hero image per stage (prompt template in docs/transit-backdrop-prompt.md), blended behind the scenery.
+- User-made maps (v2), seasons, cosmetics.
+
+## Older log and backlog (kept for history; items above supersede the "Next, in order" list below)
 ## Done 2026-11-17
 Look
 - Time-of-day sky by course progress (no scene flips). Night levels (3 and 5): golden hour, sunset, purple dusk, deep violet; moon (slow drift), stars (never over the hills), two headlights that click on in the dark, a ferris wheel landmark, one sprawling lit town (ragged, no outline; warm windows and lamps that switch on in waves).
@@ -24,7 +44,7 @@ Courses and editor (2026-11-18)
 - Course library: New, Copy (of any built-in level or your course; the original is never touched), Open, Save, Save as, Delete, Share link, Export and Import file, all in an obvious blue course bar with a Saved / UNSAVED pill. Courses are stored separately from the app (browser storage plus plain JSON files; the levels/ folder for shipped ones), appear in the game menu, and keep their own best times. The Music list comes from music/index.json and you can type your own song id. Details: docs/courses.md.
 - Click any ramp to select, drag its body to place it, music/pull/fall fields, Start-from copies carry music, pull, fall and risk hoops.
 
-## Next, in order
+## Backlog from 2026-11-17 (partly superseded)
 1. Tomorrow (Jeffry): level editor session. Build thematic intro courses (teach one idea per course: turning on a ramp, transferring between ramps, air strafe, hoops, loops). Research popular CS surf maps first (see below) so the courses borrow what makes them fun.
 2. Phone performance: open the Pages link with `?perf=1`, then `?perf=1&lite=1`, report the box text. Then fix the biggest cost (likely merging ramp meshes, about 100 draw calls fewer).
 3. Confirm music on the phone: first-run silence on Safari is still unconfirmed (`?audiodebug=1` shows why), then listen for the seams listed in music-notes.md.
