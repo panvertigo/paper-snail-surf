@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #165 2026-11-23 23:24</div>
+<div id="build">build #166 2026-11-23 23:26</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -987,7 +987,7 @@ function updateMains(dt) {
   const A = mains.arches; if (A) {
     const la = A.lampGeo.attributes.position.array, lk = A.lampGeo.attributes.k.array, NL = A.NL;
     for (let i = 0; i < A.recs.length; i++) {
-      const c = A.recs[i]; _qa.setFromAxisAngle(c.f, th); _qq.copy(_qa).multiply(c.q); _mm.compose(c.pos, _qq, _m1); A.im.setMatrixAt(i, _mm); A.rail.setMatrixAt(i, _mm);
+      const c = A.recs[i]; _qa.setFromAxisAngle(c.f, th + c.ro); _qq.copy(_qa).multiply(c.q); _mm.compose(c.pos, _qq, _m1); A.im.setMatrixAt(i, _mm); A.rail.setMatrixAt(i, _mm);
       for (let j = 0; j < NL; j++) { // each globe swells and fades on its own slow cycle
         const q = i * NL + j, w = 0.5 + 0.5 * Math.sin(A.lf[q] * orT * 6.2832 + A.lph[q]); lk[q] = 0.06 + 0.94 * w * w;
         _mv.set(c.lx[j], c.ly[j], 0).applyQuaternion(_qq); la[q * 3] = c.pos.x + _mv.x; la[q * 3 + 1] = c.pos.y + _mv.y; la[q * 3 + 2] = c.pos.z + _mv.z;
@@ -1155,7 +1155,7 @@ function buildMains() {
     for (let u = 4000; u < r.L; u += 14000) {
       const c = ridgeAt(r, u), f = axisAt(r, u), q = new THREE.Quaternion().setFromUnitVectors(zAx, f), lx = [], ly = [], ri = recs.length;
       for (let j = 0; j < NL; j++) { const t = (j * PHI2 + ri * 0.3819660113) % 1, a = (0.05 + 0.9 * t) * Math.PI, rr = R - 1800; lx.push(Math.cos(a) * rr); ly.push(Math.sin(a) * rr); }
-      recs.push({ pos: new THREE.Vector3(c[0], r.oy + zOf(r, u) - r.W * 0.4, c[1]), q, f, lx, ly });
+      recs.push({ pos: new THREE.Vector3(c[0], r.oy + zOf(r, u) - r.W * 0.4, c[1]), q, f, lx, ly, ro: ((ri * PHI2) % 1) * 6.2832 + (rn() - 0.5) * 0.9 }); // ro: each arch's own roll about the course, golden-angle spaced with a little jitter, so the arches stand at all sides of you and never line up
     }
   }
   if (recs.length) {
