@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #163 2026-11-23 23:16</div>
+<div id="build">build #164 2026-11-23 23:18</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -970,10 +970,10 @@ function mLight(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: {
   fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ vec2 c = gl_PointCoord - 0.5; float d = abs(c.x) + abs(c.y); float fill = 1.0 - smoothstep(0.27, 0.31, d), edge = 1.0 - smoothstep(0.45, 0.5, d); vec3 col = mix(vec3(0.1, 0.07, 0.3), vc, fill); gl_FragColor = vec4(col, edge * vk * (1.0 - smoothstep(30000.0, 90000.0, vd))); }' }); beadMats.push(m); return m; }
 function mGlobe(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: { value: size }, sc: { value: 400 } }, transparent: true, depthWrite: false,
   vertexShader: 'attribute float k; attribute vec3 col; uniform float size, sc; varying float vk, vd; varying vec3 vc; void main(){ vk = k; vc = col; vec4 mv = modelViewMatrix * vec4(position, 1.0); vd = -mv.z; gl_PointSize = clamp(size * (0.8 + 0.4 * k) * sc / max(1.0, -mv.z), 7.0, 26.0); gl_Position = projectionMatrix * mv; }',
-  fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float core = 1.0 - smoothstep(0.28, 0.34, d); float ring = smoothstep(0.5, 0.55, d) * (1.0 - smoothstep(0.58, 0.64, d)) * 0.3; float halo = pow(1.0 - clamp(d, 0.0, 1.0), 2.6) * 0.32; vec3 c = mix(vc, vec3(1.0, 0.98, 0.94), core * 0.7); float a = clamp(core + ring + halo, 0.0, 1.0) * (0.3 + 0.7 * vk) * (1.0 - smoothstep(24000.0, 62000.0, vd)); gl_FragColor = vec4(c, a); }' }); beadMats.push(m); return m; }
+  fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float core = 1.0 - smoothstep(0.28, 0.34, d); float ring = smoothstep(0.5, 0.55, d) * (1.0 - smoothstep(0.58, 0.64, d)) * 0.3; float halo = pow(1.0 - clamp(d, 0.0, 1.0), 2.6) * 0.32; vec3 c = mix(vc, vec3(1.0, 0.93, 0.82), core * 0.3); float a = clamp(core + ring + halo, 0.0, 1.0) * (0.3 + 0.7 * vk) * (1.0 - smoothstep(24000.0, 62000.0, vd)); gl_FragColor = vec4(c, a); }' }); beadMats.push(m); return m; }
 function mBokeh() { const m = new THREE.ShaderMaterial({ uniforms: { sc: { value: 400 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   vertexShader: 'attribute float k, sz; attribute vec3 col; uniform float sc; varying float vk, vd, vp; varying vec3 vc; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vc = col; vk = k; vd = -mv.z; vp = 1.0; if (sz < 1.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; } float px = clamp(sz * (0.85 + 0.3 * k) * sc / max(1.0, -mv.z), 10.0, 120.0); vp = px; gl_PointSize = px; gl_Position = projectionMatrix * mv; }',
-  fragmentShader: 'varying float vk, vd, vp; varying vec3 vc; void main(){ vec2 c = gl_PointCoord * 2.0 - 1.0; float r = length(c), aa = 2.0 / vp; float disc = 1.0 - smoothstep(1.0 - aa, 1.0, r); float rim = smoothstep(0.66, 0.96, r); float a = disc * (0.3 + 0.7 * rim) * vk * 0.5 * (1.0 - smoothstep(24000.0, 70000.0, vd)); gl_FragColor = vec4(vc * (0.85 + 0.35 * rim), a); }' }); beadMats.push(m); return m; }
+  fragmentShader: 'varying float vk, vd, vp; varying vec3 vc; void main(){ vec2 c = gl_PointCoord * 2.0 - 1.0; float r = length(c), aa = 2.0 / vp; float disc = 1.0 - smoothstep(1.0 - aa, 1.0, r); float rim = smoothstep(0.66, 0.96, r); float a = disc * (0.3 + 0.7 * rim) * vk * 0.42 * (1.0 - smoothstep(24000.0, 70000.0, vd)); gl_FragColor = vec4(vc * (0.85 + 0.35 * rim), a); }' }); beadMats.push(m); return m; }
 function beadGeo(pos, k) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('k', new THREE.BufferAttribute(k, 1)); return g; }
 let starMat = null;
 function mStarMat() { return starMat || (starMat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
@@ -1110,6 +1110,7 @@ function updateInk() {
   if (inkRefl) inkRefl.position.set(snail.position.x, inkU.wyB.value, snail.position.z);
   inkU.sn.value.set(snail.position.x, snail.position.z); for (const o of inkSurf) o.m.position.set(snail.position.x, o.top ? inkU.wyT.value : inkU.wyB.value, snail.position.z);
 }
+const pastelToon = c => new THREE.MeshToonMaterial({ color: c, emissive: new THREE.Color(c).multiplyScalar(0.42), gradientMap: TOON });
 function buildMains() {
   // The Transit: not a closed pipe but an impossibly large one. Giant brass half-arches over the course with a light running along them, three gates at the dive, clouds, orrery rings, constellations, drifting paper tags, aurora, far-off ghost paths with travellers, and a sun, a ringed planet and a windmill in the sky. All of it rolls about the course (updateMains).
   beadMats = []; orrery = []; mains = { arches: null, rolled: [], pts: [], tags: null, trav: null, starMat: mStarMat(), aurMat: null, sky: null };
@@ -1130,15 +1131,15 @@ function buildMains() {
     }
   }
   if (recs.length) {
-    const im = new THREE.InstancedMesh(new THREE.TorusGeometry(R, 380, 6, 72, Math.PI), new THREE.MeshBasicMaterial({ color: 0x6fb8a8, fog: true }), recs.length);
-    const rail = new THREE.InstancedMesh(new THREE.TorusGeometry(R - 900, 150, 5, 72, Math.PI), new THREE.MeshBasicMaterial({ color: 0xe0b060, fog: true }), recs.length);
+    const im = new THREE.InstancedMesh(new THREE.TorusGeometry(R, 380, 6, 72, Math.PI), pastelToon(0xaeb6ea), recs.length); // pastel periwinkle
+    const rail = new THREE.InstancedMesh(new THREE.TorusGeometry(R - 900, 150, 5, 72, Math.PI), pastelToon(0xf3c8c4), recs.length); // pale peach-rose rail
     for (const m of [im, rail]) { m.frustumCulled = false; m.renderOrder = -20; addObj(m); }
     const lg = beadGeo(new Float32Array(recs.length * NL * 3), new Float32Array(recs.length * NL).fill(0.8)), lcol = new Float32Array(recs.length * NL * 3);
     // colour: a warm palette (pale gold, gold, peach, rose-gold) drifting along the course with a little jitter, and one globe in nine a cool pearl-blue
-    const PAL = [[1, 0.93, 0.74], [1, 0.82, 0.5], [1, 0.72, 0.52], [1, 0.62, 0.58]];
+    const PAL = [[1, 0.84, 0.52], [1, 0.8, 0.58], [1, 0.72, 0.58], [1, 0.66, 0.64]];
     for (let i = 0; i < recs.length; i++) for (let j = 0; j < NL; j++) {
       const o = (i * NL + j) * 3, drift = 0.5 + 0.5 * Math.sin(i * 0.37 + j * 0.9), f = drift * (PAL.length - 1) + (rn() - 0.5) * 0.7, k0 = Math.max(0, Math.min(PAL.length - 1, f)), a0 = Math.floor(k0), a1 = Math.min(PAL.length - 1, a0 + 1), m = k0 - a0;
-      const cool = (i * NL + j) % 9 === 4, cc = cool ? [0.74, 0.86, 1] : [PAL[a0][0] + (PAL[a1][0] - PAL[a0][0]) * m, PAL[a0][1] + (PAL[a1][1] - PAL[a0][1]) * m, PAL[a0][2] + (PAL[a1][2] - PAL[a0][2]) * m];
+      const cool = (i * NL + j) % 9 === 4, cc = cool ? [0.84, 0.74, 1] : [PAL[a0][0] + (PAL[a1][0] - PAL[a0][0]) * m, PAL[a0][1] + (PAL[a1][1] - PAL[a0][1]) * m, PAL[a0][2] + (PAL[a1][2] - PAL[a0][2]) * m];
       lcol[o] = cc[0]; lcol[o + 1] = cc[1]; lcol[o + 2] = cc[2];
     }
     lg.setAttribute('col', new THREE.BufferAttribute(lcol, 3));
@@ -1158,7 +1159,7 @@ function buildMains() {
       const A0 = new THREE.Vector3(a.ex, a.ey, a.ez), B0 = new THREE.Vector3(b.sx, b.oy, b.sz), ch = B0.clone().sub(A0), dir = ch.clone().normalize(), q = new THREE.Quaternion().setFromUnitVectors(zAx, dir), beads = [];
       for (const t of [0.2, 0.5, 0.8]) {
         const c = A0.clone().addScaledVector(ch, t); c.y += 4 * 3500 * t * (1 - t);
-        const g = new THREE.Mesh(new THREE.TorusGeometry(11000, 420, 6, 72), new THREE.MeshBasicMaterial({ color: 0xf0c880, fog: true })); g.position.copy(c); g.quaternion.copy(q); g.renderOrder = -19; addObj(g);
+        const g = new THREE.Mesh(new THREE.TorusGeometry(11000, 420, 6, 72), pastelToon(0xf6d3bd)); g.position.copy(c); g.quaternion.copy(q); g.renderOrder = -19; addObj(g);
         for (let i = 0; i < 28; i++) { const an = i / 28 * 6.2832; _mv.set(Math.cos(an) * 11000, Math.sin(an) * 11000, 0).applyQuaternion(q).add(c); beads.push(_mv.x, _mv.y, _mv.z); }
       }
       const bp = new THREE.Points(beadGeo(new Float32Array(beads), new Float32Array(beads.length / 3).fill(0.85)), mBead(620)); 
@@ -1170,13 +1171,13 @@ function buildMains() {
     sp.scale.set(s * 0.8, s * 0.8, 1); sp.renderOrder = -25; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 80000), -rA(14000, 60000)), ax: P.ax });
   }
   // 4) orrery rings: huge thin brass rings tilted every which way, with small suns riding them; each spins (and sways) on its own golden-ratio rates
-  const brass = new THREE.MeshBasicMaterial({ color: 0xe0b060, fog: true }), PHI = 0.6180339887;
+  const RINGC = [0xc9b9f2, 0xf3c1cf, 0xb9d3f2, 0xf5d4b8], PHI = 0.6180339887;
   for (let i = 0; i < 9; i++) {
     const P = pt(), rr = rA(16000, 40000), fr = (i * PHI) % 1;
     const piv = new THREE.Group(), tilt = new THREE.Group(), spin = new THREE.Group();
-    spin.add(new THREE.Mesh(new THREE.TorusGeometry(rr, 220, 5, 64), brass));
-    for (let k = 0; k < 3; k++) { const a = rn() * 6.283, sx = Math.cos(a) * rr, sy = Math.sin(a) * rr; const sun = new THREE.Mesh(new THREE.SphereGeometry(rA(500, 1100), 12, 8), new THREE.MeshBasicMaterial({ color: k ? 0xffa6b8 : 0xfff0b8, fog: true })); sun.position.set(sx, sy, 0); spin.add(sun);
-      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: k ? 0xff9ab0 : 0xffe49a, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); gl.scale.set(4200, 4200, 1); gl.position.copy(sun.position); spin.add(gl); }
+    spin.add(new THREE.Mesh(new THREE.TorusGeometry(rr, 220, 5, 64), pastelToon(RINGC[i % 4])));
+    for (let k = 0; k < 3; k++) { const a = rn() * 6.283, sx = Math.cos(a) * rr, sy = Math.sin(a) * rr; const sun = new THREE.Mesh(new THREE.SphereGeometry(rA(500, 1100), 12, 8), new THREE.MeshBasicMaterial({ color: k ? 0xf6b7c4 : 0xf8d9b0, fog: true })); sun.position.set(sx, sy, 0); spin.add(sun);
+      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: k ? 0xf3a8bc : 0xf8cfa0, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); gl.scale.set(4200, 4200, 1); gl.position.copy(sun.position); spin.add(gl); }
     tilt.add(spin); piv.add(tilt); addObj(piv); mains.rolled.push({ obj: piv, p: P.p, off: offAt(P, (i % 2 ? -1 : 1) * rA(38000, 80000), rA(-6000, 30000)), ax: P.ax });
     orrery.push({ piv, tilt, spin, p0: rn() * 6.283, s0: rn() * 6.283, t0: 0.4 + fr * 1.2, ws: (i % 2 ? -1 : 1) * (0.04 + 0.05 * fr), wp: (i % 3 ? 1 : -1) * 0.012 * (1 + fr), wt: 0.05 + 0.04 * ((i * PHI * PHI) % 1) });
   }
