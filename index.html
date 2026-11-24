@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #170 2026-11-24 00:47</div>
+<div id="build">build #171 2026-11-24 00:50</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1070,14 +1070,9 @@ function inkRamps(g) {
       rf.material.uniforms.time = inkU.time; rf.material.uniforms.spd = inkU.spd; rf.material.uniforms.dir = inkU.dir;
       addObj(rf); return rf;
     };
-    // each pane: off(t, r, f) = where it hangs relative to the snail (r right, f forward, +y up), n(t, r, f) = its normal (it faces back toward you); the angles drift, so they sit at impossible tilts
+    // exactly two mirrors, parallel to the descent: water below, a fainter one above
     inkMirrors.push({ rf: mk(0.5, 150000, 1.0, 1), floor: true });
-    if (!LITE) {
-      const W = (t, r, f, a, l, h) => [f[0] * a + r[0] * l, h, f[2] * a + r[2] * l];
-      inkMirrors.push({ rf: mk(0.4, 14000, 0.55, 7000), off: (t, r, f) => W(t, r, f, 7000, -4800, 900 + 500 * Math.sin(t * 0.07)), n: (t, r, f) => [-f[0] + 0.7 * r[0] * Math.cos(t * 0.05 + 1), 0.45 * Math.sin(t * 0.06), -f[2] + 0.7 * r[2] * Math.cos(t * 0.05 + 1)] });
-      inkMirrors.push({ rf: mk(0.4, 14000, 0.5, 7000), off: (t, r, f) => W(t, r, f, 9500, 5600, -500 + 700 * Math.sin(t * 0.05 + 2)), n: (t, r, f) => [-f[0] - 0.6 * r[0] * Math.sin(t * 0.045), -0.3 + 0.5 * Math.cos(t * 0.04), -f[2] - 0.6 * r[2] * Math.sin(t * 0.045)] });
-      inkMirrors.push({ rf: mk(0.4, 18000, 0.45, 9000), off: (t, r, f) => W(t, r, f, 15000, 700 * Math.sin(t * 0.03), 5000 + 800 * Math.sin(t * 0.04)), n: (t, r, f) => [-f[0] * 0.8 + 0.4 * r[0] * Math.sin(t * 0.06), -0.9, -f[2] * 0.8 + 0.4 * r[2] * Math.sin(t * 0.06)] });
-    }
+    if (!LITE) inkMirrors.push({ rf: mk(0.4, 150000, 0.5, 1), ceil: true });
   }
   if (!THREE.Reflector) { // fallback if the Reflector script did not load: dense copy of the ramps for the mirror (the real mesh has huge flat triangles that cannot ripple): 600-unit slices, 4 strips across each face
     const Pt = (r, u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; }, rp = [];
@@ -1098,6 +1093,12 @@ function inkRamps(g) {
       rm.frustumCulled = false; rm.renderOrder = 1; addObj(rm);
     }
   }
+  // fog: pale pearl banks hung along the course (uneven in size, spacing and side), so the ramp light glows through them and you cut through some
+  { let sd = 4417; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, rA = (x, y) => x + rn() * (y - x), tex = glowTexA();
+    for (const r of ramps) { if (r.tube) continue; for (let u = rn() * 900; u < r.L; u += rA(700, 2600) * (rn() < 0.25 ? 3 : 1)) {
+      const c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u), sd2 = (rn() < 0.5 ? -1 : 1) * rA(200, 7000), sz = rA(7000, 22000);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: rn() < 0.7 ? 0xc9d3ee : 0xdcc8ea, transparent: true, opacity: rA(0.14, 0.34), depthWrite: false, blending: THREE.AdditiveBlending }));
+      sp.scale.set(sz, sz * rA(0.45, 0.8), 1); sp.position.set(c[0] + rt[0] * sd2, r.oy + zOf(r, u) + rA(-1500, 5000), c[1] + rt[2] * sd2); sp.renderOrder = 2; addObj(sp); } } }
   // the water surface: only mist. Slow low patches of pale light drift over it, strongest near you and at glancing angles, with the barest pearl tint.
   inkSurf = [];
   for (const top of [false, true]) {
@@ -1139,6 +1140,7 @@ function updateInk() {
     const t = inkU.time.value, dx = inkU.dir.value.x, dz = inkU.dir.value.y, R = [-dz, 0, dx], F = [dx, 0, dz], sx = snail.position.x, sy = snail.position.y, sz = snail.position.z;
     for (const m of inkMirrors) {
       const u = m.rf.material.uniforms;
+      if (m.ceil) { const N = inkU.nrm.value; _mv.set(-N.x, -N.y, -N.z); m.rf.quaternion.setFromUnitVectors(_mz, _mv); m.rf.position.set(sx + N.x * 9000, sy + N.y * 9000, sz + N.z * 9000); u.cn.value.copy(m.rf.position); u.rad.value = inkU.far.value * 1.3; continue; }
       if (m.floor) { const N = inkU.nrm.value; m.rf.quaternion.copy(_qa); m.rf.position.set(sx - N.x * 4500, sy - N.y * 4500, sz - N.z * 4500); u.cn.value.copy(m.rf.position); u.rad.value = inkU.far.value * 1.3; continue; }
       const nv = m.n(t, R, F), l = Math.hypot(nv[0], nv[1], nv[2]) || 1, of = m.off(t, R, F);
       m.rf.quaternion.setFromUnitVectors(_mz, _mv.set(nv[0] / l, nv[1] / l, nv[2] / l)); m.rf.position.set(sx + of[0], sy + of[1], sz + of[2]); u.cn.value.copy(m.rf.position);
