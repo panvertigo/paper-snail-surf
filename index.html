@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #174 2026-11-24 01:06</div>
+<div id="build">build #175 2026-11-24 01:24</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -984,6 +984,9 @@ function updateMains(dt) {
   const th = mainsTheta(), co = Math.cos(th), si = Math.sin(th);
   camera.getWorldDirection(_f); mainsAx.lerp(_f, dt ? 1 - Math.exp(-dt * 1.2) : 1).normalize(); // axis for the sky: where you are looking, smoothed
   for (const o of orrery) { o.piv.rotation.y = o.p0 + o.wp * orT; o.spin.rotation.z = o.s0 + o.ws * orT; o.tilt.rotation.x = o.t0 + 0.12 * Math.sin(o.wt * orT + o.p0); }
+  if (mains.bd) { const B = mains.bd, op = [0.5 + 0.2 * ss01(cl01((dayP - 0.3) / 0.4)), 0.14 + 0.86 * ss01(cl01((dayP - 0.18) / 0.34))];
+    B.list.forEach((e, i) => { _qq.setFromAxisAngle(B.a, th + e.ph); _mv.copy(B.a).multiplyScalar(Math.cos(e.ang)).addScaledVector(B.b, Math.sin(e.ang)).applyQuaternion(_qq); e.m.position.copy(camera.position).addScaledVector(_mv, e.D);
+      _e.set(0, 0, e.sp * orT); _qa.setFromEuler(_e); e.m.quaternion.copy(_qq).multiply(B.q0).multiply(_qa); e.m.material.uniforms.op.value = op[i]; }); }
   const A = mains.arches; if (A) {
     const la = A.lampGeo.attributes.position.array, lk = A.lampGeo.attributes.k.array, NL = A.NL;
     for (let i = 0; i < A.recs.length; i++) {
@@ -1026,7 +1029,7 @@ function updateMains(dt) {
 }
 // ---------- the Ink (scenery 'ink'): inky black water. The ramp is a pearl that lights only the stretch of course near you (the light range grows with speed), and a dim reflection of it hangs in the water under you and in a dark ceiling over you. Prototype. ----------
 const inkU = { time: { value: 0 }, wyB: { value: 0 }, wyT: { value: 0 }, near: { value: 4000 }, far: { value: 16000 }, sn: { value: new THREE.Vector2() }, dir: { value: new THREE.Vector2(0, -1) }, spd: { value: 0 }, fwd: { value: new THREE.Vector3(0, 0, -1) }, nrm: { value: new THREE.Vector3(0, 1, 0) }, sn3: { value: new THREE.Vector3() } };
-let inkFog = [], inkSurf = [], inkMirrors = [], inkGhost = null, inkGhostMat = null, inkGhostA = 0;
+let inkOrr = null, inkFog = [], inkSurf = [], inkMirrors = [], inkGhost = null, inkGhostMat = null, inkGhostA = 0;
 const _mr = new THREE.Matrix4();
 // Style: sumi-e restraint. Flat two-tone cel shading in mother-of-pearl white (a pale cool tone in shadow, no gradients beyond a faint wash toward the ridge), a hairline edge trim, and only the faintest rainbow (a few percent, a little more at grazing angles). The light dissolves into the dark through a drifting mist (the range edge is uneven and soft), never a cutoff. The water is mist and a quiet mirror, with no glints or spots.
 const INK_NZ = 'float nz(vec2 p){ return 0.5 + 0.25 * sin(p.x * 1.7 + sin(p.y * 1.3) * 1.4) + 0.25 * sin(p.y * 1.1 + sin(p.x * 0.9) * 1.6); } float inkLit(float d, vec2 xz, float far, float time, float k){ float w = nz(xz * 0.00035 + time * 0.03); float dd = d * (0.82 + 0.36 * w); return exp(-pow(dd / (far * k), 2.0)); }';
@@ -1100,6 +1103,12 @@ function inkRamps(g) {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: rn() < 0.7 ? 0xc9d3ee : 0xdcc8ea, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
       sp.userData.fog = rA(0.16, 0.34);
       sp.scale.set(sz, sz * rA(0.45, 0.8), 1); sp.position.set(c[0] + rt[0] * sd2, r.oy + zOf(r, u) + rA(-1500, 5000), c[1] + rt[2] * sd2); sp.renderOrder = 2; addObj(sp); inkFog.push(sp); } } }
+  // the orrery: a dark violet machine standing far off in the water, sunk about 40% (its lower part hidden, mirrored faintly and rippled below the waterline). World-fixed direction (the course heading, turned aside). Layer 1 so the mirror pass does not draw it a second time.
+  { const r0 = ramps[0], r1 = ramps[ramps.length - 1]; let hx = r1.ex - r0.sx, hz = r1.ez - r0.sz; const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl; const ca = Math.cos(0.5), sa = Math.sin(0.5); inkOrr = { dir: new THREE.Vector3(hx * ca - hz * sa, 0, hx * sa + hz * ca) };
+    inkOrr.m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({ uniforms: { map: { value: new THREE.TextureLoader().load('img/bd_orrery.jpg') }, time: inkU.time, gain: { value: 1.5 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform sampler2D map; uniform float time, gain; varying vec2 vUv; void main(){ const float W = 0.42; vec3 c; float k = 1.0;  if (vUv.y >= W) { c = texture2D(map, vUv).rgb; k = 1.0; } else { float d = (W - vUv.y); vec2 m = vec2(vUv.x + 0.006 * sin(vUv.y * 160.0 + time * 0.9 + vUv.x * 9.0) * (0.3 + 3.0 * d), 2.0 * W - vUv.y); c = texture2D(map, m).rgb; k = 0.38 * (1.0 - smoothstep(0.0, 0.42, d)); }  float edge = 1.0 - smoothstep(0.0, 0.1, min(min(vUv.x, 1.0 - vUv.x), 1.0 - vUv.y));  float line = exp(-pow((vUv.y - W) * 120.0, 2.0)) * 0.1; gl_FragColor = vec4(c * gain * k * (1.0 - edge) + vec3(0.6, 0.62, 0.8) * line, 1.0); }' }));
+    inkOrr.m.frustumCulled = false; inkOrr.m.renderOrder = 1; inkOrr.m.layers.set(1); addObj(inkOrr.m); camera.layers.enable(1); }
   // the water surface: only mist. Slow low patches of pale light drift over it, strongest near you and at glancing angles, with the barest pearl tint.
   inkSurf = [];
   for (const top of [false, true]) {
@@ -1137,6 +1146,11 @@ function updateInk() {
     const N = inkU.nrm.value; inkU.wyB.value = snail.position.y - 4500 * N.y; inkU.sn3.value.copy(snail.position);
     _qa.setFromUnitVectors(_mz, N); for (const o of inkSurf) { o.m.quaternion.copy(_qa); o.m.position.set(snail.position.x + N.x * (o.top ? 9000 : -4500), snail.position.y + N.y * (o.top ? 9000 : -4500), snail.position.z + N.z * (o.top ? 9000 : -4500)); }
   }
+  if (inkOrr) { const N = inkU.nrm.value, D = 62000, S = 60000, W = 0.42; _mv.copy(inkOrr.dir); const dn = _mv.dot(N), P = snail.position;
+    const px = P.x + inkOrr.dir.x * D, py = P.y + inkOrr.dir.y * D, pz = P.z + inkOrr.dir.z * D, k = (inkOrr.dir.x * N.x + inkOrr.dir.y * N.y + inkOrr.dir.z * N.z) * D + 4500; // the point on the water plane under that direction
+    const back = new THREE.Vector3(-inkOrr.dir.x + N.x * dn, -inkOrr.dir.y + N.y * dn, -inkOrr.dir.z + N.z * dn).normalize(), right = new THREE.Vector3().crossVectors(N, back).normalize();
+    _mm.makeBasis(right, N, back); inkOrr.m.quaternion.setFromRotationMatrix(_mm); inkOrr.m.scale.set(S, S, 1);
+    inkOrr.m.position.set(px - N.x * k + N.x * S * (0.5 - W), py - N.y * k + N.y * S * (0.5 - W), pz - N.z * k + N.z * S * (0.5 - W)); }
   if (inkMirrors.length) {
     const t = inkU.time.value, dx = inkU.dir.value.x, dz = inkU.dir.value.y, R = [-dz, 0, dx], F = [dx, 0, dz], sx = snail.position.x, sy = snail.position.y, sz = snail.position.z;
     for (const m of inkMirrors) {
@@ -1275,6 +1289,14 @@ function buildMains() {
   { const NB = 150; for (let i = 0; i < NB; i++) { const P = smp[Math.min(smp.length - 1, Math.floor((i + rn()) / NB * smp.length))], sz = rA(14000, 34000);
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xf2d6e4 : 0xdcd0f2, transparent: true, opacity: rA(0.1, 0.2), depthWrite: false, fog: true }));
       sp.scale.set(sz, sz * 0.7, 1); sp.renderOrder = -26; sp.userData.tag = 'mist'; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(16000, 60000), rA(-30000, 30000)), ax: P.sax }); } }
+  // 12) backdrop machines at infinity: huge images that ride with the camera (no parallax, they cannot be approached), fixed in direction (the course heading), rolling with the scenery. The skeletal one is vast, faint and counter-turning behind; the orbital ring is the hero, off to one side, and fades in through the middle.
+  { const r0 = ramps[0], r1 = ramps[ramps.length - 1], aa = new THREE.Vector3(r1.ex - r0.sx, r1.ey - r0.oy, r1.ez - r0.sz).normalize(), bb = new THREE.Vector3().crossVectors(aa, new THREE.Vector3(0, 1, 0)).normalize(), q0 = new THREE.Quaternion().setFromUnitVectors(_mz, aa.clone().negate()), ld = new THREE.TextureLoader();
+    const mk = (file, size, haze, alpha, ang, ph, sp, D, ro) => { const tx = ld.load('img/' + file);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.ShaderMaterial({ uniforms: { map: { value: tx }, op: { value: 0 }, haze: { value: haze }, hz: { value: new THREE.Color(0xd6b0dc) }, gain: { value: 1.25 } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform sampler2D map; uniform float op, haze, gain; uniform vec3 hz; varying vec2 vUv; void main(){ vec3 c = texture2D(map, vUv).rgb; float m = max(c.r, max(c.g, c.b)); float a = smoothstep(0.035, 0.2, m); c = mix(c * gain, hz, haze); gl_FragColor = vec4(c, a * op); }' }));
+      m.frustumCulled = false; m.renderOrder = ro; m.userData.tag = 'backdrop'; addObj(m); return { m, ang, ph, sp, D }; };
+    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 150000, 0.5, 0.62, 0.06, 3.6, -0.018, 86000, -31), mk('bd_ring.jpg', 52000, 0.3, 0.85, 0.21, 0.9, 0.011, 74000, -30)] }; }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }

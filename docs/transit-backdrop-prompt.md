@@ -10,3 +10,7 @@ Palette: dusty violet, plum, indigo, and faint rose-pink, with one pale cream ri
 Background: solid pure black everywhere outside the machine (I will blend it onto a pink sky), with the outer parts of the machine fading softly into black so no edge of the image is visible. Keep a wide empty black margin on all four sides. Square, 4096 x 4096.
 
 Ask for 3 variations; pick the one that is least symmetrical and least like a clock face.
+
+## Built (build 175)
+- Transit: img/bd_skel.jpg (vast, hazed, counter-turning, always faint) and img/bd_ring.jpg (hero, 12 degrees off the course heading, fades in dayP 0.18 to 0.52), both at 74k to 86k units riding the camera (no parallax), rolling with mainsTheta, own slow spins. Code: buildMains step 12, updateMains.
+- Ink: img/bd_orrery.jpg standing in the water far off (world-fixed heading turned 0.5 rad), 42% sunk, mirrored and rippled below the waterline. Code: inkOrr in inkRamps/updateInk (layer 1 so the Reflector pass skips it).
