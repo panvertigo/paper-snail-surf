@@ -25,9 +25,9 @@ const stage = {
   name: 'The Transit', author: 'Paper Snail Surf', scenery: 'mains', theme0: 0, music: 'windmill', pull: 0.3, fall: 0,
   // dusk over a cloud sea: indigo night overhead and a rose horizon at the start (the fog colour is the horizon colour), deeper and more violet mid-run, then a rose-gold dawn for the arrival
   palette: [
-    { top: 0x10030a, mid: 0x3a0a1e, bot: 0x8a2434, gnd: 0x240812 },
-    { top: 0x080206, mid: 0x2a0618, bot: 0x5e1226, gnd: 0x1a050f },
-    { top: 0x160510, mid: 0x5a1428, bot: 0xc84c3a, gnd: 0x2c0a18 },
+    { top: 0x232668, mid: 0x5a4496, bot: 0xf0a8b4, gnd: 0x4a3a88 },
+    { top: 0x0e1450, mid: 0x2e3086, bot: 0xb872b0, gnd: 0x2e2872 },
+    { top: 0x2c2e78, mid: 0x8a68a8, bot: 0xffc9a0, gnd: 0x5a4a8a },
   ],
   pieces: P,
 };

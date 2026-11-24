@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #172 2026-11-24 00:54</div>
+<div id="build">build #173 2026-11-24 00:59</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1150,7 +1150,7 @@ function updateInk() {
   { const cp = camera.position; for (const sp of inkFog) { const d = sp.position.distanceTo(cp), q = Math.min(1, Math.max(0, (d - 6000) / 14000)); sp.material.opacity = sp.userData.fog * q * q * (3 - 2 * q) * (1 - Math.min(1, Math.max(0, (d - 50000) / 20000))); } } // clear near the camera (no speckle in your face), thick ahead
   inkU.sn.value.set(snail.position.x, snail.position.z);
 }
-const pastelToon = c => new THREE.MeshToonMaterial({ color: c, emissive: new THREE.Color(c).multiplyScalar(0.3), gradientMap: TOON });
+const pastelToon = c => new THREE.MeshToonMaterial({ color: c, emissive: new THREE.Color(c).multiplyScalar(0.1), gradientMap: TOON });
 function buildMains() {
   // The Transit: not a closed pipe but an impossibly large one. Giant brass half-arches over the course with a light running along them, three gates at the dive, clouds, orrery rings, constellations, drifting paper tags, aurora, far-off ghost paths with travellers, and a sun, a ringed planet and a windmill in the sky. All of it rolls about the course (updateMains).
   beadMats = []; orrery = []; mains = { arches: null, rolled: [], pts: [], tags: null, trav: null, starMat: mStarMat(), aurMat: null, sky: null };
@@ -1175,8 +1175,8 @@ function buildMains() {
     }
   }
   if (recs.length) {
-    const im = new THREE.InstancedMesh(new THREE.TorusGeometry(R, 380, 6, 72, Math.PI), pastelToon(0x8c2c48), recs.length); // burgundy
-    const rail = new THREE.InstancedMesh(new THREE.TorusGeometry(R - 900, 150, 5, 72, Math.PI), pastelToon(0xe8745c), recs.length); // ember rail
+    const im = new THREE.InstancedMesh(new THREE.TorusGeometry(R, 380, 6, 72, Math.PI), pastelToon(0x4a3a96), recs.length); // dusk violet, so the arches read against the pink
+    const rail = new THREE.InstancedMesh(new THREE.TorusGeometry(R - 900, 150, 5, 72, Math.PI), pastelToon(0xffdcc4), recs.length); // warm cream rail
     for (const m of [im, rail]) { m.frustumCulled = false; m.renderOrder = -20; addObj(m); }
     const lg = beadGeo(new Float32Array(recs.length * NL * 3), new Float32Array(recs.length * NL).fill(0.8)), lcol = new Float32Array(recs.length * NL * 3);
     // colour: a warm palette (pale gold, gold, peach, rose-gold) drifting along the course with a little jitter, and one globe in nine a cool pearl-blue
@@ -1203,7 +1203,7 @@ function buildMains() {
       const A0 = new THREE.Vector3(a.ex, a.ey, a.ez), B0 = new THREE.Vector3(b.sx, b.oy, b.sz), ch = B0.clone().sub(A0), dir = ch.clone().normalize(), q = new THREE.Quaternion().setFromUnitVectors(zAx, dir), beads = [];
       for (const t of [0.2, 0.5, 0.8]) {
         const c = A0.clone().addScaledVector(ch, t); c.y += 4 * 3500 * t * (1 - t);
-        const g = new THREE.Mesh(new THREE.TorusGeometry(11000, 420, 6, 72), pastelToon(0xe8745c)); g.position.copy(c); g.quaternion.copy(q); g.renderOrder = -19; addObj(g);
+        const g = new THREE.Mesh(new THREE.TorusGeometry(11000, 420, 6, 72), pastelToon(0xffdcc4)); g.position.copy(c); g.quaternion.copy(q); g.renderOrder = -19; addObj(g);
         for (let i = 0; i < 28; i++) { const an = i / 28 * 6.2832; _mv.set(Math.cos(an) * 11000, Math.sin(an) * 11000, 0).applyQuaternion(q).add(c); beads.push(_mv.x, _mv.y, _mv.z); }
       }
       const bp = new THREE.Points(beadGeo(new Float32Array(beads), new Float32Array(beads.length / 3).fill(0.85)), mBead(620)); 
@@ -1211,11 +1211,11 @@ function buildMains() {
   // 3) clouds: soft puffs scattered around the course, mostly below it to begin with
   for (let i = 0; i < 140; i++) {
     const P = pt(), s = rA(40000, 110000);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.5 ? 0xb43a50 : (rn() < 0.7 ? 0x7a2646 : 0x2f8a96), transparent: true, opacity: rA(0.14, 0.3), depthWrite: false, fog: true }));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.45 ? 0xf0cadd : (rn() < 0.65 ? 0xc4b0ec : 0x4e3e94), transparent: true, opacity: rA(0.18, 0.36), depthWrite: false, fog: true }));
     sp.scale.set(s * 1.8, s * 0.45, 1); sp.renderOrder = -25; sp.userData.tag = 'clouds'; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 80000), -rA(14000, 60000)), ax: P.ax });
   }
   // 4) orrery rings: huge thin brass rings tilted every which way, with small suns riding them; each spins (and sways) on its own golden-ratio rates
-  const RINGC = [0xa8264a, 0xd44a62, 0x6e1a38, 0x3aa6ae, 0xc8402e], PHI = 0.6180339887;
+  const RINGC = [0x8a6cc8, 0xf08aa8, 0x4e3e94, 0x66c4cc, 0xf8d2b4], PHI = 0.6180339887;
   for (let i = 0; i < 9; i++) {
     const P = pt(), rr = rA(16000, 40000), fr = (i * PHI) % 1;
     const piv = new THREE.Group(), tilt = new THREE.Group(), spin = new THREE.Group();
@@ -1243,7 +1243,7 @@ function buildMains() {
   { mains.aurMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: true });
     const i0 = Math.floor(smp.length * 0.4), i1 = Math.floor(smp.length * 0.92), base = [], off = [], ax = [], col = [], idx = []; let nv = 0;
     for (let k = 0; k < 2; k++) {
-      const S0 = (k ? -1 : 1) * rA(34000, 55000), Hh = rA(24000, 34000), U0 = rA(-4000, 12000), ph = rn() * 6.283, c0 = k ? [1, 0.3, 0.38] : [0.15, 0.8, 0.82]; let prev = -1;
+      const S0 = (k ? -1 : 1) * rA(34000, 55000), Hh = rA(24000, 34000), U0 = rA(-4000, 12000), ph = rn() * 6.283, c0 = k ? [1, 0.55, 0.72] : [0.3, 0.95, 0.75]; let prev = -1;
       for (let i = i0; i < i1; i += 2) { const s = smp[i], side = S0 + 12000 * Math.sin(i * 0.17 + ph), up = U0 + 7000 * Math.sin(i * 0.11 + ph * 2), fa = Math.min(1, (i - i0) / 12, (i1 - i) / 12);
         for (const t of [0, 1]) { base.push(s.ps.x, s.ps.y, s.ps.z); off.push(s.rt[0] * side, up + t * Hh, s.rt[2] * side); ax.push(s.sax.x, s.sax.y, s.sax.z); const b = (t ? 0 : 0.8) * fa; col.push(c0[0] * b, c0[1] * b, c0[2] * b); }
         if (prev >= 0) idx.push(prev, prev + 1, nv, prev + 1, nv + 1, nv); prev = nv; nv += 2; }
@@ -1259,7 +1259,7 @@ function buildMains() {
       let prev = -1; const s0 = nv;
       for (let i = i0; i < i1; i++) {
         const s = smp[i], t = (i - i0) / Math.max(1, i1 - i0), fade = Math.min(1, t * 6, (1 - t) * 6) * (e ? 0.45 : 1), side = S0 + As * Math.sin(i / lam + ph) + e * w, up = U0 + Au * Math.sin(i / (lam * 1.7) + ph2);
-        vb.push(s.ps.x, s.ps.y, s.ps.z); vo.push(s.rt[0] * side, up, s.rt[2] * side); va.push(s.sax.x, s.sax.y, s.sax.z); vc.push(...(k % 3 === 0 ? [0.2 * fade, 0.8 * fade, 0.85 * fade] : [1.0 * fade, 0.42 * fade, 0.34 * fade]));
+        vb.push(s.ps.x, s.ps.y, s.ps.z); vo.push(s.rt[0] * side, up, s.rt[2] * side); va.push(s.sax.x, s.sax.y, s.sax.z); vc.push(...(k % 3 === 0 ? [0.35 * fade, 0.85 * fade, 0.9 * fade] : [0.85 * fade, 0.7 * fade, 1.0 * fade]));
         if (prev >= 0) idx.push(prev, nv); prev = nv; nv++;
       }
       if (e === 0) lines.push({ s: s0, n: nv - s0 });
@@ -1273,7 +1273,7 @@ function buildMains() {
     mains.trav = { geo: tg, list, gi: mains.pts.length - 1 }; }
   // 11) mist banks: big faint puffs of pale haze scattered along the course itself, so you cut through a bank now and then
   { const NB = 150; for (let i = 0; i < NB; i++) { const P = smp[Math.min(smp.length - 1, Math.floor((i + rn()) / NB * smp.length))], sz = rA(14000, 34000);
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xc84a58 : 0x8a2c52, transparent: true, opacity: rA(0.1, 0.2), depthWrite: false, fog: true }));
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xf2d6e4 : 0xdcd0f2, transparent: true, opacity: rA(0.1, 0.2), depthWrite: false, fog: true }));
       sp.scale.set(sz, sz * 0.7, 1); sp.renderOrder = -26; sp.userData.tag = 'mist'; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(16000, 60000), rA(-30000, 30000)), ax: P.sax }); } }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
@@ -2566,7 +2566,7 @@ function frame(now) {
     if (a >= 1) { intro.on = false; showMsg(START_MSG); }
   } else {
     camera.position.copy(folPos); camera.lookAt(folLook);
-    { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 34000 : FOG_FAR; scene.fog.near = mn ? 1500 : 6000; } camera.far = CAM_FAR;
+    { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 80000 : FOG_FAR; scene.fog.near = mn ? 9000 : 6000; } camera.far = CAM_FAR;
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovOff + fovKick + warpK * 13; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
