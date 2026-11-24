@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #151 2026-11-23 22:28</div>
+<div id="build">build #152 2026-11-23 22:31</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -968,7 +968,7 @@ function beadGeo(pos, k) { const g = new THREE.BufferGeometry(); g.setAttribute(
 let starMat = null;
 function mStarMat() { return starMat || (starMat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
   vertexShader: 'attribute float size, ph; attribute vec3 col; uniform float t; varying vec3 vc; varying float vb; void main(){ vc = col; vb = 0.62 + 0.38 * sin(t * (0.5 + fract(ph * 7.3)) + ph * 40.0); gl_PointSize = size * (0.8 + 0.2 * vb); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: 'varying vec3 vc; varying float vb; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float a = 1.0 - smoothstep(0.0, 1.0, d); a *= a; gl_FragColor = vec4(vc * vb, a * vb); }' })); }
+  fragmentShader: 'varying vec3 vc; varying float vb; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float a = 1.0 - smoothstep(0.0, 1.0, d); a *= a; gl_FragColor = vec4(vc * vb * 0.75, a * vb * 0.75); }' })); }
 const SKY_D = 70000; // the sun, planet and windmill are real objects this far out (behind the course); the camera's far plane is 90000
 function updateMains(dt) {
   orT += dt; if (!mains) return;
@@ -1013,15 +1013,13 @@ function updateMains(dt) {
     V.geo.attributes.position.needsUpdate = V.geo.attributes.k.needsUpdate = true;
   }
   mains.starMat.uniforms.t.value = orT; { const sc = renderer.domElement.height * 0.5; for (const m of beadMats) m.uniforms.sc.value = sc; }
-  { const p = dayP; mains.aurMat.opacity = 0.8 * ss01(cl01((p - 0.35) / 0.25)) * (1 - ss01(cl01((p - 0.85) / 0.15))); }
+  { const p = dayP; mains.aurMat.opacity = 0.5 * ss01(cl01((p - 0.35) / 0.25)) * (1 - ss01(cl01((p - 0.85) / 0.15))); }
   // sky layer: sun, ringed planet and a far windmill, held at fixed angles around the view axis and rolled with it
   _rg.crossVectors(mainsAx, WUP); if (_rg.lengthSq() < 1e-4) _rg.set(1, 0, 0); _rg.normalize(); _u2.crossVectors(_rg, mainsAx);
   const place = (spr, az, el) => { const ce = Math.cos(el); _mv.set(0, 0, 0).addScaledVector(mainsAx, Math.cos(az) * ce).addScaledVector(_rg, Math.sin(az) * ce).addScaledVector(_u2, Math.sin(el)).applyAxisAngle(mainsAx, th); spr.position.copy(camera.position).addScaledVector(_mv, SKY_D); };
-  const SKYK = SKY_D / 880, Sy = mains.sky, rise = ss01(cl01((dayP - 0.5) / 0.5)), wm = ss01(cl01((dayP - 0.7) / 0.2));
+  const SKYK = SKY_D / 880, Sy = mains.sky, rise = ss01(cl01((dayP - 0.5) / 0.5));
   place(Sy.sun, 0.2, 0.2); Sy.sun.scale.setScalar((230 + 250 * rise) * SKYK); Sy.sun.material.opacity = 0.9;
   place(Sy.planet, -0.34, -0.06); Sy.planet.scale.setScalar(150 * SKYK); Sy.planet.material.rotation = -th * 0.7 - 0.2;
-  place(Sy.tower, -0.04, 0.34); place(Sy.sails, -0.04, 0.34); Sy.tower.scale.setScalar(260 * SKYK); Sy.sails.scale.setScalar(260 * SKYK);
-  Sy.tower.material.rotation = -th; Sy.sails.material.rotation = -th + orT * 0.25; Sy.tower.material.opacity = Sy.sails.material.opacity = wm; Sy.tower.visible = Sy.sails.visible = wm > 0.01;
 }
 function buildMains() {
   // The Transit: not a closed pipe but an impossibly large one. Giant brass half-arches over the course with a light running along them, three gates at the dive, clouds, orrery rings, constellations, drifting paper tags, aurora, far-off ghost paths with travellers, and a sun, a ringed planet and a windmill in the sky. All of it rolls about the course (updateMains).
@@ -1047,7 +1045,7 @@ function buildMains() {
     for (const m of [im, rail]) { m.frustumCulled = false; m.renderOrder = -20; addObj(m); }
     const lg = beadGeo(new Float32Array(recs.length * NL * 3), new Float32Array(recs.length * NL).fill(0.5));
     const lp = new THREE.Points(lg, mBead(520));
-    lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp); mains.arches = { im, rail, recs, lampGeo: lg, NL };
+    mains.arches = { im, rail, recs, lampGeo: lg, NL };
   }
   // 2) the dive: three brass gates in a row across the flight, so the fall is a tunnel of rings
   { const di = (stageMeta.pieces || []).findIndex(p => p.label && /dive/i.test(p.label)), a = ramps[di - 1], b = ramps[di];
@@ -1058,12 +1056,12 @@ function buildMains() {
         const g = new THREE.Mesh(new THREE.TorusGeometry(11000, 420, 6, 72), new THREE.MeshBasicMaterial({ color: 0xf0c880, fog: true })); g.position.copy(c); g.quaternion.copy(q); g.renderOrder = -19; addObj(g);
         for (let i = 0; i < 28; i++) { const an = i / 28 * 6.2832; _mv.set(Math.cos(an) * 11000, Math.sin(an) * 11000, 0).applyQuaternion(q).add(c); beads.push(_mv.x, _mv.y, _mv.z); }
       }
-      const bp = new THREE.Points(beadGeo(new Float32Array(beads), new Float32Array(beads.length / 3).fill(0.85)), mBead(620)); bp.frustumCulled = false; bp.renderOrder = 3; addObj(bp);
+      const bp = new THREE.Points(beadGeo(new Float32Array(beads), new Float32Array(beads.length / 3).fill(0.85)), mBead(620)); 
     } }
   // 3) clouds: soft puffs scattered around the course, mostly below it to begin with
   for (let i = 0; i < 140; i++) {
     const P = pt(), s = rA(24000, 60000);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.5 ? 0xffd2e0 : 0xc8bcff, transparent: true, opacity: rA(0.16, 0.34), depthWrite: false, fog: true }));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.5 ? 0xffd2e0 : 0xc8bcff, transparent: true, opacity: rA(0.1, 0.22), depthWrite: false, fog: true }));
     sp.scale.set(s, s * 0.34, 1); sp.renderOrder = -25; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 80000), -rA(14000, 60000)), ax: P.ax });
   }
   // 4) orrery rings: huge thin brass rings tilted every which way, with small suns riding them; each spins (and sways) on its own golden-ratio rates
@@ -1073,7 +1071,7 @@ function buildMains() {
     const piv = new THREE.Group(), tilt = new THREE.Group(), spin = new THREE.Group();
     spin.add(new THREE.Mesh(new THREE.TorusGeometry(rr, 220, 5, 64), brass));
     for (let k = 0; k < 3; k++) { const a = rn() * 6.283, sx = Math.cos(a) * rr, sy = Math.sin(a) * rr; const sun = new THREE.Mesh(new THREE.SphereGeometry(rA(500, 1100), 12, 8), new THREE.MeshBasicMaterial({ color: k ? 0xffa6b8 : 0xfff0b8, fog: true })); sun.position.set(sx, sy, 0); spin.add(sun);
-      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: k ? 0xff9ab0 : 0xffe49a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); gl.scale.set(6500, 6500, 1); gl.position.copy(sun.position); spin.add(gl); }
+      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: k ? 0xff9ab0 : 0xffe49a, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); gl.scale.set(4200, 4200, 1); gl.position.copy(sun.position); spin.add(gl); }
     tilt.add(spin); piv.add(tilt); addObj(piv); mains.rolled.push({ obj: piv, p: P.p, off: offAt(P, (i % 2 ? -1 : 1) * rA(38000, 80000), rA(-6000, 30000)), ax: P.ax });
     orrery.push({ piv, tilt, spin, p0: rn() * 6.283, s0: rn() * 6.283, t0: 0.4 + fr * 1.2, ws: (i % 2 ? -1 : 1) * (0.04 + 0.05 * fr), wp: (i % 3 ? 1 : -1) * 0.012 * (1 + fr), wt: 0.05 + 0.04 * ((i * PHI * PHI) % 1) });
   }
@@ -1090,7 +1088,7 @@ function buildMains() {
     const n = NS * NP, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3)); g.setIndex(idx);
     g.setAttribute('k', new THREE.BufferAttribute(new Float32Array(n).fill(0.7), 1));
     const ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })), pp = new THREE.Points(g, mBead(420));
-    for (const o of [ln, pp]) { o.frustumCulled = false; o.renderOrder = -26; addObj(o); } mains.pts.push({ geo: g, n, base: new Float32Array(base), off: new Float32Array(off), ax: new Float32Array(ax) }); }
+    for (const o of [ln]) { o.frustumCulled = false; o.renderOrder = -26; addObj(o); } mains.pts.push({ geo: g, n, base: new Float32Array(base), off: new Float32Array(off), ax: new Float32Array(ax) }); }
   // 7) paper tags: small luggage tags tumbling past, from the docket story
   { const NT = 44, im = new THREE.InstancedMesh(new THREE.PlaneGeometry(900, 560), new THREE.MeshBasicMaterial({ map: mTex('tag'), transparent: true, side: THREE.DoubleSide, fog: true, depthWrite: false }), NT), tr = [];
     for (let i = 0; i < NT; i++) { const P = pt(), sc = rA(0.8, 1.5); tr.push({ p: P.p, ax: P.ax, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 26000), rA(-9000, 20000)), a1: rA(-0.5, 0.5), a2: rA(-0.5, 0.5), a3: rA(-0.4, 0.4), ph: rn() * 6.283, s: new THREE.Vector3(sc, sc, 1) }); }
@@ -1122,15 +1120,14 @@ function buildMains() {
     }
   }
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vc), 3)); pg.setIndex(idx);
-  const pl = new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); pl.frustumCulled = false; pl.renderOrder = -22; addObj(pl);
+  const pl = new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); pl.frustumCulled = false; pl.renderOrder = -22; addObj(pl);
   mains.pts.push({ geo: pg, n: nv, base: new Float32Array(vb), off: new Float32Array(vo), ax: new Float32Array(va) });
   { const list = []; lines.forEach((L, k) => { if (L.n < 8) return; for (let j = 0; j < 2; j++) list.push({ line: L, t0: rn(), rate: (rn() < 0.5 ? -1 : 1) * rA(0.011, 0.02) }); });
     const tg = beadGeo(new Float32Array(list.length * 12), new Float32Array(list.length * 4)), tp = new THREE.Points(tg, mBead(900)); tp.frustumCulled = false; tp.renderOrder = -21; addObj(tp);
     mains.trav = { geo: tg, list, gi: mains.pts.length - 1 }; }
   // 10) the sky layer: a sun that grows and warms toward the finish, a ringed planet and a far windmill that appears near the end (drawn behind everything, on the sky dome's layer)
   { const mk = (name, blend) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mTex(name), transparent: true, depthTest: true, depthWrite: false, fog: false, blending: blend || THREE.NormalBlending })); sp.renderOrder = -29; sp.frustumCulled = false; addObj(sp); return sp; };
-    const sky = { sun: mk('sun'), planet: mk('planet'), tower: mk('tower'), sails: mk('sails') };
-    sky.tower.center.set(0.5, 0.625); sky.sails.material.opacity = sky.tower.material.opacity = 0; mains.sky = sky; }
+    const sky = { sun: mk('sun'), planet: mk('planet') }; mains.sky = sky; }
   updateMains(0);
 }
 function buildTowns() {
