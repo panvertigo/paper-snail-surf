@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #162 2026-11-23 23:15</div>
+<div id="build">build #163 2026-11-23 23:16</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -971,6 +971,9 @@ function mLight(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: {
 function mGlobe(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: { value: size }, sc: { value: 400 } }, transparent: true, depthWrite: false,
   vertexShader: 'attribute float k; attribute vec3 col; uniform float size, sc; varying float vk, vd; varying vec3 vc; void main(){ vk = k; vc = col; vec4 mv = modelViewMatrix * vec4(position, 1.0); vd = -mv.z; gl_PointSize = clamp(size * (0.8 + 0.4 * k) * sc / max(1.0, -mv.z), 7.0, 26.0); gl_Position = projectionMatrix * mv; }',
   fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float core = 1.0 - smoothstep(0.28, 0.34, d); float ring = smoothstep(0.5, 0.55, d) * (1.0 - smoothstep(0.58, 0.64, d)) * 0.3; float halo = pow(1.0 - clamp(d, 0.0, 1.0), 2.6) * 0.32; vec3 c = mix(vc, vec3(1.0, 0.98, 0.94), core * 0.7); float a = clamp(core + ring + halo, 0.0, 1.0) * (0.3 + 0.7 * vk) * (1.0 - smoothstep(24000.0, 62000.0, vd)); gl_FragColor = vec4(c, a); }' }); beadMats.push(m); return m; }
+function mBokeh() { const m = new THREE.ShaderMaterial({ uniforms: { sc: { value: 400 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: 'attribute float k, sz; attribute vec3 col; uniform float sc; varying float vk, vd, vp; varying vec3 vc; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vc = col; vk = k; vd = -mv.z; vp = 1.0; if (sz < 1.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; } float px = clamp(sz * (0.85 + 0.3 * k) * sc / max(1.0, -mv.z), 10.0, 120.0); vp = px; gl_PointSize = px; gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'varying float vk, vd, vp; varying vec3 vc; void main(){ vec2 c = gl_PointCoord * 2.0 - 1.0; float r = length(c), aa = 2.0 / vp; float disc = 1.0 - smoothstep(1.0 - aa, 1.0, r); float rim = smoothstep(0.66, 0.96, r); float a = disc * (0.3 + 0.7 * rim) * vk * 0.5 * (1.0 - smoothstep(24000.0, 70000.0, vd)); gl_FragColor = vec4(vc * (0.85 + 0.35 * rim), a); }' }); beadMats.push(m); return m; }
 function beadGeo(pos, k) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('k', new THREE.BufferAttribute(k, 1)); return g; }
 let starMat = null;
 function mStarMat() { return starMat || (starMat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
@@ -988,12 +991,9 @@ function updateMains(dt) {
       for (let j = 0; j < NL; j++) { // each globe swells and fades on its own slow cycle
         const q = i * NL + j, w = 0.5 + 0.5 * Math.sin(A.lf[q] * orT * 6.2832 + A.lph[q]); lk[q] = 0.06 + 0.94 * w * w;
         _mv.set(c.lx[j], c.ly[j], 0).applyQuaternion(_qq); la[q * 3] = c.pos.x + _mv.x; la[q * 3 + 1] = c.pos.y + _mv.y; la[q * 3 + 2] = c.pos.z + _mv.z;
-        { const kk = lk[q], o3 = q * 3, L = A.lcol, big = j % 3 === 0 ? 0.1 : 0; // halos share one warm tone (60 percent) so overlapping glows merge into a lit haze instead of coloured blotches; the big glow is only on every third light
-          const wr = L[o3] * 0.4 + 0.6, wg = L[o3 + 1] * 0.4 + 0.51, wb = L[o3 + 2] * 0.4 + 0.39; A.hs[o3] = wr * kk * 0.36; A.hs[o3 + 1] = wg * kk * 0.36; A.hs[o3 + 2] = wb * kk * 0.36; A.hl[o3] = wr * kk * big; A.hl[o3 + 1] = wg * kk * big; A.hl[o3 + 2] = wb * kk * big; }
       }
     }
     A.im.instanceMatrix.needsUpdate = true; A.rail.instanceMatrix.needsUpdate = true; A.lampGeo.attributes.position.needsUpdate = A.lampGeo.attributes.k.needsUpdate = true;
-    for (const g of [A.hgS, A.hgL]) { g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; }
   }
   for (const c of mains.rolled) { _mv.copy(c.off).applyAxisAngle(c.ax, th).add(c.p); c.obj.position.copy(_mv); }
   const T = mains.tags; if (T) {
@@ -1146,9 +1146,11 @@ function buildMains() {
     const FQ = [1 / 5, 1 / 8.09, 1 / 13.09, 1 / 21.18, 1 / 34.27], lf = new Float32Array(recs.length * NL), lph = new Float32Array(recs.length * NL);
     for (let q = 0; q < lf.length; q++) { lf[q] = FQ[(q * 7 + Math.floor(q / NL)) % 5]; lph[q] = ((q * PHI2) % 1) * 6.2832; }
     const lp = new THREE.Points(lg, mGlobe(700)); lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp);
-    const la0 = lg.attributes.position.array, hs = new Float32Array(lcol.length), hl = new Float32Array(lcol.length);
-    const mkHalo = (arr, size) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(la0, 3)); g.setAttribute('color', new THREE.BufferAttribute(arr, 3)); const pts = new THREE.Points(g, new THREE.PointsMaterial({ map: glowTexA(), vertexColors: true, size, sizeAttenuation: true, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); pts.frustumCulled = false; pts.renderOrder = 2; addObj(pts); return g; };
-    mains.arches = { im, rail, recs, lampGeo: lg, NL, lf, lph, lcol, hs, hl, hgS: mkHalo(hs, 4500), hgL: mkHalo(hl, 14000) };
+    const bg = new THREE.BufferGeometry(), bsz = new Float32Array(recs.length * NL);
+    for (let q = 0; q < bsz.length; q++) bsz[q] = (q % 2 === 0) ? 2500 + 6500 * Math.pow(rn(), 2.2) : 0; // many smallish discs, a few big ones
+    bg.setAttribute('position', lg.attributes.position); bg.setAttribute('k', lg.attributes.k); bg.setAttribute('col', lg.attributes.col); bg.setAttribute('sz', new THREE.BufferAttribute(bsz, 1));
+    const bp = new THREE.Points(bg, mBokeh()); bp.frustumCulled = false; bp.renderOrder = 2; addObj(bp);
+    mains.arches = { im, rail, recs, lampGeo: lg, NL, lf, lph };
   }
   // 2) the dive: three brass gates in a row across the flight, so the fall is a tunnel of rings
   { const di = (stageMeta.pieces || []).findIndex(p => p.label && /dive/i.test(p.label)), a = ramps[di - 1], b = ramps[di];
