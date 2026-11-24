@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #145 2026-11-23 20:45</div>
+<div id="build">build #146 2026-11-23 20:52</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -938,7 +938,10 @@ function buildLoft() {
   { const dx = fin.dir[0], dz = fin.dir[2]; win(fin.x + dx * 15000 - fin.right[0] * 6000, fin.y + 7000, fin.z + dz * 15000 - fin.right[2] * 6000, fin.x, fin.z, 20000); }
 }
 // ---------- the Transit (scenery 'mains'): giant brass half-arches over the course, cloud sea, orrery rings, stars ----------
+let orrery = [], orT = 0; // orrery rings: each is a pivot (slow precession about the vertical) > tilt > spinner (turns about its own axis); rates come from the golden ratio, so no two rings ever line up
+function updateOrrery(dt) { if (!orrery.length) return; orT += dt; for (const o of orrery) { o.piv.rotation.y = o.p0 + o.wp * orT; o.spin.rotation.z = o.s0 + o.ws * orT; o.tilt.rotation.x = o.t0 + 0.12 * Math.sin(o.wt * orT + o.p0); } }
 function buildMains() {
+  orrery = [];
   // The Transit: not a closed pipe but an impossibly large one. Giant half-arches of the Works' brass pipe stand over the course (the ride is a speck inside a cathedral), with a cloud sea far below, drifting orrery rings and stars out to the sides.
   let sd = 5521; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, rA = (a, b) => a + rn() * (b - a);
   let minY = 0; for (const r of ramps) minY = Math.min(minY, r.oy, r.ey); const fy = minY - 9000;
@@ -973,12 +976,15 @@ function buildMains() {
   }
   // 3) orrery rings: huge thin brass rings tilted every which way beside the course, with small suns riding them
   const brass = new THREE.MeshBasicMaterial({ color: 0xe0b060, fog: true });
+  const PHI = 0.6180339887;
   for (let i = 0; i < 9; i++) {
-    const p = pt(), o = side(p, (i % 2 ? -1 : 1) * rA(38000, 80000)), rr = rA(16000, 40000), g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.TorusGeometry(rr, 220, 5, 64), brass));
-    for (let k = 0; k < 3; k++) { const a = rn() * 6.283, sx = Math.cos(a) * rr, sy = Math.sin(a) * rr; const sun = new THREE.Mesh(new THREE.SphereGeometry(rA(500, 1100), 12, 8), new THREE.MeshBasicMaterial({ color: k ? 0xffa6b8 : 0xfff0b8, fog: true })); sun.position.set(sx, sy, 0); g.add(sun);
-      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: k ? 0xff9ab0 : 0xffe49a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); gl.scale.set(6500, 6500, 1); gl.position.copy(sun.position); g.add(gl); }
-    g.position.set(o.x, p.y + rA(2000, 30000), o.z); g.rotation.set(rn() * 3.14, rn() * 3.14, rn() * 3.14); addObj(g);
+    const p = pt(), o = side(p, (i % 2 ? -1 : 1) * rA(38000, 80000)), rr = rA(16000, 40000), fr = (i * PHI) % 1;
+    const piv = new THREE.Group(), tilt = new THREE.Group(), spin = new THREE.Group();
+    spin.add(new THREE.Mesh(new THREE.TorusGeometry(rr, 220, 5, 64), brass));
+    for (let k = 0; k < 3; k++) { const a = rn() * 6.283, sx = Math.cos(a) * rr, sy = Math.sin(a) * rr; const sun = new THREE.Mesh(new THREE.SphereGeometry(rA(500, 1100), 12, 8), new THREE.MeshBasicMaterial({ color: k ? 0xffa6b8 : 0xfff0b8, fog: true })); sun.position.set(sx, sy, 0); spin.add(sun);
+      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: k ? 0xff9ab0 : 0xffe49a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); gl.scale.set(6500, 6500, 1); gl.position.copy(sun.position); spin.add(gl); }
+    tilt.add(spin); piv.add(tilt); piv.position.set(o.x, p.y + rA(2000, 30000), o.z); addObj(piv);
+    orrery.push({ piv, tilt, spin, p0: rn() * 6.283, s0: rn() * 6.283, t0: 0.4 + fr * 1.2, ws: (i % 2 ? -1 : 1) * (0.04 + 0.05 * fr), wp: (i % 3 ? 1 : -1) * 0.012 * (1 + fr), wt: 0.05 + 0.04 * ((i * PHI * PHI) % 1) });
   }
   // 4) stars: a scatter of fixed-size points in a wide corridor around the course
   const sp = new Float32Array(2400 * 3);
@@ -2266,7 +2272,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovOff + fovKick + warpK * 13; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
-  updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  updateOrrery(dt); updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   if (now - hudT > 90) { hudT = now; { const cl = (x) => Math.max(0, Math.min(1, x)), u1 = cl((speed - 500) / 3500), u2 = cl((speed - 4000) / 2000), deg = (180 + 110 * u1 + 100 * u2) % 360, gl = cl((speed - 3800) / 2200); // cyan -> violet by 4k, then pink -> hot orange by 6k, glowing
     speedEl.style.color = `hsl(${deg.toFixed(0)},${(90 * cl((speed - 500) / 1500)).toFixed(0)}%,${(100 - 30 * cl((speed - 500) / 3000) + 10 * u2).toFixed(0)}%)`; speedEl.style.textShadow = gl > 0.02 ? `0 2px 6px #000a, 0 0 ${(6 + 14 * gl).toFixed(0)}px hsl(${deg.toFixed(0)},100%,60%)` : ''; } speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>'; } // the speed readout updates about 11 times a second, not every frame (each DOM write costs a style pass on iOS)
