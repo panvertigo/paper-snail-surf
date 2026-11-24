@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #180 2026-11-24 01:54</div>
+<div id="build">build #181 2026-11-24 01:59</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1245,7 +1245,7 @@ function buildMains() {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3)); g.setAttribute('size', new THREE.BufferAttribute(size, 1)); g.setAttribute('ph', new THREE.BufferAttribute(ph, 1)); g.setAttribute('col', new THREE.BufferAttribute(col, 3));
     const st = new THREE.Points(g, mains.starMat); st.frustumCulled = false; st.renderOrder = -27; st.userData.tag = 'stars'; addObj(st); mains.pts.push({ geo: g, n: N, base, off, ax }); }
   // 6) constellations: six little shell spirals of stars joined by faint lines
-  { const NS = 6, NP = 9, base = [], off = [], ax = [], idx = [];
+  { const NS = 8, NP = 9, base = [], off = [], ax = [], idx = [];
     for (let s = 0; s < NS; s++) { const P = pt(), side = (rn() < 0.5 ? -1 : 1) * rA(30000, 90000), up = rA(5000, 60000), sc = rA(0.8, 1.6), a0 = rn() * 6.283;
       for (let i = 0; i < NP; i++) { const ph = a0 + i * 0.85, r2 = (1500 + i * 800) * sc; base.push(P.p.x, P.p.y, P.p.z); off.push(P.rt[0] * (side + Math.cos(ph) * r2), up + Math.sin(ph) * r2, P.rt[2] * (side + Math.cos(ph) * r2)); ax.push(P.ax.x, P.ax.y, P.ax.z); if (i) idx.push(s * NP + i - 1, s * NP + i); } }
     const n = NS * NP, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3)); g.setIndex(idx);
@@ -1265,7 +1265,7 @@ function buildMains() {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3)); g.setIndex(idx);
     const m = new THREE.Mesh(g, mains.aurMat); m.frustumCulled = false; m.renderOrder = -23; m.userData.tag = 'aurora'; addObj(m); mains.pts.push({ geo: g, n: nv, base: new Float32Array(base), off: new Float32Array(off), ax: new Float32Array(ax) }); }
   // 9) far-off paths: faint ghost tracks (a ridge line and two edge lines), each a wandering copy of part of the course, so other routes are always out there; tiny lights travel along them
-  const NP = 11, rungs = [], vb = [], vo = [], va = [], vc = [], idx = [], lines = []; let nv = 0;
+  const NP = 6, rungs = [], vb = [], vo = [], va = [], vc = [], idx = [], lines = []; let nv = 0;
   for (let k = 0; k < NP; k++) {
     const major = k < 3, f0 = major ? rn() * 0.2 : rn() * 0.45, f1 = Math.min(1, f0 + (major ? 0.5 + rn() * 0.3 : 0.3 + rn() * 0.4)), i0 = Math.floor(f0 * smp.length), i1 = Math.floor(f1 * smp.length);
     const S0 = (k % 2 ? -1 : 1) * (major ? rA(22000, 48000) : rA(32000, 150000)), U0 = major ? rA(-26000, 22000) : rA(-60000, 70000), As = rA(6000, 22000), Au = rA(3000, 14000), lam = rA(25, 70), ph = rn() * 6.283, ph2 = rn() * 6.283, w = major ? 1300 : rA(1500, 3000), eS = {};
@@ -1293,11 +1293,11 @@ function buildMains() {
   // 12) backdrop machines at infinity: huge images that ride with the camera (no parallax, they cannot be approached), fixed in direction (the course heading), rolling with the scenery. The skeletal one is vast, faint and counter-turning behind; the orbital ring is the hero, off to one side, and fades in through the middle.
   { const r0 = ramps[0], r1 = ramps[ramps.length - 1], aa = new THREE.Vector3(r1.ex - r0.sx, r1.ey - r0.oy, r1.ez - r0.sz).normalize(), bb = new THREE.Vector3().crossVectors(aa, new THREE.Vector3(0, 1, 0)).normalize(), q0 = new THREE.Quaternion().setFromUnitVectors(_mz, aa.clone().negate()), ld = new THREE.TextureLoader();
     const mk = (file, size, haze, alpha, ang, ph, sp, D, ro) => { const tx = ld.load('img/' + file);
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.ShaderMaterial({ uniforms: { map: { value: tx }, op: { value: 0 }, haze: { value: haze }, hz: { value: new THREE.Color(0xd6b0dc) }, gain: { value: 1.25 } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.ShaderMaterial({ uniforms: { map: { value: tx }, op: { value: 0 }, haze: { value: haze }, hz: { value: new THREE.Color(0xd6b0dc) }, gain: { value: 1.25 } }, transparent: false, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, side: THREE.DoubleSide, /* in the opaque list, drawn right after the sky and before everything else, so it sits behind all scenery wherever it is placed */
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: 'uniform sampler2D map; uniform float op, haze, gain; uniform vec3 hz; varying vec2 vUv; void main(){ vec4 t = texture2D(map, vUv); vec3 c = t.rgb; float m = max(c.r, max(c.g, c.b)); float a = smoothstep(0.035, 0.2, m) * t.a; c = mix(c * gain, hz, haze); gl_FragColor = vec4(c, a * op); }' }));
       m.frustumCulled = false; m.renderOrder = ro; m.userData.tag = 'backdrop'; addObj(m); return { m, ang, ph, sp, D, rk: 0 }; };
-    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.5, 0.66, 0.012, 3.6, -0.022, 40000, -31), mk('bd_ring.png', 58000, 0.3, 0.88, 0.035, 0.9, 0.03, 36000, -30)] }; }
+    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.5, 0.66, 0.012, 3.6, -0.022, 28500, -29), mk('bd_ring.png', 58000, 0.3, 0.88, 0.035, 0.9, 0.03, 25800, -28)] }; }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }
@@ -2013,7 +2013,7 @@ function setPuff(q, i, p, size, seed, al) {
   for (let k = 0; k < 4; k++) { q.pos[o + k * 3] = p.x + _cr.x * hw * c[k][0] + _cu.x * hh * c[k][1]; q.pos[o + k * 3 + 1] = p.y + _cr.y * hw * c[k][0] + _cu.y * hh * c[k][1]; q.pos[o + k * 3 + 2] = p.z + _cr.z * hw * c[k][0] + _cu.z * hh * c[k][1];
     const cc = i * 16 + k * 4; q.col[cc] = seed; q.col[cc + 1] = 1; q.col[cc + 2] = 1; q.col[cc + 3] = al; }
 }
-const NST = 16, NCL = 64, stPts = [], clPts = [];
+const NST = 40, NCL = 64, stPts = [], clPts = [];
 const wind = softQuads(NST, RIBBON_FS, THREE.AdditiveBlending, 3400);
 const clouds = softQuads(NCL, PAPER ? COTTON_FS : CLOUD_FS, THREE.NormalBlending, 9500);
 const sideV = new THREE.Vector3();
@@ -2168,12 +2168,13 @@ function updateStreaks(speed) {
   wind.mesh.visible = fl > 0.01; // subtle wind streaks alongside the snail's contrails
   if (wind.mesh.visible) {
     const len = Math.min(450, speed * 0.1), hw0 = 2.5 + speed * 0.0022, tint = Math.max(0, Math.min(1, (speed - 1200) / 1800));
-    for (let i = 0; i < NST; i++) {
+    const nUse = stageMeta.scenery === 'mains' ? NST : 16; if (nUse > 16) wind.geo.setDrawRange(0, nUse * 6);
+    for (let i = 0; i < nUse; i++) {
       let p = stPts[i];
       if (!p || behind(p) || (p.x - rp.x) ** 2 + (p.y - rp.y) ** 2 + (p.z - rp.z) ** 2 > 3600 * 3600) p = stPts[i] = spawnAround(vTmp, 380, 1100, 300, 2800);
       qTc.set(p.x - camera.position.x, p.y - camera.position.y, p.z - camera.position.z).normalize();
       const side = Math.sqrt(Math.max(0, 1 - Math.pow(qTc.dot(vTmp), 2))), vis = Math.max(0, Math.min(1, (side - 0.2) / 0.35)); // end-on ribbons foreshorten into spikes: fade them out
-      setQuad(wind, i, p, vTmp, len * (0.55 + 0.9 * p.s1), hw0 * (0.7 + 0.6 * p.s2), 0.6, 0.85 - 0.25 * tint, 0.95 - 0.05 * tint, 1, 0.1 * fl * vis);
+      setQuad(wind, i, p, vTmp, len * (0.55 + 0.9 * p.s1), hw0 * (0.7 + 0.6 * p.s2), 0.6, 0.85 - 0.25 * tint, 0.95 - 0.05 * tint, 1, (nUse > 16 ? 0.2 : 0.1) * fl * vis);
     }
     wind.geo.attributes.position.needsUpdate = wind.geo.attributes.col.needsUpdate = true;
   }
