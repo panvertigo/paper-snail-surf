@@ -17,3 +17,6 @@ A faint surface sheen where the light touches the water, ring ripples where the 
 
 ## Update
 Water surface added (additive only: thin glints, soft sheen, glancing-angle fresnel, pearl tint, strongest near the snail, faded by the light range; a dimmer copy on the ceiling plane). Music set to Salt for Mushroom Field (89 BPM, quiet start, drop at 45 s, already has a grid and manifest). Inevitable Worm was measured: 117 BPM and flat at -9 dB for the whole song (3 dB range), no arc, no manifest; Salt has a 12 dB arc and fits a stage that lights up ahead of you.
+
+## Style reset (2026-11-23, build 158)
+The first look (strong rainbow wash, dull grey, spotlights and glints) read as cheap. Direction now: sumi-e restraint. Flat two-tone cel shading in mother-of-pearl white (pale cool tone in shadow, crisp step), a faint wash toward the ridge, a pearl hairline trim on the ridge and base edges, only a few percent of rainbow (more at glancing angles). The light dissolves into the dark through an uneven drifting mist (inkLit), never a cutoff. Water: pale mist patches and a quiet reflection (0.38 bottom, 0.14 top); no glints. The speed look in the Ink uses a pearl rim and almost no chromatic fringe.
