@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #161 2026-11-23 23:12</div>
+<div id="build">build #162 2026-11-23 23:15</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -988,7 +988,8 @@ function updateMains(dt) {
       for (let j = 0; j < NL; j++) { // each globe swells and fades on its own slow cycle
         const q = i * NL + j, w = 0.5 + 0.5 * Math.sin(A.lf[q] * orT * 6.2832 + A.lph[q]); lk[q] = 0.06 + 0.94 * w * w;
         _mv.set(c.lx[j], c.ly[j], 0).applyQuaternion(_qq); la[q * 3] = c.pos.x + _mv.x; la[q * 3 + 1] = c.pos.y + _mv.y; la[q * 3 + 2] = c.pos.z + _mv.z;
-        { const kk = lk[q], o3 = q * 3, L = A.lcol; A.hs[o3] = L[o3] * kk * 0.5; A.hs[o3 + 1] = L[o3 + 1] * kk * 0.5; A.hs[o3 + 2] = L[o3 + 2] * kk * 0.5; A.hl[o3] = L[o3] * kk * 0.2; A.hl[o3 + 1] = L[o3 + 1] * kk * 0.2; A.hl[o3 + 2] = L[o3 + 2] * kk * 0.2; }
+        { const kk = lk[q], o3 = q * 3, L = A.lcol, big = j % 3 === 0 ? 0.1 : 0; // halos share one warm tone (60 percent) so overlapping glows merge into a lit haze instead of coloured blotches; the big glow is only on every third light
+          const wr = L[o3] * 0.4 + 0.6, wg = L[o3 + 1] * 0.4 + 0.51, wb = L[o3 + 2] * 0.4 + 0.39; A.hs[o3] = wr * kk * 0.36; A.hs[o3 + 1] = wg * kk * 0.36; A.hs[o3 + 2] = wb * kk * 0.36; A.hl[o3] = wr * kk * big; A.hl[o3 + 1] = wg * kk * big; A.hl[o3 + 2] = wb * kk * big; }
       }
     }
     A.im.instanceMatrix.needsUpdate = true; A.rail.instanceMatrix.needsUpdate = true; A.lampGeo.attributes.position.needsUpdate = A.lampGeo.attributes.k.needsUpdate = true;
