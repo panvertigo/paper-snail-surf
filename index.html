@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #169 2026-11-23 23:44</div>
+<div id="build">build #170 2026-11-24 00:47</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1269,8 +1269,8 @@ function buildMains() {
     mains.trav = { geo: tg, list, gi: mains.pts.length - 1 }; }
   // 11) mist banks: big faint puffs of pale haze scattered along the course itself, so you cut through a bank now and then
   { const NB = 150; for (let i = 0; i < NB; i++) { const P = smp[Math.min(smp.length - 1, Math.floor((i + rn()) / NB * smp.length))], sz = rA(14000, 34000);
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xf2d6e4 : 0xdcd0f2, transparent: true, opacity: rA(0.16, 0.3), depthWrite: false, fog: true }));
-      sp.scale.set(sz, sz * 0.7, 1); sp.renderOrder = 4; sp.userData.tag = 'mist'; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(300, 12000), rA(-6000, 7000)), ax: P.sax }); } }
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xf2d6e4 : 0xdcd0f2, transparent: true, opacity: rA(0.1, 0.2), depthWrite: false, fog: true }));
+      sp.scale.set(sz, sz * 0.7, 1); sp.renderOrder = -26; sp.userData.tag = 'mist'; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(16000, 60000), rA(-30000, 30000)), ax: P.sax }); } }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }
@@ -1395,7 +1395,7 @@ function updateSky(dt, now) {
   if (FUSION && GRAIN) document.body.insertBefore(fx, renderer.domElement.nextSibling);
 }
 let _gateTex = null, _glowTex = null;
-function glowTexA() { if (!_glowTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); _glowTex = new THREE.CanvasTexture(c); } return _glowTex; }
+function glowTexA() { if (!_glowTex) { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), g = x.createRadialGradient(128, 128, 0, 128, 128, 128); for (let i = 0; i <= 10; i++) { const u = i / 10; g.addColorStop(u, 'rgba(255,255,255,' + Math.pow(1 - u, 2.2).toFixed(4) + ')'); } x.fillStyle = g; x.fillRect(0, 0, 256, 256); _glowTex = new THREE.CanvasTexture(c); } return _glowTex; }
 const padFx = []; // per-frame animations of the finish light and the cannon whirl
 let _shaftTex = null;
 function shaftTex() { if (!_shaftTex) { const c = document.createElement('canvas'); c.width = 64; c.height = 128; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 64, 0); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 128); x.globalCompositeOperation = 'destination-in'; const v = x.createLinearGradient(0, 0, 0, 128); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.35, 'rgba(0,0,0,1)'); v.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = v; x.fillRect(0, 0, 64, 128); _shaftTex = new THREE.CanvasTexture(c); } return _shaftTex; }
