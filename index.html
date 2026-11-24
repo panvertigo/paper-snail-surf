@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #153 2026-11-23 22:34</div>
+<div id="build">build #154 2026-11-23 22:41</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -964,6 +964,9 @@ let beadMats = [];
 function mBead(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: { value: size }, sc: { value: 400 } }, transparent: true, depthWrite: false,
   vertexShader: 'attribute float k; uniform float size, sc; varying float vk, vd; void main(){ vk = k; vec4 mv = modelViewMatrix * vec4(position, 1.0); vd = -mv.z; gl_PointSize = clamp(size * (0.7 + 0.5 * k) * sc / max(1.0, -mv.z), 1.5, 36.0); gl_Position = projectionMatrix * mv; }',
   fragmentShader: 'varying float vk, vd; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float core = 1.0 - smoothstep(0.32, 0.5, d); float halo = (1.0 - smoothstep(0.0, 1.0, d)) * 0.16; vec3 c = mix(vec3(1.0, 0.62, 0.46), vec3(1.0, 0.9, 0.68), vk); float a = clamp(core + halo * vk, 0.0, 1.0) * (0.55 + 0.45 * vk) * (1.0 - smoothstep(30000.0, 80000.0, vd)); gl_FragColor = vec4(c, a); }' }); beadMats.push(m); return m; }
+function mLight(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: { value: size }, sc: { value: 400 } }, transparent: true, depthWrite: false,
+  vertexShader: 'attribute float k; attribute vec3 col; uniform float size, sc; varying float vk, vd; varying vec3 vc; void main(){ vk = k; vc = col; vec4 mv = modelViewMatrix * vec4(position, 1.0); vd = -mv.z; gl_PointSize = clamp(size * sc / max(1.0, -mv.z), 2.0, 9.0); gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ vec2 c = gl_PointCoord - 0.5; float d = abs(c.x) + abs(c.y); float a = (1.0 - smoothstep(0.4, 0.5, d)) * vk * (1.0 - smoothstep(30000.0, 90000.0, vd)); gl_FragColor = vec4(vc, a); }' }); beadMats.push(m); return m; }
 function beadGeo(pos, k) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('k', new THREE.BufferAttribute(k, 1)); return g; }
 let starMat = null;
 function mStarMat() { return starMat || (starMat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
@@ -980,7 +983,7 @@ function updateMains(dt) {
       const c = A.recs[i]; _qa.setFromAxisAngle(c.f, th); _qq.copy(_qa).multiply(c.q); _mm.compose(c.pos, _qq, _m1); A.im.setMatrixAt(i, _mm); A.rail.setMatrixAt(i, _mm);
       for (let j = 0; j < NL; j++) {
         _mv.set(c.lx[j], c.ly[j], 0).applyQuaternion(_qq); const o = (i * NL + j) * 3; la[o] = c.pos.x + _mv.x; la[o + 1] = c.pos.y + _mv.y; la[o + 2] = c.pos.z + _mv.z;
-        const w = 0.5 + 0.5 * Math.sin(i * 0.6 + j * 0.28 - orT * 2.17); lc[i * NL + j] = 0.25 + 0.75 * w * w * w; // a pulse of light runs along the arches once per phrase (2.9 s, the arpeggio groups)
+        const q = i * NL + j, w = 0.5 + 0.5 * Math.sin(A.lf[q] * orT * 6.2832 + A.lph[q]); lc[q] = 0.05 + 0.95 * w * w; // each light swells and fades on its own slow cycle (see lf)
       }
     }
     A.im.instanceMatrix.needsUpdate = true; A.rail.instanceMatrix.needsUpdate = true; A.lampGeo.attributes.position.needsUpdate = A.lampGeo.attributes.k.needsUpdate = true;
@@ -1024,12 +1027,12 @@ function buildMains() {
   const smp = []; for (const r of ramps) { if (r.tube) continue; for (let u = 0; u < r.L; u += 1400) { const c = ridgeAt(r, u); smp.push({ p: new THREE.Vector3(c[0], r.oy + zOf(r, u), c[1]), rt: rightOf(r.h0 + (r.k || 0) * u), ax: axisAt(r, u) }); } }
   for (let i = 0, W = 7; i < smp.length; i++) { const v = new THREE.Vector3(); for (let j = Math.max(0, i - W); j <= Math.min(smp.length - 1, i + W); j++) v.add(smp[j].ax); smp[i].sax = v.normalize(); } // smoothed axis (about 20000 units of the course)
   // 1) the arches: half rings (a brass rail inside a teal one), radius 22 W (about 28000), every 14000 along each piece, lamps strung along each arch like beads
-  const zAx = new THREE.Vector3(0, 0, 1), recs = [], R = ramps[0].W * 22, NL = 12;
+  const zAx = new THREE.Vector3(0, 0, 1), recs = [], R = ramps[0].W * 22, NL = 14, PHI2 = 0.6180339887;
   for (const r of ramps) {
     if (r.tube) continue;
     for (let u = 4000; u < r.L; u += 14000) {
       const c = ridgeAt(r, u), f = axisAt(r, u), q = new THREE.Quaternion().setFromUnitVectors(zAx, f), lx = [], ly = [];
-      for (let i = 1; i <= NL; i++) { const a = i / (NL + 1) * Math.PI, rr = R - 900; lx.push(Math.cos(a) * rr); ly.push(Math.sin(a) * rr); }
+      const ri = recs.length; for (let i = 1; i <= NL; i++) { const t = (i * PHI2 + ri * 0.3819660113) % 1, a = (0.04 + 0.92 * t) * Math.PI, rr = R - 900; lx.push(Math.cos(a) * rr); ly.push(Math.sin(a) * rr); }
       recs.push({ pos: new THREE.Vector3(c[0], r.oy + zOf(r, u) - r.W * 0.4, c[1]), q, f, lx, ly });
     }
   }
@@ -1037,9 +1040,20 @@ function buildMains() {
     const im = new THREE.InstancedMesh(new THREE.TorusGeometry(R, 380, 6, 72, Math.PI), new THREE.MeshBasicMaterial({ color: 0x6fb8a8, fog: true }), recs.length);
     const rail = new THREE.InstancedMesh(new THREE.TorusGeometry(R - 900, 150, 5, 72, Math.PI), new THREE.MeshBasicMaterial({ color: 0xe0b060, fog: true }), recs.length);
     for (const m of [im, rail]) { m.frustumCulled = false; m.renderOrder = -20; addObj(m); }
-    const lg = beadGeo(new Float32Array(recs.length * NL * 3), new Float32Array(recs.length * NL).fill(0.5));
-    const lp = new THREE.Points(lg, mBead(520));
-    mains.arches = { im, rail, recs, lampGeo: lg, NL };
+    const lg = beadGeo(new Float32Array(recs.length * NL * 3), new Float32Array(recs.length * NL).fill(0.8)), lcol = new Float32Array(recs.length * NL * 3);
+    // colour: a warm palette (pale gold, gold, peach, rose-gold) drifting slowly along the course with a little jitter per light, and one light in nine a cool pearl-blue, so the whole reads as a woven field of light
+    const PAL = [[1, 0.93, 0.74], [1, 0.82, 0.5], [1, 0.72, 0.52], [1, 0.62, 0.58]];
+    for (let i = 0; i < recs.length; i++) for (let j = 0; j < NL; j++) {
+      const o = (i * NL + j) * 3, drift = 0.5 + 0.5 * Math.sin(i * 0.37 + j * 0.9), f = drift * (PAL.length - 1) + (rn() - 0.5) * 0.7, k0 = Math.max(0, Math.min(PAL.length - 1, f)), a0 = Math.floor(k0), a1 = Math.min(PAL.length - 1, a0 + 1), m = k0 - a0;
+      const cool = (i * NL + j) % 9 === 4, cc = cool ? [0.74, 0.86, 1] : [PAL[a0][0] + (PAL[a1][0] - PAL[a0][0]) * m, PAL[a0][1] + (PAL[a1][1] - PAL[a0][1]) * m, PAL[a0][2] + (PAL[a1][2] - PAL[a0][2]) * m];
+      lcol[o] = cc[0]; lcol[o + 1] = cc[1]; lcol[o + 2] = cc[2];
+    }
+    lg.setAttribute('col', new THREE.BufferAttribute(lcol, 3));
+    // cycle rates: golden-ratio powers (periods about 5, 8, 13, 21 and 34 s), dealt out in an uneven order with golden-ratio phases, so the field of light never repeats or syncs
+    const FQ = [1 / 5, 1 / 8.09, 1 / 13.09, 1 / 21.18, 1 / 34.27], lf = new Float32Array(recs.length * NL), lph = new Float32Array(recs.length * NL);
+    for (let q = 0; q < lf.length; q++) { lf[q] = FQ[(q * 7 + Math.floor(q / NL)) % 5]; lph[q] = ((q * PHI2) % 1) * 6.2832; }
+    const lp = new THREE.Points(lg, mLight(230)); lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp);
+    mains.arches = { im, rail, recs, lampGeo: lg, NL, lf, lph };
   }
   // 2) the dive: three brass gates in a row across the flight, so the fall is a tunnel of rings
   { const di = (stageMeta.pieces || []).findIndex(p => p.label && /dive/i.test(p.label)), a = ramps[di - 1], b = ramps[di];
