@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #148 2026-11-23 20:58</div>
+<div id="build">build #149 2026-11-23 21:00</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -956,16 +956,16 @@ function updateMains(dt) {
     A.im.instanceMatrix.needsUpdate = true; A.lampGeo.attributes.position.needsUpdate = true;
   }
   for (const c of mains.rolled) { _mv.copy(c.off).applyAxisAngle(c.ax, th).add(c.p); c.obj.position.copy(_mv); }
-  const S = mains.stars, arr = S.geo.attributes.position.array;
+  for (const S of mains.pts) { const arr = S.geo.attributes.position.array;
   for (let i = 0, n = S.n; i < n; i++) {
     const k = i * 3, ox = S.off[k], oy = S.off[k + 1], oz = S.off[k + 2], ax = S.ax[k], ay = S.ax[k + 1], az = S.ax[k + 2], d = (ax * ox + ay * oy + az * oz) * (1 - co);
     arr[k] = S.base[k] + ox * co + (ay * oz - az * oy) * si + ax * d; arr[k + 1] = S.base[k + 1] + oy * co + (az * ox - ax * oz) * si + ay * d; arr[k + 2] = S.base[k + 2] + oz * co + (ax * oy - ay * ox) * si + az * d;
   }
-  S.geo.attributes.position.needsUpdate = true;
+  S.geo.attributes.position.needsUpdate = true; }
 }
 function buildMains() {
   // The Transit: not a closed pipe but an impossibly large one. Giant half-arches of the Works' brass pipe stand over the course (the ride is a speck inside a cathedral), with clouds, drifting orrery rings and stars all around. All of it rolls about the course (updateMains).
-  orrery = []; mains = { arches: null, rolled: [], stars: null };
+  orrery = []; mains = { arches: null, rolled: [], pts: [] };
   let sd = 5521; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, rA = (a, b) => a + rn() * (b - a);
   const axisAt = (r, u) => { const d = dirOf(r.h0 + (r.k || 0) * u); return new THREE.Vector3(d[0], zD(r, u), d[2]).normalize(); };
   const pt = () => { const r = ramps[Math.floor(rn() * ramps.length)], u = rn() * r.L, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u); return { r, u, p: new THREE.Vector3(c[0], r.oy + zOf(r, u), c[1]), rt, ax: axisAt(r, u) }; };
@@ -1009,7 +1009,26 @@ function buildMains() {
   for (let i = 0; i < N; i++) { const P = pt(), o = offAt(P, (rn() < 0.5 ? -1 : 1) * rA(30000, 150000), rA(-50000, 90000)); base.set([P.p.x, P.p.y, P.p.z], i * 3); off.set([o.x, o.y, o.z], i * 3); ax.set([P.ax.x, P.ax.y, P.ax.z], i * 3); }
   const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
   const st = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xfff0d8, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.85, depthWrite: false, fog: false })); st.frustumCulled = false; st.renderOrder = -27; addObj(st);
-  mains.stars = { geo: sg, n: N, base, off, ax }; updateMains(0);
+  mains.pts.push({ geo: sg, n: N, base, off, ax });
+  // 5) far-off paths: faint ghost tracks (a ridge line and two edge lines) running alongside the real course at a great distance, each a wandering copy of part of the course, so other ramps and routes are always out there. They roll with everything else.
+  const smp = []; for (const r of ramps) { if (r.tube) continue; for (let u = 0; u < r.L; u += 1400) { const c = ridgeAt(r, u); smp.push({ p: new THREE.Vector3(c[0], r.oy + zOf(r, u), c[1]), rt: rightOf(r.h0 + (r.k || 0) * u), ax: axisAt(r, u) }); } }
+  const NP = 7, vb = [], vo = [], va = [], vc = [], idx = []; let nv = 0;
+  for (let k = 0; k < NP; k++) {
+    const f0 = rn() * 0.45, f1 = Math.min(1, f0 + 0.3 + rn() * 0.4), i0 = Math.floor(f0 * smp.length), i1 = Math.floor(f1 * smp.length);
+    const S0 = (k % 2 ? -1 : 1) * rA(32000, 75000), U0 = rA(-30000, 35000), As = rA(6000, 22000), Au = rA(3000, 14000), lam = rA(25, 70), ph = rn() * 6.283, ph2 = rn() * 6.283, w = rA(1500, 3000);
+    for (const e of [-1, 0, 1]) {
+      let prev = -1;
+      for (let i = i0; i < i1; i++) {
+        const s = smp[i], t = (i - i0) / Math.max(1, i1 - i0), fade = Math.min(1, t * 6, (1 - t) * 6) * (e ? 0.45 : 1), side = S0 + As * Math.sin(i / lam + ph) + e * w, up = U0 + Au * Math.sin(i / (lam * 1.7) + ph2);
+        vb.push(s.p.x, s.p.y, s.p.z); vo.push(s.rt[0] * side, up, s.rt[2] * side); va.push(s.ax.x, s.ax.y, s.ax.z); vc.push(0.75 * fade, 0.7 * fade, 0.95 * fade);
+        if (prev >= 0) idx.push(prev, nv); prev = nv; nv++;
+      }
+    }
+  }
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vc), 3)); pg.setIndex(idx);
+  const pl = new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); pl.frustumCulled = false; pl.renderOrder = -22; addObj(pl);
+  mains.pts.push({ geo: pg, n: nv, base: new Float32Array(vb), off: new Float32Array(vo), ax: new Float32Array(va) });
+  updateMains(0);
 }
 function buildTowns() {
   mains = null; orrery = [];
