@@ -13,4 +13,7 @@ Inky black water. Menu: Ink / black water. Course: levels/ink.json from tools/ge
 How far ahead the light reaches (the speed term), whether the ceiling reflection helps or clutters, whether the plane following the snail reads as water or as a ghost. No water surface is drawn yet, only the reflections.
 
 ## Ideas not built
-A faint surface sheen where the light touches the water, ring ripples where the snail passes, a wake glow from the contrails, motes drifting in the dark, left and right mirror walls (a corridor of water), a song for it (it borrows 'bowl').
+A faint surface sheen where the light touches the water, ring ripples where the snail passes, a wake glow from the contrails, motes drifting in the dark, left and right mirror walls (a corridor of water), a song for it (it uses 'salt').
+
+## Update
+Water surface added (additive only: thin glints, soft sheen, glancing-angle fresnel, pearl tint, strongest near the snail, faded by the light range; a dimmer copy on the ceiling plane). Music set to Salt for Mushroom Field (89 BPM, quiet start, drop at 45 s, already has a grid and manifest). Inevitable Worm was measured: 117 BPM and flat at -9 dB for the whole song (3 dB range), no arc, no manifest; Salt has a 12 dB arc and fits a stage that lights up ahead of you.

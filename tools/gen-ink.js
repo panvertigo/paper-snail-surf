@@ -17,7 +17,7 @@ const P = [
   GT(40, 45000, 0.05, 0.03, { hue: 0.74, label: '4 Surface' }), G(25000, 0.03, 0.03), GT(40, 45000, 0.03, 0.03), G(25000, 0.03, 0.03),
 ];
 const stage = {
-  name: 'The Ink', author: 'Paper Snail Surf', scenery: 'ink', theme0: 0, music: 'bowl', pull: 0.3, fall: 0,
+  name: 'The Ink', author: 'Paper Snail Surf', scenery: 'ink', theme0: 0, music: 'salt', pull: 0.3, fall: 0,
   palette: [
     { top: 0x010208, mid: 0x02040b, bot: 0x03050e, gnd: 0x010208 },
     { top: 0x020309, mid: 0x04060f, bot: 0x050813, gnd: 0x020309 },

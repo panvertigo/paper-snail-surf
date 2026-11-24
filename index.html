@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #155 2026-11-23 22:51</div>
+<div id="build">build #156 2026-11-23 22:54</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1018,7 +1018,8 @@ function updateMains(dt) {
   { const p = dayP; mains.aurMat.opacity = 0.5 * ss01(cl01((p - 0.35) / 0.25)) * (1 - ss01(cl01((p - 0.85) / 0.15))); }
 }
 // ---------- the Ink (scenery 'ink'): inky black water. The ramp is a pearl that lights only the stretch of course near you (the light range grows with speed), and a dim reflection of it hangs in the water under you and in a dark ceiling over you. Prototype. ----------
-const inkU = { time: { value: 0 }, wyB: { value: 0 }, wyT: { value: 0 }, near: { value: 4000 }, far: { value: 16000 } };
+const inkU = { time: { value: 0 }, wyB: { value: 0 }, wyT: { value: 0 }, near: { value: 4000 }, far: { value: 16000 }, sn: { value: new THREE.Vector2() } };
+let inkSurf = [];
 function inkRamps(g) {
   const side = THREE.DoubleSide;
   addObj(new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: { near: inkU.near, far: inkU.far, time: inkU.time }, side,
@@ -1030,11 +1031,29 @@ function inkRamps(g) {
       fragmentShader: 'uniform float near, far, time, wy, gain, dir; varying vec3 vP; varying float vH, vDepth; void main(){ if ((vH - wy) * dir < 0.0) discard; float d = length(cameraPosition - vP), rip = 0.7 + 0.3 * sin(vP.z * 0.0021 + vP.x * 0.0015 + time * 1.4 + vDepth * 0.0032); gl_FragColor = vec4(vec3(0.55, 0.76, 0.95) * gain * rip * exp(-vDepth / 7000.0) * (1.0 - smoothstep(near, far, d)), 1.0); }' }));
     rm.frustumCulled = false; rm.renderOrder = 1; addObj(rm);
   }
+  // the water surface: nothing but light. Thin crisp glints and a soft broad sheen drift over it, strongest at glancing angles and close to the snail, tinted with a slow pearl shift. It only ever shows where the ramp's light reaches.
+  inkSurf = [];
+  for (const top of [false, true]) {
+    const m = new THREE.Mesh(new THREE.CircleGeometry(70000, 56), new THREE.ShaderMaterial({ uniforms: { far: inkU.far, time: inkU.time, sn: inkU.sn, gain: { value: top ? 0.35 : 1.0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: 'varying vec3 vP; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vP = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+      fragmentShader: `uniform float far, time, gain; uniform vec2 sn; varying vec3 vP;
+        void main(){
+          vec3 v = normalize(cameraPosition - vP); float fres = 0.22 + 0.78 * pow(1.0 - abs(v.y), 2.0);
+          float dxz = length(vP.xz - sn); float lit = 1.0 - smoothstep(0.0, far * 0.85, dxz); lit *= lit;
+          float w1 = sin(vP.x * 0.0031 + sin(vP.z * 0.0011 + time * 0.4) * 1.7 + time * 0.25), w2 = sin(vP.z * 0.0023 - sin(vP.x * 0.0009 - time * 0.3) * 1.3 - time * 0.2);
+          float glint = smoothstep(0.93, 1.0, w1) * 0.9 + smoothstep(0.95, 1.0, w2) * 0.6;
+          float sheen = (0.5 + 0.5 * sin(vP.x * 0.0007 + vP.z * 0.0006 + time * 0.15)) * 0.1;
+          vec3 tint = mix(vec3(0.72, 0.86, 1.0), 0.5 + 0.5 * cos(6.2832 * (vec3(0.55, 0.62, 0.7) + vP.x * 0.00003 + time * 0.02)), 0.35);
+          gl_FragColor = vec4(tint * (glint + sheen) * fres * lit * gain * 0.55, 1.0);
+        }` }));
+    m.frustumCulled = false; m.renderOrder = 0; addObj(m); inkSurf.push({ m, top });
+  }
 }
 function updateInk() {
   if (stageMeta.scenery !== 'ink') return;
   const sp = Math.hypot(vel.x, vel.y, vel.z); inkU.time.value = performance.now() / 1000; inkU.wyB.value = snail.position.y - 3000; inkU.wyT.value = snail.position.y + 7000;
   inkU.far.value = Math.min(60000, 16000 + 3.2 * sp); inkU.near.value = inkU.far.value * 0.22; // you see a little further the faster you go
+  inkU.sn.value.set(snail.position.x, snail.position.z); for (const o of inkSurf) o.m.position.set(snail.position.x, o.top ? inkU.wyT.value : inkU.wyB.value, snail.position.z);
 }
 function buildMains() {
   // The Transit: not a closed pipe but an impossibly large one. Giant brass half-arches over the course with a light running along them, three gates at the dive, clouds, orrery rings, constellations, drifting paper tags, aurora, far-off ghost paths with travellers, and a sun, a ringed planet and a windmill in the sky. All of it rolls about the course (updateMains).
