@@ -23,3 +23,11 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Phone check of build #182: speckle gone? perf (`?perf=1`)? wheels read as turning against each other? (math says opposite; Jeffry asked for it, see roadmap).
 - Retime the Intro to the song (103 s timeline, dive at t=51; a 74 s bot is too fast for the full track).
 - Re-record goldens, run determinism.html on the iPhone.
+
+## Additions 2026-11-24 (builds 184 to 187)
+- Aurora is fixed in space (not rolled with the course); updateMains only sways it (travelling wave, tops flutter more).
+- Third backdrop: small bronze-tinted Violet Orrery (bd_orrery.jpg), fixed direction right of the start heading, heavy haze, fades out by dayP 0.24 so it is left behind.
+- Sky whale: procedural silhouette (maskTex, random per load: body, fluke, fin, optional dorsal and calf), sweeps across the sky between dayP d0 and d1 (about ramps 1 to 4), follows the course heading at the player's position. Crude shape; a ChatGPT silhouette pack would be the upgrade (random pick).
+- Signage: stencilled LEYLINE 07 (left face) and HDG 213 (right face) decals on ramp 0; two go-sign gates (ramp 1 at 42 percent, ramp 3 just before the dive) that turn green when passed; Central Armature Works ring (stencilled name along the circle, lit windows) rolled with the scenery. ?hide= tags: stencil, gosign, works.
+- Ghost tracks cut from 6 to 2 (the white lattice curls).
+- Input fix: slow swipes now set the air strafe (sub-pixel dx used to turn the snail without strafing). tools/air-swerve.js tests the air physics: with a finger down the path always bends toward the nose.
