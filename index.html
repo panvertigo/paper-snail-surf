@@ -51,12 +51,12 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #154 2026-11-23 22:41</div>
+<div id="build">build #155 2026-11-23 22:51</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-f="intro">Intro<br>the Transit</button><button data-l="5">Grand<br>descent</button></div>
+  <div class="row" id="lvl"><button data-f="intro">Intro<br>the Transit</button><button data-f="ink">Ink<br>black water</button><button data-l="5">Grand<br>descent</button></div>
   <label>Music <span id="musv"></span></label>
   <input id="mus" type="range" min="0" max="100" step="5">
   <label>Sound effects <span id="sfxv"></span></label>
@@ -860,7 +860,7 @@ const mtnLayers = [];
 scene.add(mountains);
 let scenicClouds = []; // painted cloud and floating-island sprites scattered along the course, so they stream past
 function buildClouds() {
-  for (const g of scenicClouds) scene.remove(g); scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park || stageMeta.scenery === 'loft' || stageMeta.scenery === 'mains') return;
+  for (const g of scenicClouds) scene.remove(g); scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park || stageMeta.scenery === 'loft' || stageMeta.scenery === 'mains' || stageMeta.scenery === 'ink') return;
   let sd = 777; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, step = Math.max(1, Math.floor(ramps.length / 14)), kinds = [['cloud1.png', 245 / 512], ['cloud2.png', 231 / 512]];
   const mk = (file, asp, w) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: art(file), fog: false, transparent: true, depthWrite: false })); sp.scale.set(w, w * asp, 1); return sp; };
   let n = 0;
@@ -965,8 +965,8 @@ function mBead(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: { 
   vertexShader: 'attribute float k; uniform float size, sc; varying float vk, vd; void main(){ vk = k; vec4 mv = modelViewMatrix * vec4(position, 1.0); vd = -mv.z; gl_PointSize = clamp(size * (0.7 + 0.5 * k) * sc / max(1.0, -mv.z), 1.5, 36.0); gl_Position = projectionMatrix * mv; }',
   fragmentShader: 'varying float vk, vd; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float core = 1.0 - smoothstep(0.32, 0.5, d); float halo = (1.0 - smoothstep(0.0, 1.0, d)) * 0.16; vec3 c = mix(vec3(1.0, 0.62, 0.46), vec3(1.0, 0.9, 0.68), vk); float a = clamp(core + halo * vk, 0.0, 1.0) * (0.55 + 0.45 * vk) * (1.0 - smoothstep(30000.0, 80000.0, vd)); gl_FragColor = vec4(c, a); }' }); beadMats.push(m); return m; }
 function mLight(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: { value: size }, sc: { value: 400 } }, transparent: true, depthWrite: false,
-  vertexShader: 'attribute float k; attribute vec3 col; uniform float size, sc; varying float vk, vd; varying vec3 vc; void main(){ vk = k; vc = col; vec4 mv = modelViewMatrix * vec4(position, 1.0); vd = -mv.z; gl_PointSize = clamp(size * sc / max(1.0, -mv.z), 2.0, 9.0); gl_Position = projectionMatrix * mv; }',
-  fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ vec2 c = gl_PointCoord - 0.5; float d = abs(c.x) + abs(c.y); float a = (1.0 - smoothstep(0.4, 0.5, d)) * vk * (1.0 - smoothstep(30000.0, 90000.0, vd)); gl_FragColor = vec4(vc, a); }' }); beadMats.push(m); return m; }
+  vertexShader: 'attribute float k; attribute vec3 col; uniform float size, sc; varying float vk, vd; varying vec3 vc; void main(){ vk = k; vc = col; vec4 mv = modelViewMatrix * vec4(position, 1.0); vd = -mv.z; gl_PointSize = clamp(size * sc / max(1.0, -mv.z), 4.0, 12.0); gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ vec2 c = gl_PointCoord - 0.5; float d = abs(c.x) + abs(c.y); float fill = 1.0 - smoothstep(0.27, 0.31, d), edge = 1.0 - smoothstep(0.45, 0.5, d); vec3 col = mix(vec3(0.1, 0.07, 0.3), vc, fill); gl_FragColor = vec4(col, edge * vk * (1.0 - smoothstep(30000.0, 90000.0, vd))); }' }); beadMats.push(m); return m; }
 function beadGeo(pos, k) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('k', new THREE.BufferAttribute(k, 1)); return g; }
 let starMat = null;
 function mStarMat() { return starMat || (starMat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
@@ -1017,6 +1017,25 @@ function updateMains(dt) {
   mains.starMat.uniforms.t.value = orT; { const sc = renderer.domElement.height * 0.5; for (const m of beadMats) m.uniforms.sc.value = sc; }
   { const p = dayP; mains.aurMat.opacity = 0.5 * ss01(cl01((p - 0.35) / 0.25)) * (1 - ss01(cl01((p - 0.85) / 0.15))); }
 }
+// ---------- the Ink (scenery 'ink'): inky black water. The ramp is a pearl that lights only the stretch of course near you (the light range grows with speed), and a dim reflection of it hangs in the water under you and in a dark ceiling over you. Prototype. ----------
+const inkU = { time: { value: 0 }, wyB: { value: 0 }, wyT: { value: 0 }, near: { value: 4000 }, far: { value: 16000 } };
+function inkRamps(g) {
+  const side = THREE.DoubleSide;
+  addObj(new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: { near: inkU.near, far: inkU.far, time: inkU.time }, side,
+    vertexShader: 'varying vec3 vP, vN; void main(){ vP = position; vN = normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform float near, far, time; varying vec3 vP, vN; void main(){ vec3 n = normalize(vN), v = normalize(cameraPosition - vP); float f = pow(1.0 - abs(dot(n, v)), 2.0), d = length(cameraPosition - vP); vec3 irid = 0.5 + 0.5 * cos(6.2832 * (vec3(0.0, 0.33, 0.67) + f * 1.1 + vP.x * 0.00004 + vP.z * 0.00003 + time * 0.02)); vec3 c = mix(vec3(0.86, 0.88, 0.93), irid, 0.16 + 0.4 * f); c *= 0.6 + 0.4 * abs(dot(n, normalize(vec3(0.3, 0.9, 0.3)))); gl_FragColor = vec4(c * (1.0 - smoothstep(near, far, d)), 1.0); }' })));
+  for (const top of [false, true]) {
+    const rm = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: { near: inkU.near, far: inkU.far, time: inkU.time, wy: top ? inkU.wyT : inkU.wyB, gain: { value: top ? 0.3 : 0.65 }, dir: { value: top ? -1.0 : 1.0 } }, side, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: 'uniform float wy; varying vec3 vP; varying float vH, vDepth; void main(){ vec3 p = position; vH = p.y; p.y = 2.0 * wy - p.y; vDepth = abs(p.y - wy); vP = p; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }',
+      fragmentShader: 'uniform float near, far, time, wy, gain, dir; varying vec3 vP; varying float vH, vDepth; void main(){ if ((vH - wy) * dir < 0.0) discard; float d = length(cameraPosition - vP), rip = 0.7 + 0.3 * sin(vP.z * 0.0021 + vP.x * 0.0015 + time * 1.4 + vDepth * 0.0032); gl_FragColor = vec4(vec3(0.55, 0.76, 0.95) * gain * rip * exp(-vDepth / 7000.0) * (1.0 - smoothstep(near, far, d)), 1.0); }' }));
+    rm.frustumCulled = false; rm.renderOrder = 1; addObj(rm);
+  }
+}
+function updateInk() {
+  if (stageMeta.scenery !== 'ink') return;
+  const sp = Math.hypot(vel.x, vel.y, vel.z); inkU.time.value = performance.now() / 1000; inkU.wyB.value = snail.position.y - 3000; inkU.wyT.value = snail.position.y + 7000;
+  inkU.far.value = Math.min(60000, 16000 + 3.2 * sp); inkU.near.value = inkU.far.value * 0.22; // you see a little further the faster you go
+}
 function buildMains() {
   // The Transit: not a closed pipe but an impossibly large one. Giant brass half-arches over the course with a light running along them, three gates at the dive, clouds, orrery rings, constellations, drifting paper tags, aurora, far-off ghost paths with travellers, and a sun, a ringed planet and a windmill in the sky. All of it rolls about the course (updateMains).
   beadMats = []; orrery = []; mains = { arches: null, rolled: [], pts: [], tags: null, trav: null, starMat: mStarMat(), aurMat: null, sky: null };
@@ -1052,7 +1071,7 @@ function buildMains() {
     // cycle rates: golden-ratio powers (periods about 5, 8, 13, 21 and 34 s), dealt out in an uneven order with golden-ratio phases, so the field of light never repeats or syncs
     const FQ = [1 / 5, 1 / 8.09, 1 / 13.09, 1 / 21.18, 1 / 34.27], lf = new Float32Array(recs.length * NL), lph = new Float32Array(recs.length * NL);
     for (let q = 0; q < lf.length; q++) { lf[q] = FQ[(q * 7 + Math.floor(q / NL)) % 5]; lph[q] = ((q * PHI2) % 1) * 6.2832; }
-    const lp = new THREE.Points(lg, mLight(230)); lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp);
+    const lp = new THREE.Points(lg, mLight(430)); lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp);
     mains.arches = { im, rail, recs, lampGeo: lg, NL, lf, lph };
   }
   // 2) the dive: three brass gates in a row across the flight, so the fall is a tunnel of rings
@@ -1097,10 +1116,6 @@ function buildMains() {
     g.setAttribute('k', new THREE.BufferAttribute(new Float32Array(n).fill(0.7), 1));
     const ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })), pp = new THREE.Points(g, mBead(420));
     for (const o of [ln]) { o.frustumCulled = false; o.renderOrder = -26; addObj(o); } mains.pts.push({ geo: g, n, base: new Float32Array(base), off: new Float32Array(off), ax: new Float32Array(ax) }); }
-  // 7) paper tags: small luggage tags tumbling past, from the docket story
-  { const NT = 44, im = new THREE.InstancedMesh(new THREE.PlaneGeometry(900, 560), new THREE.MeshBasicMaterial({ map: mTex('tag'), transparent: true, side: THREE.DoubleSide, fog: true, depthWrite: false }), NT), tr = [];
-    for (let i = 0; i < NT; i++) { const P = pt(), sc = rA(0.8, 1.5); tr.push({ p: P.p, ax: P.ax, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 26000), rA(-9000, 20000)), a1: rA(-0.5, 0.5), a2: rA(-0.5, 0.5), a3: rA(-0.4, 0.4), ph: rn() * 6.283, s: new THREE.Vector3(sc, sc, 1) }); }
-    im.frustumCulled = false; im.renderOrder = 2; addObj(im); mains.tags = { im, recs: tr }; }
   // 8) aurora: two slow curtains of light that rise in the climax and fade away before the end
   { mains.aurMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: true });
     const i0 = Math.floor(smp.length * 0.4), i1 = Math.floor(smp.length * 0.92), base = [], off = [], ax = [], col = [], idx = []; let nv = 0;
@@ -1137,6 +1152,7 @@ function buildMains() {
 }
 function buildTowns() {
   mains = null; orrery = [];
+  if (stageMeta.scenery === 'ink') return; // the Ink has no scenery objects: the pearl ramp and its reflections are the whole world (inkRamps)
   // night levels: one lakeside town (inspired by Tiny Glade's night town) far below the course, plus a lit ferris wheel as a landmark
   for (const o of townPatches) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); } townPatches = [];
   for (const o of [townPts, townLines, nightGround, wheel, town]) if (o) { scene.remove(o); o.traverse(c => { if (c.geometry) c.geometry.dispose(); }); }
@@ -1237,7 +1253,7 @@ let skyWarm = 4; // the first frames draw the mountains and clouds even in space
 function updateSky(dt, now) {
   skyDome.position.copy(camera.position); if (mains) skyDome.quaternion.setFromAxisAngle(mainsAx, mainsTheta()); else skyDome.quaternion.set(0, 0, 0, 1); updateTowns(now); updateNightSky(dt, now);
   if (floorGrid) { floorGrid.position.x = Math.round(camera.position.x / 1000) * 1000; floorGrid.position.z = Math.round(camera.position.z / 1000) * 1000; }
-  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && stageMeta.scenery !== 'loft' && stageMeta.scenery !== 'mains' && (plain || dayP > 0.3 || skyWarm-- > 0); // the loft is indoors: no hills or clouds // in the space levels the mountains and clouds only appear once you reach the sky
+  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && stageMeta.scenery !== 'loft' && stageMeta.scenery !== 'mains' && stageMeta.scenery !== 'ink' && (plain || dayP > 0.3 || skyWarm-- > 0); // the loft is indoors: no hills or clouds // in the space levels the mountains and clouds only appear once you reach the sky
   const T = (plain || FUSION) ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
   skyDome.visible = FUSION;
   if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); skyU.gnd.value.copy(dayNow.gnd); skyU.gk.value = dayGk; }
@@ -1304,7 +1320,8 @@ function buildScene() { // (re)builds every course-dependent mesh from ramps / r
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.computeVertexNormals();
-    if (FUSION) { addObj(new THREE.Mesh(g, new THREE.MeshToonMaterial({ map: rampPaperTex('#8a92c8'), vertexColors: true, gradientMap: TOON, side: THREE.DoubleSide }))); if (!LITE) addObj(inkEdges(g, 4.5)); }
+    if (FUSION && stageMeta.scenery === 'ink') inkRamps(g);
+    else if (FUSION) { addObj(new THREE.Mesh(g, new THREE.MeshToonMaterial({ map: rampPaperTex('#8a92c8'), vertexColors: true, gradientMap: TOON, side: THREE.DoubleSide }))); if (!LITE) addObj(inkEdges(g, 4.5)); }
     else addObj(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: PAPER ? paperSheetTex() : gridTex('#ffffff', '#6a7393'), vertexColors: true, side: THREE.DoubleSide })));
     if (FUSION && stageMeta.scenery === 'mains') { // brass trim: a thin ribbon along the ridge and each base edge, so the ramps read as built objects
       const ep = [], quad = (A, B, C, D) => ep.push(...A, ...B, ...C, ...A, ...C, ...D);
@@ -2425,7 +2442,7 @@ function frame(now) {
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   camera.fov = baseFov + fovOff + fovKick + warpK * 13; camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
-  try { updateMains(dt); } catch (e) { mains = null; console.error('updateMains', e); } updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
+  try { updateMains(dt); updateInk(); } catch (e) { mains = null; console.error('updateMains', e); } updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   if (now - hudT > 90) { hudT = now; { const cl = (x) => Math.max(0, Math.min(1, x)), u1 = cl((speed - 500) / 3500), u2 = cl((speed - 4000) / 2000), deg = (180 + 110 * u1 + 100 * u2) % 360, gl = cl((speed - 3800) / 2200); // cyan -> violet by 4k, then pink -> hot orange by 6k, glowing
     speedEl.style.color = `hsl(${deg.toFixed(0)},${(90 * cl((speed - 500) / 1500)).toFixed(0)}%,${(100 - 30 * cl((speed - 500) / 3000) + 10 * u2).toFixed(0)}%)`; speedEl.style.textShadow = gl > 0.02 ? `0 2px 6px #000a, 0 0 ${(6 + 14 * gl).toFixed(0)}px hsl(${deg.toFixed(0)},100%,60%)` : ''; } speedEl.innerHTML = Math.round(speed) + ' <small>u/s</small>'; } // the speed readout updates about 11 times a second, not every frame (each DOM write costs a style pass on iOS)
