@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #189 2026-11-24 12:20</div>
+<div id="build">build #190 2026-11-24 18:45</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1348,23 +1348,7 @@ function buildMains() {
         gem = new THREE.Mesh(new THREE.OctahedronGeometry(300, 0), mat), halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: 0xffd24a, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
       gem.scale.set(0.7, 1.35, 0.7); halo.scale.set(3400, 3400, 1); grp.add(gem, halo); grp.position.copy(cen); grp.userData.tag = 'beacon'; addObj(grp); mains.signs.push({ g: grp, gem, cen, tg, mat, halo: halo.material, k: 0, ph }); };
     beacon(ramps[1], ramps[1].L * 0.42, 650, 0.7); beacon(ramps[3], ramps[3].L - 900, -700, 2.9);
-    { const RO = 26000, RI = 21000, S2 = 2048, K = S2 / 2 / RO, rnd = Math.random, wtx = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = c.height = S2; const x = c.getContext('2d'), cx = S2 / 2, cy = S2 / 2, ro = RO * K, ri = RI * K, rm = (ro + ri) / 2, TA = Math.PI * 2;
-          // an old structure: dusty violet plating, stains, rust-brown streaks, faded cream paint, mostly dark windows; the whole thing already half dissolved into haze
-          x.fillStyle = '#4a4274'; x.fillRect(0, 0, S2, S2); for (let i = 0; i < 220; i++) { const a = rnd() * TA, rr = ri + rnd() * (ro - ri), w = 20 + rnd() * 120; x.fillStyle = rnd() < 0.5 ? 'rgba(40,30,60,0.35)' : 'rgba(150,110,120,0.22)'; x.beginPath(); x.ellipse(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, w, w * (0.2 + rnd() * 0.5), a + 1.57, 0, TA); x.fill(); }
-          x.strokeStyle = '#7a6cae'; x.lineWidth = 9; for (const rr of [ro - 8, ri + 8, rm - 80, rm + 80]) { x.beginPath(); x.arc(cx, cy, rr, 0, TA); x.stroke(); }
-          const txt = 'CENTRAL ARMATURE WORKS', span = 2.9, a0 = -Math.PI / 2 - span / 2 + 0.5; x.fillStyle = '#c4b4a2'; x.font = 'bold 170px Arial, Helvetica, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-          for (let i = 0; i < txt.length; i++) { const a = a0 + span * (i + 0.5) / txt.length; if (txt[i] === ' ') continue; x.save(); x.translate(cx + Math.cos(a) * rm, cy + Math.sin(a) * rm); x.rotate(a + Math.PI / 2); x.scale(0.62, 1); x.fillText(txt[i], 0, 0); x.restore(); }
-          for (let i = 0; i < 700; i++) { const a = rnd() * TA, rr = ri + rnd() * (ro - ri); x.fillStyle = '#4a4274'; x.beginPath(); x.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 2 + rnd() * 9, 0, TA); x.fill(); } // flaked paint
-          let lit = true, run = 0; for (const [rr, step, wd] of [[ri + 36, 0.0052, 18], [ro - 36, 0.0041, 16], [rm + 124, 0.0075, 16]]) { for (let a = 0; a < TA; a += step) { if (--run <= 0) { lit = rnd() < 0.3; run = 2 + Math.floor(rnd() * 22); } if (!lit) continue; x.save(); x.translate(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); x.rotate(a + Math.PI / 2); x.fillStyle = rnd() < 0.05 ? '#d98a7a' : '#d9b878'; x.fillRect(-wd / 2, -8, wd, 14 + rnd() * 10); x.restore(); } }
-          x.fillStyle = 'rgba(190,150,200,0.28)'; x.fillRect(0, 0, S2, S2); // baked haze: it is far off
-          return c; })()), grp = new THREE.Group(), faceM = new THREE.MeshBasicMaterial({ map: wtx, side: THREE.FrontSide, fog: false }), A = new THREE.Mesh(new THREE.RingGeometry(RI, RO, 192, 1), faceM), B = A.clone(); B.rotation.y = Math.PI; B.position.z = -2;
-      const rimM = new THREE.MeshBasicMaterial({ color: 0x5c4f92, fog: false }); grp.add(A, B, new THREE.Mesh(new THREE.TorusGeometry(RO, 520, 8, 140), rimM), new THREE.Mesh(new THREE.TorusGeometry(RI, 340, 8, 140), rimM));
-      // the floating office in its centre: a few uneven blocks with a handful of lit windows, tilted, and a mast
-      const owt = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); x.fillStyle = '#5a4d84'; x.fillRect(0, 0, 256, 256); for (let j = 0; j < 12; j++) for (let i = 0; i < 12; i++) { x.fillStyle = rnd() < 0.34 ? '#e3c283' : '#2e2650'; x.fillRect(8 + i * 20, 8 + j * 20, 11, 13); } return c; })()), ofM = new THREE.MeshBasicMaterial({ map: owt, fog: false, color: 0xcfc0dc }), off = new THREE.Group();
-      for (const [w, h, d, px, py, pz] of [[4600, 2800, 3200, -300, 200, 0], [2600, 4200, 2400, 1900, 900, 500], [1700, 1500, 1900, -2400, -1700, -400], [1200, 2300, 1200, 300, 3400, 200]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), ofM); b.position.set(px, py, pz); b.rotation.set(rnd() * 0.2, rnd() * 0.5, rnd() * 0.2); off.add(b); }
-      const mast = new THREE.Mesh(new THREE.CylinderGeometry(40, 70, 4200, 5), rimM); mast.position.set(300, 6200, 200); off.add(mast); off.position.set(1400, -1200, 500); off.rotation.set(0.12, 0.35, -0.18); grp.add(off);
-      const P2 = smp[Math.floor(smp.length * 0.12)], nrm = new THREE.Vector3().addScaledVector(P2.sax, -0.7).add(new THREE.Vector3(P2.rt[0] * 0.6, 0.25, P2.rt[2] * 0.6)).normalize();
-      grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nrm); grp.userData.tag = 'works'; addObj(grp); mains.rolled.push({ obj: grp, p: P2.p, off: offAt(P2, -62000, 27000), ax: P2.ax }); } }
+ }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }

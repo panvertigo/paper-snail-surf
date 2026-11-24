@@ -31,3 +31,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Signage: stencilled LEYLINE 07 (left face) and HDG 213 (right face) decals on ramp 0; two go-sign gates (ramp 1 at 42 percent, ramp 3 just before the dive) that turn green when passed; Central Armature Works ring (stencilled name along the circle, lit windows) rolled with the scenery. ?hide= tags: stencil, gosign, works.
 - Ghost tracks cut from 6 to 2 (the white lattice curls).
 - Input fix: slow swipes now set the air strafe (sub-pixel dx used to turn the snail without strafing). tools/air-swerve.js tests the air physics: with a finger down the path always bends toward the nose.
+
+- Central Armature Works ring (with floating office) was built and then removed on 2026-11-24: too on the nose. Go rings also dropped for beacons.
