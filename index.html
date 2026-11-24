@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #152 2026-11-23 22:31</div>
+<div id="build">build #153 2026-11-23 22:34</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -969,7 +969,6 @@ let starMat = null;
 function mStarMat() { return starMat || (starMat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
   vertexShader: 'attribute float size, ph; attribute vec3 col; uniform float t; varying vec3 vc; varying float vb; void main(){ vc = col; vb = 0.62 + 0.38 * sin(t * (0.5 + fract(ph * 7.3)) + ph * 40.0); gl_PointSize = size * (0.8 + 0.2 * vb); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: 'varying vec3 vc; varying float vb; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float a = 1.0 - smoothstep(0.0, 1.0, d); a *= a; gl_FragColor = vec4(vc * vb * 0.75, a * vb * 0.75); }' })); }
-const SKY_D = 70000; // the sun, planet and windmill are real objects this far out (behind the course); the camera's far plane is 90000
 function updateMains(dt) {
   orT += dt; if (!mains) return;
   const th = mainsTheta(), co = Math.cos(th), si = Math.sin(th);
@@ -1014,12 +1013,6 @@ function updateMains(dt) {
   }
   mains.starMat.uniforms.t.value = orT; { const sc = renderer.domElement.height * 0.5; for (const m of beadMats) m.uniforms.sc.value = sc; }
   { const p = dayP; mains.aurMat.opacity = 0.5 * ss01(cl01((p - 0.35) / 0.25)) * (1 - ss01(cl01((p - 0.85) / 0.15))); }
-  // sky layer: sun, ringed planet and a far windmill, held at fixed angles around the view axis and rolled with it
-  _rg.crossVectors(mainsAx, WUP); if (_rg.lengthSq() < 1e-4) _rg.set(1, 0, 0); _rg.normalize(); _u2.crossVectors(_rg, mainsAx);
-  const place = (spr, az, el) => { const ce = Math.cos(el); _mv.set(0, 0, 0).addScaledVector(mainsAx, Math.cos(az) * ce).addScaledVector(_rg, Math.sin(az) * ce).addScaledVector(_u2, Math.sin(el)).applyAxisAngle(mainsAx, th); spr.position.copy(camera.position).addScaledVector(_mv, SKY_D); };
-  const SKYK = SKY_D / 880, Sy = mains.sky, rise = ss01(cl01((dayP - 0.5) / 0.5));
-  place(Sy.sun, 0.2, 0.2); Sy.sun.scale.setScalar((230 + 250 * rise) * SKYK); Sy.sun.material.opacity = 0.9;
-  place(Sy.planet, -0.34, -0.06); Sy.planet.scale.setScalar(150 * SKYK); Sy.planet.material.rotation = -th * 0.7 - 0.2;
 }
 function buildMains() {
   // The Transit: not a closed pipe but an impossibly large one. Giant brass half-arches over the course with a light running along them, three gates at the dive, clouds, orrery rings, constellations, drifting paper tags, aurora, far-off ghost paths with travellers, and a sun, a ringed planet and a windmill in the sky. All of it rolls about the course (updateMains).
@@ -1029,6 +1022,7 @@ function buildMains() {
   const pt = () => { const r = ramps[Math.floor(rn() * ramps.length)], u = rn() * r.L, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u); return { r, u, p: new THREE.Vector3(c[0], r.oy + zOf(r, u), c[1]), rt, ax: axisAt(r, u) }; };
   const offAt = (P, side, up) => new THREE.Vector3(P.rt[0] * side, up, P.rt[2] * side);
   const smp = []; for (const r of ramps) { if (r.tube) continue; for (let u = 0; u < r.L; u += 1400) { const c = ridgeAt(r, u); smp.push({ p: new THREE.Vector3(c[0], r.oy + zOf(r, u), c[1]), rt: rightOf(r.h0 + (r.k || 0) * u), ax: axisAt(r, u) }); } }
+  for (let i = 0, W = 7; i < smp.length; i++) { const v = new THREE.Vector3(); for (let j = Math.max(0, i - W); j <= Math.min(smp.length - 1, i + W); j++) v.add(smp[j].ax); smp[i].sax = v.normalize(); } // smoothed axis (about 20000 units of the course)
   // 1) the arches: half rings (a brass rail inside a teal one), radius 22 W (about 28000), every 14000 along each piece, lamps strung along each arch like beads
   const zAx = new THREE.Vector3(0, 0, 1), recs = [], R = ramps[0].W * 22, NL = 12;
   for (const r of ramps) {
@@ -1062,7 +1056,7 @@ function buildMains() {
   for (let i = 0; i < 140; i++) {
     const P = pt(), s = rA(24000, 60000);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.5 ? 0xffd2e0 : 0xc8bcff, transparent: true, opacity: rA(0.1, 0.22), depthWrite: false, fog: true }));
-    sp.scale.set(s, s * 0.34, 1); sp.renderOrder = -25; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 80000), -rA(14000, 60000)), ax: P.ax });
+    sp.scale.set(s * 0.8, s * 0.8, 1); sp.renderOrder = -25; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 80000), -rA(14000, 60000)), ax: P.ax });
   }
   // 4) orrery rings: huge thin brass rings tilted every which way, with small suns riding them; each spins (and sways) on its own golden-ratio rates
   const brass = new THREE.MeshBasicMaterial({ color: 0xe0b060, fog: true }), PHI = 0.6180339887;
@@ -1099,7 +1093,7 @@ function buildMains() {
     for (let k = 0; k < 2; k++) {
       const S0 = (k ? -1 : 1) * rA(34000, 55000), Hh = rA(24000, 34000), U0 = rA(-4000, 12000), ph = rn() * 6.283, c0 = k ? [1, 0.55, 0.72] : [0.3, 0.95, 0.75]; let prev = -1;
       for (let i = i0; i < i1; i += 2) { const s = smp[i], side = S0 + 12000 * Math.sin(i * 0.17 + ph), up = U0 + 7000 * Math.sin(i * 0.11 + ph * 2), fa = Math.min(1, (i - i0) / 12, (i1 - i) / 12);
-        for (const t of [0, 1]) { base.push(s.p.x, s.p.y, s.p.z); off.push(s.rt[0] * side, up + t * Hh, s.rt[2] * side); ax.push(s.ax.x, s.ax.y, s.ax.z); const b = (t ? 0 : 0.8) * fa; col.push(c0[0] * b, c0[1] * b, c0[2] * b); }
+        for (const t of [0, 1]) { base.push(s.p.x, s.p.y, s.p.z); off.push(s.rt[0] * side, up + t * Hh, s.rt[2] * side); ax.push(s.sax.x, s.sax.y, s.sax.z); const b = (t ? 0 : 0.8) * fa; col.push(c0[0] * b, c0[1] * b, c0[2] * b); }
         if (prev >= 0) idx.push(prev, prev + 1, nv, prev + 1, nv + 1, nv); prev = nv; nv += 2; }
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3)); g.setIndex(idx);
@@ -1113,7 +1107,7 @@ function buildMains() {
       let prev = -1; const s0 = nv;
       for (let i = i0; i < i1; i++) {
         const s = smp[i], t = (i - i0) / Math.max(1, i1 - i0), fade = Math.min(1, t * 6, (1 - t) * 6) * (e ? 0.45 : 1), side = S0 + As * Math.sin(i / lam + ph) + e * w, up = U0 + Au * Math.sin(i / (lam * 1.7) + ph2);
-        vb.push(s.p.x, s.p.y, s.p.z); vo.push(s.rt[0] * side, up, s.rt[2] * side); va.push(s.ax.x, s.ax.y, s.ax.z); vc.push(0.75 * fade, 0.7 * fade, 0.95 * fade);
+        vb.push(s.p.x, s.p.y, s.p.z); vo.push(s.rt[0] * side, up, s.rt[2] * side); va.push(s.sax.x, s.sax.y, s.sax.z); vc.push(0.75 * fade, 0.7 * fade, 0.95 * fade);
         if (prev >= 0) idx.push(prev, nv); prev = nv; nv++;
       }
       if (e === 0) lines.push({ s: s0, n: nv - s0 });
@@ -1125,9 +1119,6 @@ function buildMains() {
   { const list = []; lines.forEach((L, k) => { if (L.n < 8) return; for (let j = 0; j < 2; j++) list.push({ line: L, t0: rn(), rate: (rn() < 0.5 ? -1 : 1) * rA(0.011, 0.02) }); });
     const tg = beadGeo(new Float32Array(list.length * 12), new Float32Array(list.length * 4)), tp = new THREE.Points(tg, mBead(900)); tp.frustumCulled = false; tp.renderOrder = -21; addObj(tp);
     mains.trav = { geo: tg, list, gi: mains.pts.length - 1 }; }
-  // 10) the sky layer: a sun that grows and warms toward the finish, a ringed planet and a far windmill that appears near the end (drawn behind everything, on the sky dome's layer)
-  { const mk = (name, blend) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mTex(name), transparent: true, depthTest: true, depthWrite: false, fog: false, blending: blend || THREE.NormalBlending })); sp.renderOrder = -29; sp.frustumCulled = false; addObj(sp); return sp; };
-    const sky = { sun: mk('sun'), planet: mk('planet') }; mains.sky = sky; }
   updateMains(0);
 }
 function buildTowns() {
