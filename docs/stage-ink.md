@@ -20,3 +20,5 @@ Water surface added (additive only: thin glints, soft sheen, glancing-angle fres
 
 ## Style reset (2026-11-23, build 158)
 The first look (strong rainbow wash, dull grey, spotlights and glints) read as cheap. Direction now: sumi-e restraint. Flat two-tone cel shading in mother-of-pearl white (pale cool tone in shadow, crisp step), a faint wash toward the ridge, a pearl hairline trim on the ridge and base edges, only a few percent of rainbow (more at glancing angles). The light dissolves into the dark through an uneven drifting mist (inkLit), never a cutoff. Water: pale mist patches and a quiet reflection (0.38 bottom, 0.14 top); no glints. The speed look in the Ink uses a pearl rim and almost no chromatic fringe.
+
+Build 160: ramp a little under full white (0.83 light tone, trim 0.9); iridescence raised to about 7 percent plus 20 percent at glancing angles plus slow drifting pearl bands. The mirror now uses a dense copy of the ramps (600 u slices, 4 strips per face) so vertices ripple (displacement grows with depth under the surface), and its ripple bands are tight across the course and long along it (streaks), stronger with speed.
