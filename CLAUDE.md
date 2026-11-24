@@ -10,6 +10,8 @@ iPhone game capturing the joy of CS:GO surfing. Owner: Jeffry (knows CS surf wel
 - Commit after each completed step.
 - Design taste (Jeffry): strongly prefers ASYMMETRY. No perfect distributions, regular spacing or repeating patterns in visuals, level layout or timing (no even spacing, no mirrored halves, no uniform grids, no lockstep cycles). Aim for uneven, organic, semi-random placement that still feels intentional. Golden-ratio or other low-discrepancy sequences are still too regular if they read as a pattern; add real irregularity (uneven clusters, gaps, varied scale).
 
+- Visual rule: never stack many overlapping low-alpha translucent layers (haze, mist, cloud sprites, glow discs). Phone GPUs round each 8-bit blend, so they show colored speckle/splotches that headless renders do NOT show (seen 3 times: Transit clouds, Transit mist, Ink fog). Use few, large, higher-alpha shapes, fade layers out near the camera, keep one tint per overlapping group. Exception: where the speckled look is deliberate (e.g. Level 5).
+
 ## Files
 - index.html: the whole game (three.js r128 from cdnjs). Physics lives between `// ==PHYSICS START==` and `// ==PHYSICS END==` and is shared verbatim with the verifier. Stages are the STAGES list inside buildCourse().
 - verifier/: headless Node course checker (no deps). harness.js loads the physics block; input goes through `cmd {turn, touch, key}` once per tick. README.md logs every version's results; append a line for each physics or stage change.

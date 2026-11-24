@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #176 2026-11-24 01:32</div>
+<div id="build">build #177 2026-11-24 01:39</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -985,7 +985,7 @@ function updateMains(dt) {
   camera.getWorldDirection(_f); mainsAx.lerp(_f, dt ? 1 - Math.exp(-dt * 1.2) : 1).normalize(); // axis for the sky: where you are looking, smoothed
   for (const o of orrery) { o.piv.rotation.y = o.p0 + o.wp * orT; o.spin.rotation.z = o.s0 + o.ws * orT; o.tilt.rotation.x = o.t0 + 0.12 * Math.sin(o.wt * orT + o.p0); }
   if (mains.bd) { const B = mains.bd, op = [0.5 + 0.2 * ss01(cl01((dayP - 0.3) / 0.4)), 0.14 + 0.86 * ss01(cl01((dayP - 0.18) / 0.34))];
-    B.list.forEach((e, i) => { _qq.setFromAxisAngle(B.a, th + e.ph); _mv.copy(B.a).multiplyScalar(Math.cos(e.ang)).addScaledVector(B.b, Math.sin(e.ang)).applyQuaternion(_qq); e.m.position.copy(camera.position).addScaledVector(_mv, e.D);
+    B.list.forEach((e, i) => { _qq.setFromAxisAngle(B.a, th * e.rk + e.ph); _mv.copy(B.a).multiplyScalar(Math.cos(e.ang)).addScaledVector(B.b, Math.sin(e.ang)).applyQuaternion(_qq); e.m.position.copy(camera.position).addScaledVector(_mv, e.D);
       _e.set(0, 0, e.sp * orT); _qa.setFromEuler(_e); e.m.quaternion.copy(_qq).multiply(B.q0).multiply(_qa); e.m.material.uniforms.op.value = op[i]; }); }
   const A = mains.arches; if (A) {
     const la = A.lampGeo.attributes.position.array, lk = A.lampGeo.attributes.k.array, NL = A.NL;
@@ -1223,9 +1223,9 @@ function buildMains() {
       const bp = new THREE.Points(beadGeo(new Float32Array(beads), new Float32Array(beads.length / 3).fill(0.85)), mBead(620)); 
     } }
   // 3) clouds: soft puffs scattered around the course, mostly below it to begin with
-  for (let i = 0; i < 140; i++) {
-    const P = pt(), s = rA(40000, 110000);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.45 ? 0xf0cadd : (rn() < 0.65 ? 0xc4b0ec : 0x4e3e94), transparent: true, opacity: rA(0.18, 0.36), depthWrite: false, fog: true }));
+  for (let i = 0; i < 36; i++) {
+    const P = pt(), s = rA(60000, 130000);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.45 ? 0xf0cadd : (rn() < 0.65 ? 0xc4b0ec : 0x4e3e94), transparent: true, opacity: rA(0.3, 0.5), depthWrite: false, fog: true }));
     sp.scale.set(s * 1.8, s * 0.45, 1); sp.renderOrder = -25; sp.userData.tag = 'clouds'; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 80000), -rA(14000, 60000)), ax: P.ax });
   }
   // 4) orrery rings: huge thin brass rings tilted every which way, with small suns riding them; each spins (and sways) on its own golden-ratio rates
@@ -1286,8 +1286,8 @@ function buildMains() {
     const tg = beadGeo(new Float32Array(list.length * 12), new Float32Array(list.length * 4)), tp = new THREE.Points(tg, mBead(900)); tp.frustumCulled = false; tp.renderOrder = -21; tp.userData.tag = 'trav'; addObj(tp);
     mains.trav = { geo: tg, list, gi: mains.pts.length - 1 }; }
   // 11) mist banks: big faint puffs of pale haze scattered along the course itself, so you cut through a bank now and then
-  { const NB = 150; for (let i = 0; i < NB; i++) { const P = smp[Math.min(smp.length - 1, Math.floor((i + rn()) / NB * smp.length))], sz = rA(14000, 34000);
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xf2d6e4 : 0xdcd0f2, transparent: true, opacity: rA(0.1, 0.2), depthWrite: false, fog: true }));
+  { const NB = 40; for (let i = 0; i < NB; i++) { const P = smp[Math.min(smp.length - 1, Math.floor((i + rn()) / NB * smp.length))], sz = rA(24000, 52000);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xf2d6e4 : 0xdcd0f2, transparent: true, opacity: rA(0.18, 0.3), depthWrite: false, fog: true }));
       sp.scale.set(sz, sz * 0.7, 1); sp.renderOrder = -26; sp.userData.tag = 'mist'; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(16000, 60000), rA(-30000, 30000)), ax: P.sax }); } }
   // 12) backdrop machines at infinity: huge images that ride with the camera (no parallax, they cannot be approached), fixed in direction (the course heading), rolling with the scenery. The skeletal one is vast, faint and counter-turning behind; the orbital ring is the hero, off to one side, and fades in through the middle.
   { const r0 = ramps[0], r1 = ramps[ramps.length - 1], aa = new THREE.Vector3(r1.ex - r0.sx, r1.ey - r0.oy, r1.ez - r0.sz).normalize(), bb = new THREE.Vector3().crossVectors(aa, new THREE.Vector3(0, 1, 0)).normalize(), q0 = new THREE.Quaternion().setFromUnitVectors(_mz, aa.clone().negate()), ld = new THREE.TextureLoader();
@@ -1295,8 +1295,8 @@ function buildMains() {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.ShaderMaterial({ uniforms: { map: { value: tx }, op: { value: 0 }, haze: { value: haze }, hz: { value: new THREE.Color(0xd6b0dc) }, gain: { value: 1.25 } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: 'uniform sampler2D map; uniform float op, haze, gain; uniform vec3 hz; varying vec2 vUv; void main(){ vec4 t = texture2D(map, vUv); vec3 c = t.rgb; float m = max(c.r, max(c.g, c.b)); float a = smoothstep(0.035, 0.2, m) * t.a; c = mix(c * gain, hz, haze); gl_FragColor = vec4(c, a * op); }' }));
-      m.frustumCulled = false; m.renderOrder = ro; m.userData.tag = 'backdrop'; addObj(m); return { m, ang, ph, sp, D }; };
-    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.5, 0.66, 0.012, 3.6, -0.018, 40000, -31), mk('bd_ring.png', 58000, 0.3, 0.88, 0.035, 0.9, 0.011, 36000, -30)] }; }
+      m.frustumCulled = false; m.renderOrder = ro; m.userData.tag = 'backdrop'; addObj(m); return { m, ang, ph, sp, D, rk: sp < 0 ? -0.07 : 0.14 }; };
+    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.5, 0.66, 0.012, 3.6, -0.0009, 40000, -31), mk('bd_ring.png', 58000, 0.3, 0.88, 0.035, 0.9, 0.0014, 36000, -30)] }; }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }
