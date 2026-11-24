@@ -51,12 +51,12 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #143 2026-11-23 17:19</div>
+<div id="build">build #144 2026-11-23 20:40</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-f="intro">Intro<br>glacier</button><button data-l="5">Grand<br>descent</button></div>
+  <div class="row" id="lvl"><button data-f="intro">Intro<br>the Mains</button><button data-l="5">Grand<br>descent</button></div>
   <label>Music <span id="musv"></span></label>
   <input id="mus" type="range" min="0" max="100" step="5">
   <label>Sound effects <span id="sfxv"></span></label>
@@ -860,7 +860,7 @@ const mtnLayers = [];
 scene.add(mountains);
 let scenicClouds = []; // painted cloud and floating-island sprites scattered along the course, so they stream past
 function buildClouds() {
-  for (const g of scenicClouds) scene.remove(g); scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park || stageMeta.scenery === 'loft') return;
+  for (const g of scenicClouds) scene.remove(g); scenicClouds = []; if (!FUSION || !ramps.length || stageMeta.park || stageMeta.scenery === 'loft' || stageMeta.scenery === 'mains') return;
   let sd = 777; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, step = Math.max(1, Math.floor(ramps.length / 14)), kinds = [['cloud1.png', 245 / 512], ['cloud2.png', 231 / 512]];
   const mk = (file, asp, w) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: art(file), fog: false, transparent: true, depthWrite: false })); sp.scale.set(w, w * asp, 1); return sp; };
   let n = 0;
@@ -937,10 +937,36 @@ function buildLoft() {
   if (wi >= 0 && ramps[wi]) { const r = ramps[wi], u = r.L * 0.6, c = ridgeAt(r, u), rt = rightOf(r.h0), y = r.oy + zOf(r, u); win(c[0] - rt[0] * 17000, y + 3500, c[1] - rt[2] * 17000, c[0], c[1], 18000); }
   { const dx = fin.dir[0], dz = fin.dir[2]; win(fin.x + dx * 15000 - fin.right[0] * 6000, fin.y + 7000, fin.z + dz * 15000 - fin.right[2] * 6000, fin.x, fin.z, 20000); }
 }
+// ---------- the Pneumatic Mains (scenery 'mains'): the course runs inside a huge brass-and-verdigris pipe: ribs every 2400 u around the ridge, amber lamps on the ribs, dark fog between ----------
+function buildMains() {
+  const ribs = [], lamps = [], q = new THREE.Quaternion(), zAx = new THREE.Vector3(0, 0, 1), f = new THREE.Vector3(), ex = new THREE.Vector3(), ey = new THREE.Vector3(), pos = new THREE.Vector3(), m4 = new THREE.Matrix4(), one = new THREE.Vector3(1, 1, 1);
+  const STEP = 2400;
+  for (const r of ramps) {
+    if (r.tube) continue;
+    const R = r.W * 5;
+    for (let u = STEP * 0.5; u < r.L; u += STEP) {
+      const c = ridgeAt(r, u), h = r.h0 + (r.k || 0) * u, d = dirOf(h);
+      f.set(d[0], zD(r, u), d[2]).normalize(); q.setFromUnitVectors(zAx, f);
+      pos.set(c[0], r.oy + zOf(r, u) - r.W * 0.5, c[1]);
+      ribs.push(m4.clone().compose(pos, q, one));
+      ex.set(1, 0, 0).applyQuaternion(q); ey.set(0, 1, 0).applyQuaternion(q);
+      if (ey.y < 0) { ey.negate(); ex.negate(); } // keep "up" up
+      for (const a of [-0.95, 0.95, -2.2, 2.2]) { const s = Math.sin(a) * R * 0.97, k = Math.cos(a) * R * 0.97; lamps.push(pos.x + ex.x * s + ey.x * k, pos.y + ex.y * s + ey.y * k, pos.z + ex.z * s + ey.z * k); }
+    }
+  }
+  if (!ribs.length) return;
+  const R0 = ramps[0].W * 5, geo = new THREE.TorusGeometry(R0, 110, 5, 40);
+  const im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0x3d8a7a, fog: true }), ribs.length);
+  ribs.forEach((m, i) => im.setMatrixAt(i, m)); im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; im.renderOrder = -20; addObj(im);
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lamps), 3));
+  const lp = new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTexA(), color: 0xffb25a, size: 2200, sizeAttenuation: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+  lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp);
+}
 function buildTowns() { // night levels: one lakeside town (inspired by Tiny Glade's night town) far below the course, plus a lit ferris wheel as a landmark
   for (const o of townPatches) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); } townPatches = [];
   for (const o of [townPts, townLines, nightGround, wheel, town]) if (o) { scene.remove(o); o.traverse(c => { if (c.geometry) c.geometry.dispose(); }); }
   townPts = townLines = nightGround = wheel = town = null;
+  if (stageMeta.scenery === 'mains' && ramps.length) { buildMains(); return; } // the Pneumatic Mains: ribs and lamps along the course
   if (stageMeta.scenery === 'loft' && ramps.length) { buildLoft(); return; } // the loft: wooden floor, giant furniture, hanging lamps, rare windows onto the city
   if (!FUSION || !TOWN || !stageMeta.night || !ramps.length || /^#edit/.test(location.hash)) return;
   buildNightSky();
@@ -1036,7 +1062,7 @@ let skyWarm = 4; // the first frames draw the mountains and clouds even in space
 function updateSky(dt, now) {
   skyDome.position.copy(camera.position); updateTowns(now); updateNightSky(dt, now);
   if (floorGrid) { floorGrid.position.x = Math.round(camera.position.x / 1000) * 1000; floorGrid.position.z = Math.round(camera.position.z / 1000) * 1000; }
-  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && stageMeta.scenery !== 'loft' && (plain || dayP > 0.3 || skyWarm-- > 0); // the loft is indoors: no hills or clouds // in the space levels the mountains and clouds only appear once you reach the sky
+  const edit = /^#edit/.test(location.hash), plain = !themesOn, show = FUSION && !edit && stageMeta.scenery !== 'loft' && stageMeta.scenery !== 'mains' && (plain || dayP > 0.3 || skyWarm-- > 0); // the loft is indoors: no hills or clouds // in the space levels the mountains and clouds only appear once you reach the sky
   const T = (plain || FUSION) ? null : THEMES[themeTarget], k = 1 - Math.exp(-dt * 1.4); // opaque dome (a transparent one would draw after the course and cover it); in space it fades to the flat sky colour
   skyDome.visible = FUSION;
   if (FUSION) { skyU.top.value.copy(dayNow.top); skyU.mid.value.copy(dayNow.mid); skyU.bot.value.copy(dayNow.bot); skyU.gnd.value.copy(dayNow.gnd); skyU.gk.value = dayGk; }

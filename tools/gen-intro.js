@@ -1,4 +1,4 @@
-// Generates levels/intro.json: the first course new players meet. A glacier valley by day, huge forgiving ramps (half-width 1300, far wider than the 460-700 of the other levels).
+// Generates levels/intro.json: the first course new players meet. The Pneumatic Mains: the inside of a huge brass tube (ribs and amber lamps, scenery 'mains'), huge forgiving ramps (half-width 1300, far wider than the 460-700 of the other levels).
 // Few, LONG pieces: ramps of 8000-20000 and sweeping banked curves of 60-80 degrees at radius 26000-30000, so you ride one shape for many seconds.
 // ALL DOWNHILL and steep: every piece is given a START ANGLE (A(L, deg)); the piece starts at that angle and eases out into the normal gentle slope (the Hermite profile behind C),
 // so each piece is a drop-in followed by a run-out. 12 deg for the first slide, 25-35 deg for the big runs, 60 deg for one short drop where you barely stay on.
@@ -22,12 +22,12 @@ const P = [
   GT(40, 57000, 0.04, 0.03, { hue: 0.52, label: '4 Homeward' }), G(20000, 0.03, 0.03), GT(40, 57000, 0.03, 0.03), G(30000, 0.03, 0.03),
 ];
 const stage = {
-  name: 'Glacier (intro)', author: 'Paper Snail Surf', scenery: 'plain', theme0: 0, music: 'windmill', pull: 0.3, fall: 0,
-  // a bright cold morning, nothing like the pink and violet evening of the night levels: the sky deepens a little and warms toward the end
+  name: 'The Pneumatic Mains', author: 'Paper Snail Surf', scenery: 'mains', theme0: 0, music: 'windmill', pull: 0.3, fall: 0,
+  // inside the Works' brass tube network: dark verdigris teal, a little warmer and browner toward the end (the fog colour is the sky colour, so the pipe fades into dark teal)
   palette: [
-    { top: 0x4a90dc, mid: 0xa8d9f3, bot: 0xe6f6fb, gnd: 0xcfe9f1 },
-    { top: 0x2f80d8, mid: 0x9fd6f4, bot: 0xeefaff, gnd: 0xd6ecf2 },
-    { top: 0x5e8ed8, mid: 0xbfe2f0, bot: 0xfff0da, gnd: 0xe0eee8 },
+    { top: 0x06161a, mid: 0x0d2b2e, bot: 0x143c3a, gnd: 0x0a2224 },
+    { top: 0x08181c, mid: 0x12312f, bot: 0x1d4640, gnd: 0x0d2626 },
+    { top: 0x14161a, mid: 0x2a302a, bot: 0x4a3a24, gnd: 0x1c2420 },
   ],
   pieces: P,
 };

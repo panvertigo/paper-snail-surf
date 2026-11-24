@@ -1,29 +1,29 @@
 {
- "name": "Glacier (intro)",
+ "name": "The Pneumatic Mains",
  "author": "Paper Snail Surf",
- "scenery": "plain",
+ "scenery": "mains",
  "theme0": 0,
  "music": "windmill",
  "pull": 0.3,
  "fall": 0,
  "palette": [
   {
-   "top": 4886748,
-   "mid": 11065843,
-   "bot": 15136507,
-   "gnd": 13625841
+   "top": 398874,
+   "mid": 863022,
+   "bot": 1326138,
+   "gnd": 664100
   },
   {
-   "top": 3113176,
-   "mid": 10475252,
-   "bot": 15661823,
-   "gnd": 14085362
+   "top": 530460,
+   "mid": 1192239,
+   "bot": 1918528,
+   "gnd": 861734
   },
   {
-   "top": 6196952,
-   "mid": 12575472,
-   "bot": 16773338,
-   "gnd": 14741224
+   "top": 1316378,
+   "mid": 2764842,
+   "bot": 4864548,
+   "gnd": 1844256
   }
  ],
  "pieces": [
