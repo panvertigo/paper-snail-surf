@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #175 2026-11-24 01:24</div>
+<div id="build">build #176 2026-11-24 01:32</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1294,9 +1294,9 @@ function buildMains() {
     const mk = (file, size, haze, alpha, ang, ph, sp, D, ro) => { const tx = ld.load('img/' + file);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.ShaderMaterial({ uniforms: { map: { value: tx }, op: { value: 0 }, haze: { value: haze }, hz: { value: new THREE.Color(0xd6b0dc) }, gain: { value: 1.25 } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'uniform sampler2D map; uniform float op, haze, gain; uniform vec3 hz; varying vec2 vUv; void main(){ vec3 c = texture2D(map, vUv).rgb; float m = max(c.r, max(c.g, c.b)); float a = smoothstep(0.035, 0.2, m); c = mix(c * gain, hz, haze); gl_FragColor = vec4(c, a * op); }' }));
+        fragmentShader: 'uniform sampler2D map; uniform float op, haze, gain; uniform vec3 hz; varying vec2 vUv; void main(){ vec4 t = texture2D(map, vUv); vec3 c = t.rgb; float m = max(c.r, max(c.g, c.b)); float a = smoothstep(0.035, 0.2, m) * t.a; c = mix(c * gain, hz, haze); gl_FragColor = vec4(c, a * op); }' }));
       m.frustumCulled = false; m.renderOrder = ro; m.userData.tag = 'backdrop'; addObj(m); return { m, ang, ph, sp, D }; };
-    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 150000, 0.5, 0.62, 0.06, 3.6, -0.018, 86000, -31), mk('bd_ring.jpg', 52000, 0.3, 0.85, 0.21, 0.9, 0.011, 74000, -30)] }; }
+    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.5, 0.66, 0.012, 3.6, -0.018, 40000, -31), mk('bd_ring.png', 58000, 0.3, 0.88, 0.035, 0.9, 0.011, 36000, -30)] }; }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }
