@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #188 2026-11-24 11:22</div>
+<div id="build">build #189 2026-11-24 12:20</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -989,7 +989,7 @@ function updateMains(dt) {
       if (e.wh || e.st) { const Wh = e.wh || e.st, p = e.wh ? cl01((dayP - Wh.d0) / (Wh.d1 - Wh.d0)) : 0, az = e.wh ? Wh.az0 + (Wh.az1 - Wh.az0) * p : Wh.az; // the whale: sweeps slowly across the sky, always upright, fading in and out
         { const S = mains.smp; let bi = mains.wi || 0, bd = 1e18; for (let j = Math.max(0, bi - 8); j < Math.min(S.length, bi + 9); j++) { const d = S[j].p.distanceToSquared(pos); if (d < bd) { bd = d; mains.wi = j; } } const sx = e.st ? S[2].sax : S[Math.min(S.length - 1, mains.wi + 4)].sax; _mv.set(sx.x, 0, sx.z).normalize(); } _mv.applyAxisAngle(_wup, az); _mv.y = Math.tan(Wh.el + 0.02 * Math.sin(orT * 0.3)); _mv.normalize(); e.m.position.copy(camera.position).addScaledVector(_mv, e.D);
         _wr.crossVectors(_mv, _wup).normalize(); _wz.copy(_mv).negate(); _wy.crossVectors(_wz, _wr); _wm.makeBasis(_wr, _wy, _wz); _wq.setFromRotationMatrix(_wm); _wq2.setFromAxisAngle(_wzz, e.wh ? Wh.tilt + 0.05 * Math.sin(orT * 0.21) : 0.04); e.m.quaternion.copy(_wq).multiply(_wq2);
-        e.m.material.uniforms.op.value = e.wh ? 0.6 * ss01(cl01(Math.min(p / 0.2, (1 - p) / 0.2))) : 0.55 * (1 - ss01(cl01((dayP - 0.1) / 0.14))); return; }
+        e.m.material.uniforms.op.value = e.wh ? 0.6 * ss01(cl01(Math.min(p / 0.2, (1 - p) / 0.2))) : 0.42 * (1 - ss01(cl01((dayP - 0.08) / 0.12))); return; }
       _qq.setFromAxisAngle(B.a, th * e.rk + e.ph); _mv.copy(B.a).multiplyScalar(Math.cos(e.ang)).addScaledVector(B.b, Math.sin(e.ang)).applyQuaternion(_qq); e.m.position.copy(camera.position).addScaledVector(_mv, e.D);
       _e.set(0, 0, e.sp * orT); _qa.setFromEuler(_e); e.m.quaternion.copy(_qq).multiply(B.q0).multiply(_qa); e.m.material.uniforms.op.value = op[i]; }); }
   const A = mains.arches; if (A) {
@@ -1017,8 +1017,9 @@ function updateMains(dt) {
       arr[k] = S.base[k] + ox * co + (ay * oz - az * oy) * si + ax * d; arr[k + 1] = S.base[k + 1] + oy * co + (az * ox - ax * oz) * si + ay * d; arr[k + 2] = S.base[k + 2] + oz * co + (ax * oy - ay * ox) * si + az * d;
     }
     S.geo.attributes.position.needsUpdate = true; }
-  for (const S of mains.signs || []) { const passed = _mv.copy(pos).sub(S.cen).dot(S.tg) > 0; S.k = Math.max(0, Math.min(1, S.k + dt * (passed ? 2 : -2))); const g = ss01(S.k), pulse = 1 + 0.16 * Math.sin(Math.PI * S.k) * (passed ? 1 : 0), dim = passed ? 1 : 0.8 + 0.2 * Math.sin(orT * 2.2 + S.ph);
-    S.mat.color.setRGB((1 - g) * 1 + g * 0.45, (1 - g) * 0.7 + g * 0.96, (1 - g) * 0.37 + g * 0.62).multiplyScalar(dim); S.pn.color.copy(S.mat.color); S.g.scale.setScalar(pulse); }
+  for (const S of mains.signs || []) { const dx = pos.x - S.cen.x, dy = pos.y - S.cen.y, dz = pos.z - S.cen.z, dist = Math.sqrt(dx * dx + dy * dy + dz * dz), passed = dx * S.tg.x + dy * S.tg.y + dz * S.tg.z > 0;
+    const want = passed ? 1 : ss01(cl01((9500 - dist) / 7000)); S.k += (want - S.k) * (1 - Math.exp(-dt * 6)); const g = S.k, pulse = 1 + 0.3 * Math.sin(Math.PI * g) , br = 0.85 + 0.15 * Math.sin(orT * 2.4 + S.ph);
+    S.mat.color.setRGB((1 - g) * 1 + g * 0.42, (1 - g) * 0.82 + g * 0.96, (1 - g) * 0.29 + g * 0.62); S.halo.color.copy(S.mat.color); S.halo.opacity = 0.5 * br + 0.2 * g; S.gem.rotation.y = orT * 0.9 + S.ph; S.gem.scale.set(0.7 * pulse, 1.35 * pulse, 0.7 * pulse); }
   const AU = mains.aur; if (AU) { const arr = AU.geo.attributes.position.array; // aurora: static, drifting as if in a cosmic wind (a slow travelling wave along each curtain, tops flutter more)
     for (let i = 0; i < AU.n; i++) { const k = i * 3, p = AU.ph[i], t = AU.tp[i], sw = 3200 * Math.sin(orT * 0.17 + p) + 1500 * Math.sin(orT * 0.071 + p * 2.3), uw = (800 + 2200 * t) * Math.sin(orT * 0.12 + p * 1.7 + 1.3);
       arr[k] = AU.base[k] + AU.off[k] + AU.rt[i * 2] * sw; arr[k + 1] = AU.base[k + 1] + AU.off[k + 1] + uw; arr[k + 2] = AU.base[k + 2] + AU.off[k + 2] + AU.rt[i * 2 + 1] * sw; }
@@ -1327,8 +1328,8 @@ function buildMains() {
     if (WR() < 0.6) { const i = Math.round(N * wa(0.3, 0.5)); x.beginPath(); x.moveTo(up[i][0] - 30, up[i][1] + 6); x.quadraticCurveTo(up[i][0] + 6, up[i][1] - wa(25, 55), up[i][0] + 36, up[i][1] + 4); x.fill(); }
     if (WR() < 0.6) { x.save(); x.translate(cx + wa(-60, 120), cy + wa(150, 230)); x.scale(0.34, 0.34); x.rotate(wa(-0.15, 0.15)); x.translate(-cx, -cy); body(); x.restore(); }
   }, [96, 78, 150]);
-  const we = mk(wtex, 17000, 0.3, 0, 0, 0, 0, 32000, -27, 0x7a62ae, 1.0); we.wh = { az0: wa(-0.55, -0.2), az1: wa(0.2, 0.6), el: wa(0.06, 0.2), d0: wa(0.03, 0.08), tilt: wa(-0.12, 0.12), flip: WR() < 0.5 ? -1 : 1, i0: Math.floor(smp.length * 0.12) }; we.wh.d1 = we.wh.d0 + wa(0.12, 0.18); we.m.scale.x = we.wh.flip; mains.bd.list[2].st = { az: -0.27, el: 0.1 }; mains.bd.list.push(we); mains.smp = smp; } // third: a small, old, bronze-tinted orrery far off to one side, a quiet fixed reference
-  // 14) official signage. (a) Stencilled designation painted on the first ramp's two faces (different sizes and places, cream paint, worn): LEYLINE 07 on the left face, HDG 213 on the right. (b) Go signs: amber ring gates that turn green with a pulse as you pass through (one early, one just before the dive). (c) The Central Armature Works: a thick distant ring, its name stencilled around it and dotted with office lights.
+  const we = mk(wtex, 17000, 0.3, 0, 0, 0, 0, 32000, -27, 0x7a62ae, 1.0); we.wh = { az0: wa(-0.55, -0.2), az1: wa(0.2, 0.6), el: wa(0.06, 0.2), d0: wa(0.03, 0.08), tilt: wa(-0.12, 0.12), flip: WR() < 0.5 ? -1 : 1, i0: Math.floor(smp.length * 0.12) }; we.wh.d1 = we.wh.d0 + wa(0.12, 0.18); we.m.scale.x = we.wh.flip; mains.bd.list[2].st = { az: -0.43, el: 0.08 }; mains.bd.list.push(we); mains.smp = smp; } // third: a small, old, bronze-tinted orrery far off to one side, a quiet fixed reference
+  // 14) official signage. (a) Stencilled designation painted on the first ramp's two faces (different sizes and places, cream paint, worn): LEYLINE 07 on the right face, HDG 213 on the left. (b) Go signs: amber ring gates that turn green with a pulse as you pass through (one early, one just before the dive). (c) The Central Armature Works: a thick distant ring, its name stencilled around it and dotted with office lights.
   { const r0 = ramps[0], stenTex = (top, big) => maskTex(512, 768, (x, w, h) => { x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
         const fit = (t, y, hgt, wid) => { x.save(); x.font = 'bold ' + hgt + 'px Arial, Helvetica, sans-serif'; const m = x.measureText(t).width; x.translate((w - wid) / 2, y); x.scale(wid / m, 1); x.fillText(t, 0, 0); x.restore(); };
         fit(top, 250, 180, 440); fit(big, 740, 400, 460);
@@ -1340,25 +1341,30 @@ function buildMains() {
       for (let a = 0; a < NU; a++) I.push(2 * a, 2 * a + 1, 2 * a + 2, 2 * a + 1, 2 * a + 3, 2 * a + 2);
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3)); g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(UV), 2)); g.setIndex(I);
       const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.92, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); m.renderOrder = 2; m.frustumCulled = false; m.userData.tag = 'stencil'; addObj(m); };
-    decal(-1, 2300, 3800, -1180, -180, stenTex('LEYLINE', '07'));
-    decal(1, 5000, 6300, 270, 1120, stenTex('HDG', '213'));
-    mains.signs = []; const GO = maskTex(512, 256, (x, w, h) => { x.fillStyle = '#fff'; x.font = 'bold 230px Arial, Helvetica, sans-serif'; x.textBaseline = 'alphabetic'; const m = x.measureText('GO').width; x.save(); x.translate((w - 380) / 2, 215); x.scale(380 / m, 1); x.fillText('GO', 0, 0); x.restore(); x.globalCompositeOperation = 'destination-out'; x.fillRect(0, 118, w, 6); }, [255, 255, 255]);
-    const goSign = (r, u, ph) => { const h = r.h0 + (r.k || 0) * u, c = ridgeAt(r, u), d = dirOf(h), cen = new THREE.Vector3(c[0], r.oy + zOf(r, u) + r.H + 250, c[1]), tg = new THREE.Vector3(d[0], zD(r, u), d[2]).normalize(), grp = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: 0xffb45e });
-      grp.position.copy(cen); grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tg);
-      grp.add(new THREE.Mesh(new THREE.TorusGeometry(1900, 62, 8, 72), mat)); grp.add(new THREE.Mesh(new THREE.TorusGeometry(1745, 20, 6, 72), mat));
-      for (let i = 0; i < 9; i++) { const a = 0.35 + i * 0.62 + rn() * 0.4, lamp = new THREE.Mesh(new THREE.SphereGeometry(95, 8, 6), mat); lamp.position.set(Math.sin(a) * 1900, Math.cos(a) * 1900, 0); grp.add(lamp); }
-      const pn = new THREE.Mesh(new THREE.PlaneGeometry(1500, 750), new THREE.MeshBasicMaterial({ map: GO, color: 0xffb45e, transparent: true, depthWrite: false, side: THREE.DoubleSide })); pn.position.set(0, 2650, 0); pn.rotation.y = Math.PI; grp.add(pn);
-      grp.userData.tag = 'gosign'; addObj(grp); mains.signs.push({ g: grp, cen, tg, mat, pn: pn.material, k: 0, ph }); };
-    goSign(ramps[1], ramps[1].L * 0.42, 0.7); goSign(ramps[3], ramps[3].L - 1000, 2.9);
-    { const RO = 9000, RI = 6500, K = 1024 / 2 / RO, wtx = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = c.height = 1024; const x = c.getContext('2d'), cx = 512, cy = 512, ro = RO * K, ri = RI * K, rm = (ro + ri) / 2, TA = Math.PI * 2;
-          x.fillStyle = '#2c2a64'; x.fillRect(0, 0, 1024, 1024); x.strokeStyle = '#6b5fb4'; x.lineWidth = 5; for (const rr of [ro - 4, ri + 4, rm - 40, rm + 40]) { x.beginPath(); x.arc(cx, cy, rr, 0, TA); x.stroke(); }
-          const txt = 'CENTRAL ARMATURE WORKS', span = 2.55, a0 = -Math.PI / 2 - span / 2; x.fillStyle = '#f4e8d2'; x.font = 'bold 82px Arial, Helvetica, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    decal(1, 2300, 3800, 180, 1180, stenTex('LEYLINE', '07'));
+    decal(-1, 5000, 6300, -1120, -270, stenTex('HDG', '213'));
+    // beacons: a small floating signal gem that is yellow far off and turns green as you come close (stays green once you are past)
+    mains.signs = []; const beacon = (r, u, side, ph) => { const h = r.h0 + (r.k || 0) * u, c = ridgeAt(r, u), d = dirOf(h), rt = rightOf(h), cen = new THREE.Vector3(c[0] + rt[0] * side, r.oy + zOf(r, u) + r.H + 800, c[1] + rt[2] * side), tg = new THREE.Vector3(d[0], zD(r, u), d[2]).normalize(), grp = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: 0xffd24a }),
+        gem = new THREE.Mesh(new THREE.OctahedronGeometry(300, 0), mat), halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: 0xffd24a, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      gem.scale.set(0.7, 1.35, 0.7); halo.scale.set(3400, 3400, 1); grp.add(gem, halo); grp.position.copy(cen); grp.userData.tag = 'beacon'; addObj(grp); mains.signs.push({ g: grp, gem, cen, tg, mat, halo: halo.material, k: 0, ph }); };
+    beacon(ramps[1], ramps[1].L * 0.42, 650, 0.7); beacon(ramps[3], ramps[3].L - 900, -700, 2.9);
+    { const RO = 26000, RI = 21000, S2 = 2048, K = S2 / 2 / RO, rnd = Math.random, wtx = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = c.height = S2; const x = c.getContext('2d'), cx = S2 / 2, cy = S2 / 2, ro = RO * K, ri = RI * K, rm = (ro + ri) / 2, TA = Math.PI * 2;
+          // an old structure: dusty violet plating, stains, rust-brown streaks, faded cream paint, mostly dark windows; the whole thing already half dissolved into haze
+          x.fillStyle = '#4a4274'; x.fillRect(0, 0, S2, S2); for (let i = 0; i < 220; i++) { const a = rnd() * TA, rr = ri + rnd() * (ro - ri), w = 20 + rnd() * 120; x.fillStyle = rnd() < 0.5 ? 'rgba(40,30,60,0.35)' : 'rgba(150,110,120,0.22)'; x.beginPath(); x.ellipse(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, w, w * (0.2 + rnd() * 0.5), a + 1.57, 0, TA); x.fill(); }
+          x.strokeStyle = '#7a6cae'; x.lineWidth = 9; for (const rr of [ro - 8, ri + 8, rm - 80, rm + 80]) { x.beginPath(); x.arc(cx, cy, rr, 0, TA); x.stroke(); }
+          const txt = 'CENTRAL ARMATURE WORKS', span = 2.9, a0 = -Math.PI / 2 - span / 2 + 0.5; x.fillStyle = '#c4b4a2'; x.font = 'bold 170px Arial, Helvetica, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
           for (let i = 0; i < txt.length; i++) { const a = a0 + span * (i + 0.5) / txt.length; if (txt[i] === ' ') continue; x.save(); x.translate(cx + Math.cos(a) * rm, cy + Math.sin(a) * rm); x.rotate(a + Math.PI / 2); x.scale(0.62, 1); x.fillText(txt[i], 0, 0); x.restore(); }
-          let lit = true, run = 0; for (const [rr, step, wd] of [[ri + 18, 0.0105, 9], [ro - 18, 0.0082, 8], [rm + 62, 0.015, 8]]) { for (let a = 0; a < TA; a += step) { if (--run <= 0) { lit = Math.random() < 0.62; run = 2 + Math.floor(Math.random() * 14); } if (!lit) continue; x.save(); x.translate(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); x.rotate(a + Math.PI / 2); x.fillStyle = Math.random() < 0.04 ? '#ff7a6a' : (Math.random() < 0.03 ? '#8cf0b0' : '#ffd98a'); x.fillRect(-wd / 2, -4, wd, 7 + Math.random() * 5); x.restore(); } }
-          return c; })()), grp = new THREE.Group(), faceM = new THREE.MeshBasicMaterial({ map: wtx, side: THREE.FrontSide }), A = new THREE.Mesh(new THREE.RingGeometry(RI, RO, 160, 1), faceM), B = A.clone(); B.rotation.y = Math.PI; B.position.z = -2;
-      const rimM = pastelToon(0x5a4ab0); grp.add(A, B, new THREE.Mesh(new THREE.TorusGeometry(RO, 230, 8, 120), rimM), new THREE.Mesh(new THREE.TorusGeometry(RI, 150, 8, 120), rimM));
-      const P2 = smp[Math.floor(smp.length * 0.14)], nrm = new THREE.Vector3().addScaledVector(P2.sax, -0.8).add(new THREE.Vector3(P2.rt[0] * 0.55, 0.15, P2.rt[2] * 0.55)).normalize();
-      grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nrm); grp.userData.tag = 'works'; addObj(grp); mains.rolled.push({ obj: grp, p: P2.p, off: offAt(P2, -30000, 9000), ax: P2.ax }); } }
+          for (let i = 0; i < 700; i++) { const a = rnd() * TA, rr = ri + rnd() * (ro - ri); x.fillStyle = '#4a4274'; x.beginPath(); x.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 2 + rnd() * 9, 0, TA); x.fill(); } // flaked paint
+          let lit = true, run = 0; for (const [rr, step, wd] of [[ri + 36, 0.0052, 18], [ro - 36, 0.0041, 16], [rm + 124, 0.0075, 16]]) { for (let a = 0; a < TA; a += step) { if (--run <= 0) { lit = rnd() < 0.3; run = 2 + Math.floor(rnd() * 22); } if (!lit) continue; x.save(); x.translate(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); x.rotate(a + Math.PI / 2); x.fillStyle = rnd() < 0.05 ? '#d98a7a' : '#d9b878'; x.fillRect(-wd / 2, -8, wd, 14 + rnd() * 10); x.restore(); } }
+          x.fillStyle = 'rgba(190,150,200,0.28)'; x.fillRect(0, 0, S2, S2); // baked haze: it is far off
+          return c; })()), grp = new THREE.Group(), faceM = new THREE.MeshBasicMaterial({ map: wtx, side: THREE.FrontSide, fog: false }), A = new THREE.Mesh(new THREE.RingGeometry(RI, RO, 192, 1), faceM), B = A.clone(); B.rotation.y = Math.PI; B.position.z = -2;
+      const rimM = new THREE.MeshBasicMaterial({ color: 0x5c4f92, fog: false }); grp.add(A, B, new THREE.Mesh(new THREE.TorusGeometry(RO, 520, 8, 140), rimM), new THREE.Mesh(new THREE.TorusGeometry(RI, 340, 8, 140), rimM));
+      // the floating office in its centre: a few uneven blocks with a handful of lit windows, tilted, and a mast
+      const owt = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); x.fillStyle = '#5a4d84'; x.fillRect(0, 0, 256, 256); for (let j = 0; j < 12; j++) for (let i = 0; i < 12; i++) { x.fillStyle = rnd() < 0.34 ? '#e3c283' : '#2e2650'; x.fillRect(8 + i * 20, 8 + j * 20, 11, 13); } return c; })()), ofM = new THREE.MeshBasicMaterial({ map: owt, fog: false, color: 0xcfc0dc }), off = new THREE.Group();
+      for (const [w, h, d, px, py, pz] of [[4600, 2800, 3200, -300, 200, 0], [2600, 4200, 2400, 1900, 900, 500], [1700, 1500, 1900, -2400, -1700, -400], [1200, 2300, 1200, 300, 3400, 200]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), ofM); b.position.set(px, py, pz); b.rotation.set(rnd() * 0.2, rnd() * 0.5, rnd() * 0.2); off.add(b); }
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(40, 70, 4200, 5), rimM); mast.position.set(300, 6200, 200); off.add(mast); off.position.set(1400, -1200, 500); off.rotation.set(0.12, 0.35, -0.18); grp.add(off);
+      const P2 = smp[Math.floor(smp.length * 0.12)], nrm = new THREE.Vector3().addScaledVector(P2.sax, -0.7).add(new THREE.Vector3(P2.rt[0] * 0.6, 0.25, P2.rt[2] * 0.6)).normalize();
+      grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nrm); grp.userData.tag = 'works'; addObj(grp); mains.rolled.push({ obj: grp, p: P2.p, off: offAt(P2, -62000, 27000), ax: P2.ax }); } }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }
