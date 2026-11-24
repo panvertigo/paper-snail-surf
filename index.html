@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #164 2026-11-23 23:18</div>
+<div id="build">build #165 2026-11-23 23:24</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -93,7 +93,7 @@ canvas{display:block;touch-action:none}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Reflector.js"></script>
 <script src="music.js?v=73"></script>
 <script src="racers.js"></script>
-<script src="courses.js?v=1"></script>
+<script src="courses.js?v=2"></script>
 <script>
 try { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || +((location.hash.match(/^#level-(\d)$/) || [])[1]) || +localStorage.getItem('surf_level') || 1; } catch (e) { globalThis.SURF_LEVEL = globalThis.SURF_LEVEL || 1; }
 class V { constructor() { this.x = this.y = this.z = 0; } set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } }
@@ -940,7 +940,7 @@ function buildLoft() {
 }
 // ---------- the Transit (scenery 'mains'): giant brass half-arches over the course, cloud sea, orrery rings, stars ----------
 let mains = null, orrery = [], orT = 0; // orrery rings: each is a pivot (slow precession about the vertical) > tilt > spinner (turns about its own axis); rates come from the golden ratio, so no two rings ever line up
-const _qa = new THREE.Quaternion(), _qq = new THREE.Quaternion(), _mv = new THREE.Vector3(), _mm = new THREE.Matrix4(), _m1 = new THREE.Vector3(1, 1, 1), _e = new THREE.Euler(), _m2 = new THREE.Matrix4(), _mq = new THREE.Matrix4(), _col = new THREE.Color(), _f = new THREE.Vector3(), _rg = new THREE.Vector3(), _u2 = new THREE.Vector3(), WUP = new THREE.Vector3(0, 1, 0), mainsAx = new THREE.Vector3(0, 0, -1);
+const _mz = new THREE.Vector3(0, 0, 1), _qa = new THREE.Quaternion(), _qq = new THREE.Quaternion(), _mv = new THREE.Vector3(), _mm = new THREE.Matrix4(), _m1 = new THREE.Vector3(1, 1, 1), _e = new THREE.Euler(), _m2 = new THREE.Matrix4(), _mq = new THREE.Matrix4(), _col = new THREE.Color(), _f = new THREE.Vector3(), _rg = new THREE.Vector3(), _u2 = new THREE.Vector3(), WUP = new THREE.Vector3(0, 1, 0), mainsAx = new THREE.Vector3(0, 0, -1);
 const ss01 = x => x * x * (3 - 2 * x), cl01 = x => Math.max(0, Math.min(1, x));
 // The Transit has no up or down: everything around the course (arches, clouds, rings, tags, stars, the sky and its sun, planet and windmill) rolls about the course line, by the angle mainsTheta(): upright for the first tenth, then a slow easing roll (1.25 turns, fastest in the middle, which is the climax), then it settles. Only the scenery turns; the ramps and gravity do not.
 function mainsTheta() { return 7.85 * ss01(ss01(cl01((dayP - 0.1) / 0.8))) + 0.2 * Math.sin(0.09 * orT); }
@@ -970,10 +970,10 @@ function mLight(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: {
   fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ vec2 c = gl_PointCoord - 0.5; float d = abs(c.x) + abs(c.y); float fill = 1.0 - smoothstep(0.27, 0.31, d), edge = 1.0 - smoothstep(0.45, 0.5, d); vec3 col = mix(vec3(0.1, 0.07, 0.3), vc, fill); gl_FragColor = vec4(col, edge * vk * (1.0 - smoothstep(30000.0, 90000.0, vd))); }' }); beadMats.push(m); return m; }
 function mGlobe(size) { const m = new THREE.ShaderMaterial({ uniforms: { size: { value: size }, sc: { value: 400 } }, transparent: true, depthWrite: false,
   vertexShader: 'attribute float k; attribute vec3 col; uniform float size, sc; varying float vk, vd; varying vec3 vc; void main(){ vk = k; vc = col; vec4 mv = modelViewMatrix * vec4(position, 1.0); vd = -mv.z; gl_PointSize = clamp(size * (0.8 + 0.4 * k) * sc / max(1.0, -mv.z), 7.0, 26.0); gl_Position = projectionMatrix * mv; }',
-  fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float core = 1.0 - smoothstep(0.28, 0.34, d); float ring = smoothstep(0.5, 0.55, d) * (1.0 - smoothstep(0.58, 0.64, d)) * 0.3; float halo = pow(1.0 - clamp(d, 0.0, 1.0), 2.6) * 0.32; vec3 c = mix(vc, vec3(1.0, 0.93, 0.82), core * 0.3); float a = clamp(core + ring + halo, 0.0, 1.0) * (0.3 + 0.7 * vk) * (1.0 - smoothstep(24000.0, 62000.0, vd)); gl_FragColor = vec4(c, a); }' }); beadMats.push(m); return m; }
+  fragmentShader: 'varying float vk, vd; varying vec3 vc; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float core = 1.0 - smoothstep(0.28, 0.34, d); float ring = smoothstep(0.5, 0.55, d) * (1.0 - smoothstep(0.58, 0.64, d)) * 0.3; float halo = pow(1.0 - clamp(d, 0.0, 1.0), 2.6) * 0.32; vec3 c = mix(vc, vec3(1.0, 0.98, 0.94), core * 0.7); float a = clamp(core + ring + halo, 0.0, 1.0) * (0.3 + 0.7 * vk) * (1.0 - smoothstep(24000.0, 62000.0, vd)); gl_FragColor = vec4(c, a); }' }); beadMats.push(m); return m; }
 function mBokeh() { const m = new THREE.ShaderMaterial({ uniforms: { sc: { value: 400 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-  vertexShader: 'attribute float k, sz; attribute vec3 col; uniform float sc; varying float vk, vd, vp; varying vec3 vc; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vc = col; vk = k; vd = -mv.z; vp = 1.0; if (sz < 1.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; } float px = clamp(sz * (0.85 + 0.3 * k) * sc / max(1.0, -mv.z), 10.0, 120.0); vp = px; gl_PointSize = px; gl_Position = projectionMatrix * mv; }',
-  fragmentShader: 'varying float vk, vd, vp; varying vec3 vc; void main(){ vec2 c = gl_PointCoord * 2.0 - 1.0; float r = length(c), aa = 2.0 / vp; float disc = 1.0 - smoothstep(1.0 - aa, 1.0, r); float rim = smoothstep(0.66, 0.96, r); float a = disc * (0.3 + 0.7 * rim) * vk * 0.42 * (1.0 - smoothstep(24000.0, 70000.0, vd)); gl_FragColor = vec4(vc * (0.85 + 0.35 * rim), a); }' }); beadMats.push(m); return m; }
+  vertexShader: 'attribute float k, sz; attribute vec3 col; uniform float sc; varying float vk, vd, vp, vfar; varying vec3 vc; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vc = col; vk = k; vd = -mv.z; vp = 1.0; vfar = 0.0; if (sz < 1.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; } float raw = sz * (0.85 + 0.3 * k) * sc / max(1.0, -mv.z), px = clamp(raw, 10.0, 120.0); vfar = smoothstep(22.0, 44.0, raw) * (1.0 - smoothstep(14000.0, 40000.0, -mv.z)); vp = px; gl_PointSize = px; gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'varying float vk, vd, vp, vfar; varying vec3 vc; void main(){ vec2 c = gl_PointCoord * 2.0 - 1.0; float r = length(c), aa = 2.0 / vp; float disc = 1.0 - smoothstep(1.0 - aa, 1.0, r); float rim = smoothstep(0.66, 0.96, r); float a = disc * (0.3 + 0.7 * rim) * vk * 0.5 * vfar; gl_FragColor = vec4(vc * (0.85 + 0.35 * rim), a); }' }); beadMats.push(m); return m; }
 function beadGeo(pos, k) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('k', new THREE.BufferAttribute(k, 1)); return g; }
 let starMat = null;
 function mStarMat() { return starMat || (starMat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
@@ -1026,7 +1026,8 @@ function updateMains(dt) {
 }
 // ---------- the Ink (scenery 'ink'): inky black water. The ramp is a pearl that lights only the stretch of course near you (the light range grows with speed), and a dim reflection of it hangs in the water under you and in a dark ceiling over you. Prototype. ----------
 const inkU = { time: { value: 0 }, wyB: { value: 0 }, wyT: { value: 0 }, near: { value: 4000 }, far: { value: 16000 }, sn: { value: new THREE.Vector2() }, dir: { value: new THREE.Vector2(0, -1) }, spd: { value: 0 } };
-let inkSurf = [], inkRefl = null;
+let inkSurf = [], inkMirrors = [], inkGhost = null, inkGhostMat = null, inkGhostA = 0;
+const _mr = new THREE.Matrix4();
 // Style: sumi-e restraint. Flat two-tone cel shading in mother-of-pearl white (a pale cool tone in shadow, no gradients beyond a faint wash toward the ridge), a hairline edge trim, and only the faintest rainbow (a few percent, a little more at grazing angles). The light dissolves into the dark through a drifting mist (the range edge is uneven and soft), never a cutoff. The water is mist and a quiet mirror, with no glints or spots.
 const INK_NZ = 'float nz(vec2 p){ return 0.5 + 0.25 * sin(p.x * 1.7 + sin(p.y * 1.3) * 1.4) + 0.25 * sin(p.y * 1.1 + sin(p.x * 0.9) * 1.6); } float inkLit(float d, vec2 xz, float far, float time, float k){ float w = nz(xz * 0.00035 + time * 0.03); float dd = d * (0.82 + 0.36 * w); return exp(-pow(dd / (far * k), 2.0)); }';
 function inkTrimMat() {
@@ -1035,6 +1036,7 @@ function inkTrimMat() {
     fragmentShader: 'uniform float far, time; varying vec3 vP; ' + INK_NZ + ' void main(){ gl_FragColor = vec4(vec3(0.9) * inkLit(length(cameraPosition - vP), vP.xz, far, time, 0.6), 1.0); }' });
 }
 function inkRamps(g) {
+  inkGhost = null; // the snail's reflection in the ramp surface is rebuilt on the first frame (updateInk)
   const side = THREE.DoubleSide;
   addObj(new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: { far: inkU.far, time: inkU.time }, side,
     vertexShader: 'varying vec3 vP, vN; varying float vV; void main(){ vP = position; vN = normal; vV = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -1049,24 +1051,32 @@ function inkRamps(g) {
       c = mix(c, irid * dot(c, vec3(0.299, 0.587, 0.114)) * 1.1, 0.08 + 0.22 * f);                              // faint, but there
       gl_FragColor = vec4(c * inkLit(length(cameraPosition - vP), vP.xz, far, time, 0.55), 1.0);
     }` })));
-  inkRefl = null;
+  inkMirrors = [];
   if (THREE.Reflector) {
-    const dpr = renderer.getPixelRatio(), tw = Math.max(256, Math.round(innerWidth * dpr * 0.5)), th = Math.max(256, Math.round(innerHeight * dpr * 0.5));
-    const sh = { uniforms: { color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null }, time: { value: 0 }, far: { value: 16000 }, sn: { value: new THREE.Vector2() }, spd: { value: 0 }, dir: { value: new THREE.Vector2(0, -1) } },
-      vertexShader: 'uniform mat4 textureMatrix; varying vec4 vUv; varying vec3 vW; void main(){ vUv = textureMatrix * vec4(position, 1.0); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-      fragmentShader: 'uniform sampler2D tDiffuse; uniform float time, far, spd; uniform vec2 sn, dir; varying vec4 vUv; varying vec3 vW; ' + `void main(){
-        float along = dot(vW.xz, dir), across = dot(vW.xz, vec2(-dir.y, dir.x));
-        float a1 = sin(across * 0.0031 + sin(along * 0.0005 + time * 0.45) * 1.8 + time * 0.7), a2 = sin(across * 0.0069 - along * 0.0012 - time * 0.9), a3 = sin(along * 0.0021 + across * 0.0013 + time * 0.6);
-        vec2 off = vec2(a1 * 0.7 + a2 * 0.3, a3 * 0.5 + a2 * 0.3) * (0.006 + 0.007 * spd) * vUv.w;           // ripples bend the reflection (more at speed)
-        vec3 col = texture2DProj(tDiffuse, vUv + vec4(off, 0.0, 0.0)).rgb;
-        float dxz = length(vW.xz - sn), fade = exp(-pow(dxz / (far * 0.65), 2.0));
-        float rip = 0.8 + (0.14 + 0.08 * spd) * a1 + 0.06 * a2;                                              // soft light bands in the ripples
-        gl_FragColor = vec4(col * 0.6 * rip * fade, 1.0);
-      }` };
-    const rf = new THREE.Reflector(new THREE.PlaneGeometry(150000, 150000), { textureWidth: tw, textureHeight: th, clipBias: 0.003, shader: sh });
-    rf.rotation.x = -Math.PI / 2; rf.material.transparent = true; rf.material.depthWrite = false; rf.material.blending = THREE.AdditiveBlending; rf.renderOrder = 1; rf.frustumCulled = false;
-    rf.material.uniforms.time = inkU.time; rf.material.uniforms.far = inkU.far; rf.material.uniforms.sn = inkU.sn; rf.material.uniforms.spd = inkU.spd; rf.material.uniforms.dir = inkU.dir;
-    addObj(rf); inkRefl = rf;
+    const dpr = renderer.getPixelRatio(), mk = (scale, size, gain, rad) => {
+      const tw = Math.max(192, Math.round(innerWidth * dpr * scale)), th = Math.max(192, Math.round(innerHeight * dpr * scale));
+      const sh = { uniforms: { color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null }, time: { value: 0 }, spd: { value: 0 }, dir: { value: new THREE.Vector2(0, -1) }, cn: { value: new THREE.Vector3() }, rad: { value: rad }, gain: { value: gain } },
+        vertexShader: 'uniform mat4 textureMatrix; varying vec4 vUv; varying vec3 vW; void main(){ vUv = textureMatrix * vec4(position, 1.0); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+        fragmentShader: 'uniform sampler2D tDiffuse; uniform float time, spd, rad, gain; uniform vec2 dir; uniform vec3 cn; varying vec4 vUv; varying vec3 vW; ' + `void main(){
+          float along = dot(vW.xz, dir), across = dot(vW.xz, vec2(-dir.y, dir.x));
+          float a1 = sin(across * 0.0031 + sin(along * 0.0005 + time * 0.45) * 1.8 + time * 0.7), a2 = sin(across * 0.0069 - along * 0.0012 - time * 0.9), a3 = sin(along * 0.0021 + across * 0.0013 + time * 0.6);
+          vec2 off = vec2(a1 * 0.7 + a2 * 0.3, a3 * 0.5 + a2 * 0.3) * (0.006 + 0.007 * spd) * vUv.w;
+          vec3 col = texture2DProj(tDiffuse, vUv + vec4(off, 0.0, 0.0)).rgb;
+          float fade = exp(-pow(length(vW - cn) / rad, 2.0)), rip = 0.8 + (0.14 + 0.08 * spd) * a1 + 0.06 * a2;
+          gl_FragColor = vec4(col * gain * rip * fade, 1.0);
+        }` };
+      const rf = new THREE.Reflector(new THREE.PlaneGeometry(size, size), { textureWidth: tw, textureHeight: th, clipBias: 0.003, shader: sh });
+      rf.material.transparent = true; rf.material.depthWrite = false; rf.material.blending = THREE.AdditiveBlending; rf.renderOrder = 1; rf.frustumCulled = false;
+      rf.material.uniforms.time = inkU.time; rf.material.uniforms.spd = inkU.spd; rf.material.uniforms.dir = inkU.dir;
+      addObj(rf); return rf;
+    };
+    // n(t, r, f): the pane's normal from the travel frame (r = right, f = forward, up = +y); it must face the snail. d = distance from the snail, drifting angles make the panes sit at impossible angles
+    inkMirrors.push({ rf: mk(0.5, 150000, 0.6, 1), floor: true, d: 3000, n: () => [0, 1, 0] });
+    if (!LITE) {
+      inkMirrors.push({ rf: mk(0.4, 36000, 0.4, 15000), d: 9000, n: (t, r, f) => [0.28 * Math.sin(t * 0.05) * r[0] + 0.2 * Math.cos(t * 0.043) * f[0], -1, 0.28 * Math.sin(t * 0.05) * r[2] + 0.2 * Math.cos(t * 0.043) * f[2]] });                                    // above, tilting
+      inkMirrors.push({ rf: mk(0.4, 36000, 0.42, 15000), d: 14000, n: (t, r, f) => [0.85 * r[0] + 0.35 * Math.cos(t * 0.047) * f[0], -0.4 + 0.2 * Math.sin(t * 0.06), 0.85 * r[2] + 0.35 * Math.cos(t * 0.047) * f[2]] });                                  // a left diagonal, leaning over
+      inkMirrors.push({ rf: mk(0.4, 36000, 0.36, 15000), d: 17000, n: (t, r, f) => [-0.7 * r[0] + (-0.45 + 0.2 * Math.sin(t * 0.04)) * f[0], -0.55, -0.7 * r[2] + (-0.45 + 0.2 * Math.sin(t * 0.04)) * f[2]] });                                         // a right overhang, tipped back
+    }
   }
   if (!THREE.Reflector) { // fallback if the Reflector script did not load: dense copy of the ramps for the mirror (the real mesh has huge flat triangles that cannot ripple): 600-unit slices, 4 strips across each face
     const Pt = (r, u, v, y) => { const q = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u); return [q[0] + rt[0] * v, r.oy + zOf(r, u) + y, q[1] + rt[2] * v]; }, rp = [];
@@ -1104,10 +1114,28 @@ function inkRamps(g) {
 }
 function updateInk() {
   if (stageMeta.scenery !== 'ink') return;
+  if (!inkGhost) { // a mirrored, faint, pearl copy of the snail that follows it just under the ramp surface: its reflection in the glossy ramp (shows through the ramp, drawn last)
+    inkGhostMat = new THREE.MeshBasicMaterial({ color: 0xdbe7ff, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    inkGhost = snail.clone(true); inkGhost.matrixAutoUpdate = false; inkGhost.traverse(o => { if (o.isMesh) { o.material = inkGhostMat; o.renderOrder = 6; } else if (o.isSprite || o.isPoints || o.isLine) o.visible = false; }); addObj(inkGhost);
+  }
+  inkGhostA += ((contactN ? 1 : 0) - inkGhostA) * 0.15; inkGhost.visible = inkGhostA > 0.02; inkGhostMat.opacity = 0.34 * inkGhostA;
+  if (inkGhost.visible) { // reflect the snail's matrix across the plane through its contact point with the surface normal
+    const nx = sUp.x, ny = sUp.y, nz = sUp.z, dd = 2 * (nx * snail.position.x + ny * snail.position.y + nz * snail.position.z);
+    _mr.set(1 - 2 * nx * nx, -2 * nx * ny, -2 * nx * nz, dd * nx, -2 * nx * ny, 1 - 2 * ny * ny, -2 * ny * nz, dd * ny, -2 * nx * nz, -2 * ny * nz, 1 - 2 * nz * nz, dd * nz, 0, 0, 0, 1);
+    snail.updateMatrixWorld(); inkGhost.matrix.multiplyMatrices(_mr, snail.matrixWorld); inkGhost.matrixWorldNeedsUpdate = true;
+  }
   const sp = Math.hypot(vel.x, vel.y, vel.z); inkU.time.value = performance.now() / 1000; inkU.wyB.value = snail.position.y - 3000; inkU.wyT.value = snail.position.y + 7000;
   inkU.far.value = Math.min(60000, 16000 + 3.2 * sp); inkU.near.value = inkU.far.value * 0.22; // you see a little further the faster you go
   { const h = Math.hypot(vel.x, vel.z); if (h > 200) { inkU.dir.value.x += (vel.x / h - inkU.dir.value.x) * 0.1; inkU.dir.value.y += (vel.z / h - inkU.dir.value.y) * 0.1; const l = Math.hypot(inkU.dir.value.x, inkU.dir.value.y) || 1; inkU.dir.value.x /= l; inkU.dir.value.y /= l; } inkU.spd.value = Math.min(1, sp / 6000); }
-  if (inkRefl) inkRefl.position.set(snail.position.x, inkU.wyB.value, snail.position.z);
+  if (inkMirrors.length) {
+    const t = inkU.time.value, dx = inkU.dir.value.x, dz = inkU.dir.value.y, R = [-dz, 0, dx], F = [dx, 0, dz], sx = snail.position.x, sy = snail.position.y, sz = snail.position.z;
+    for (const m of inkMirrors) {
+      const u = m.rf.material.uniforms;
+      if (m.floor) { m.rf.rotation.x = -Math.PI / 2; m.rf.position.set(sx, inkU.wyB.value, sz); u.cn.value.set(sx, inkU.wyB.value, sz); u.rad.value = inkU.far.value * 0.65; continue; }
+      const nv = m.n(t, R, F), l = Math.hypot(nv[0], nv[1], nv[2]) || 1, nx = nv[0] / l, ny = nv[1] / l, nz = nv[2] / l;
+      m.rf.quaternion.setFromUnitVectors(_mz, _mv.set(nx, ny, nz)); m.rf.position.set(sx - nx * m.d, sy - ny * m.d, sz - nz * m.d); u.cn.value.copy(m.rf.position);
+    }
+  }
   inkU.sn.value.set(snail.position.x, snail.position.z); for (const o of inkSurf) o.m.position.set(snail.position.x, o.top ? inkU.wyT.value : inkU.wyB.value, snail.position.z);
 }
 const pastelToon = c => new THREE.MeshToonMaterial({ color: c, emissive: new THREE.Color(c).multiplyScalar(0.42), gradientMap: TOON });
@@ -1136,10 +1164,10 @@ function buildMains() {
     for (const m of [im, rail]) { m.frustumCulled = false; m.renderOrder = -20; addObj(m); }
     const lg = beadGeo(new Float32Array(recs.length * NL * 3), new Float32Array(recs.length * NL).fill(0.8)), lcol = new Float32Array(recs.length * NL * 3);
     // colour: a warm palette (pale gold, gold, peach, rose-gold) drifting along the course with a little jitter, and one globe in nine a cool pearl-blue
-    const PAL = [[1, 0.84, 0.52], [1, 0.8, 0.58], [1, 0.72, 0.58], [1, 0.66, 0.64]];
+    const PAL = [[1, 0.93, 0.74], [1, 0.82, 0.5], [1, 0.72, 0.52], [1, 0.62, 0.58]];
     for (let i = 0; i < recs.length; i++) for (let j = 0; j < NL; j++) {
       const o = (i * NL + j) * 3, drift = 0.5 + 0.5 * Math.sin(i * 0.37 + j * 0.9), f = drift * (PAL.length - 1) + (rn() - 0.5) * 0.7, k0 = Math.max(0, Math.min(PAL.length - 1, f)), a0 = Math.floor(k0), a1 = Math.min(PAL.length - 1, a0 + 1), m = k0 - a0;
-      const cool = (i * NL + j) % 9 === 4, cc = cool ? [0.84, 0.74, 1] : [PAL[a0][0] + (PAL[a1][0] - PAL[a0][0]) * m, PAL[a0][1] + (PAL[a1][1] - PAL[a0][1]) * m, PAL[a0][2] + (PAL[a1][2] - PAL[a0][2]) * m];
+      const cool = (i * NL + j) % 9 === 4, cc = cool ? [0.74, 0.86, 1] : [PAL[a0][0] + (PAL[a1][0] - PAL[a0][0]) * m, PAL[a0][1] + (PAL[a1][1] - PAL[a0][1]) * m, PAL[a0][2] + (PAL[a1][2] - PAL[a0][2]) * m];
       lcol[o] = cc[0]; lcol[o + 1] = cc[1]; lcol[o + 2] = cc[2];
     }
     lg.setAttribute('col', new THREE.BufferAttribute(lcol, 3));
@@ -1167,7 +1195,7 @@ function buildMains() {
   // 3) clouds: soft puffs scattered around the course, mostly below it to begin with
   for (let i = 0; i < 140; i++) {
     const P = pt(), s = rA(26000, 62000);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.55 ? 0xc4d0e6 : 0xd8cfe8, transparent: true, opacity: rA(0.2, 0.4), depthWrite: false, fog: true }));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.55 ? 0xf0cadd : 0xd2c6f0, transparent: true, opacity: rA(0.2, 0.4), depthWrite: false, fog: true }));
     sp.scale.set(s * 0.8, s * 0.8, 1); sp.renderOrder = -25; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(5000, 80000), -rA(14000, 60000)), ax: P.ax });
   }
   // 4) orrery rings: huge thin brass rings tilted every which way, with small suns riding them; each spins (and sways) on its own golden-ratio rates
@@ -1229,7 +1257,7 @@ function buildMains() {
     mains.trav = { geo: tg, list, gi: mains.pts.length - 1 }; }
   // 11) mist banks: big faint puffs of pale haze scattered along the course itself, so you cut through a bank now and then
   { const NB = 150; for (let i = 0; i < NB; i++) { const P = smp[Math.min(smp.length - 1, Math.floor((i + rn()) / NB * smp.length))], sz = rA(14000, 34000);
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xd2dcee : 0xe2d8ee, transparent: true, opacity: rA(0.16, 0.3), depthWrite: false, fog: true }));
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.6 ? 0xf2d6e4 : 0xdcd0f2, transparent: true, opacity: rA(0.16, 0.3), depthWrite: false, fog: true }));
       sp.scale.set(sz, sz * 0.7, 1); sp.renderOrder = 4; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(300, 12000), rA(-6000, 7000)), ax: P.sax }); } }
   updateMains(0);
 }
@@ -2173,7 +2201,7 @@ function musicAhead(speed) {
     if (aheadCp !== nextCp && lastTouched >= ci - 30 && eta < Music.waitFor('phrase') + br + 0.6 * Music.phrase()) { aheadCp = nextCp; Music.trigger('approach', nextCp + 1, eta); }
   } else if (!aheadFin) {
     const len = Music.lenFor('finish'), eta = (totalS - s) / v;
-    if (len && stageMeta.scenery !== 'ink' && eta <= Music.waitFor(Music.finishQ()) + len + 1.7) { aheadFin = true; Music.trigger('finishNear'); } // the outro ends as the stage does
+    if (false && len && eta <= Music.waitFor(Music.finishQ()) + len + 1.7) { aheadFin = true; Music.trigger('finishNear'); } // the outro ends as the stage does
   }
 }
 function resetRun() {

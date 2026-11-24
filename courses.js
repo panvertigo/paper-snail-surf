@@ -22,7 +22,7 @@
     remove(id) { const m = read(); delete m[id]; write(m); },
     encode(stage) { const s = clone(stage); delete s.id; return b64(JSON.stringify(s)); },
     decode(t) { const s = JSON.parse(unb64(t)); if (!Courses.valid(s)) throw new Error('not a course'); return s; },
-    readFileSync(name) { const x = new XMLHttpRequest(); x.open('GET', 'levels/' + encodeURIComponent(name) + '.json', false); x.send(); if (x.status !== 200 && x.status !== 0) throw new Error('missing course file ' + name); const s = JSON.parse(x.responseText); if (!Courses.valid(s)) throw new Error('bad course file ' + name); return s; },
+    readFileSync(name) { const x = new XMLHttpRequest(); x.open('GET', 'levels/' + encodeURIComponent(name) + '.json?v=' + Date.now(), false); x.send(); if (x.status !== 200 && x.status !== 0) throw new Error('missing course file ' + name); const s = JSON.parse(x.responseText); if (!Courses.valid(s)) throw new Error('bad course file ' + name); return s; },
     // The shipped courses: levels/index.json, plus any other .json file the server lists in the levels/ folder (a local server such as python -m http.server shows new files at once;
     // a static host cannot list folders, so run tools/build-levels-index.js, which also runs on every commit here, to refresh index.json).
     index() {
