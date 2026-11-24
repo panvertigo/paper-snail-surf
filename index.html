@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #179 2026-11-24 01:51</div>
+<div id="build">build #180 2026-11-24 01:54</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1025,7 +1025,7 @@ function updateMains(dt) {
     V.geo.attributes.position.needsUpdate = V.geo.attributes.k.needsUpdate = true;
   }
   mains.starMat.uniforms.t.value = orT; { const sc = renderer.domElement.height * 0.5; for (const m of beadMats) m.uniforms.sc.value = sc; }
-  { const p = dayP; mains.aurMat.opacity = 0.17 * ss01(cl01((p - 0.2) / 0.25)) * (1 - ss01(cl01((p - 0.85) / 0.15))); }
+  { const p = dayP; mains.aurMat.opacity = 0.1 * ss01(cl01((p - 0.12) / 0.25)) * (1 - ss01(cl01((p - 0.85) / 0.15))); }
 }
 // ---------- the Ink (scenery 'ink'): inky black water. The ramp is a pearl that lights only the stretch of course near you (the light range grows with speed), and a dim reflection of it hangs in the water under you and in a dark ceiling over you. Prototype. ----------
 const inkU = { time: { value: 0 }, wyB: { value: 0 }, wyT: { value: 0 }, near: { value: 4000 }, far: { value: 16000 }, sn: { value: new THREE.Vector2() }, dir: { value: new THREE.Vector2(0, -1) }, spd: { value: 0 }, fwd: { value: new THREE.Vector3(0, 0, -1) }, nrm: { value: new THREE.Vector3(0, 1, 0) }, sn3: { value: new THREE.Vector3() } };
@@ -1254,10 +1254,11 @@ function buildMains() {
     for (const o of [ln]) { o.frustumCulled = false; o.renderOrder = -26; addObj(o); } mains.pts.push({ geo: g, n, base: new Float32Array(base), off: new Float32Array(off), ax: new Float32Array(ax) }); }
   // 8) aurora: two slow curtains of light that rise in the climax and fade away before the end
   { mains.aurMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: true });
-    const i0 = Math.floor(smp.length * 0.4), i1 = Math.floor(smp.length * 0.92), base = [], off = [], ax = [], col = [], idx = []; let nv = 0;
-    for (let k = 0; k < 4; k++) {
-      const S0 = (k % 2 ? -1 : 1) * rA(30000, 60000), Hh = rA(24000, 34000), U0 = rA(-4000, 12000), ph = rn() * 6.283, c0 = [[0.3, 0.95, 0.75], [1, 0.55, 0.72], [0.62, 0.6, 1], [0.95, 0.82, 1]][k]; let prev = -1;
-      for (let i = i0; i < i1; i += 2) { const s = smp[i], side = S0 + 12000 * Math.sin(i * 0.17 + ph), up = U0 + 7000 * Math.sin(i * 0.11 + ph * 2), fa = Math.min(1, (i - i0) / 12, (i1 - i) / 12);
+    const base = [], off = [], ax = [], col = [], idx = [], AC = [[0.3, 0.95, 0.75], [1, 0.55, 0.72], [0.62, 0.6, 1], [0.95, 0.82, 1], [0.35, 0.8, 1], [0.55, 1, 0.85], [0.5, 0.65, 1], [0.85, 0.6, 1]]; let nv = 0;
+    for (let k = 0; k < 12; k++) { // twelve curtains, each its own length, height, colour and slant: some drift across the course, none parallel to it
+      const i0 = Math.floor(smp.length * rA(0.12, 0.55)), i1 = Math.min(Math.floor(smp.length * 0.95), i0 + Math.floor(smp.length * rA(0.25, 0.5))), sl = rA(-110, 110), mid = (i0 + i1) / 2;
+      const S0 = (rn() < 0.5 ? -1 : 1) * rA(14000, 62000), Hh = rA(14000, 42000), U0 = rA(-22000, 32000), ph = rn() * 6.283, c0 = AC[Math.floor(rn() * AC.length)], wv = rA(0.08, 0.26); let prev = -1;
+      for (let i = i0; i < i1; i += 2) { const s = smp[i], side = S0 + sl * (i - mid) + 12000 * Math.sin(i * wv + ph), up = U0 + 7000 * Math.sin(i * 0.11 + ph * 2), fa = Math.min(1, (i - i0) / 12, (i1 - i) / 12);
         for (const t of [0, 1]) { base.push(s.ps.x, s.ps.y, s.ps.z); off.push(s.rt[0] * side, up + t * Hh, s.rt[2] * side); ax.push(s.sax.x, s.sax.y, s.sax.z); const b = (t ? 0 : 0.8) * fa; col.push(c0[0] * b, c0[1] * b, c0[2] * b); }
         if (prev >= 0) idx.push(prev, prev + 1, nv, prev + 1, nv + 1, nv); prev = nv; nv += 2; }
     }
@@ -1296,7 +1297,7 @@ function buildMains() {
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: 'uniform sampler2D map; uniform float op, haze, gain; uniform vec3 hz; varying vec2 vUv; void main(){ vec4 t = texture2D(map, vUv); vec3 c = t.rgb; float m = max(c.r, max(c.g, c.b)); float a = smoothstep(0.035, 0.2, m) * t.a; c = mix(c * gain, hz, haze); gl_FragColor = vec4(c, a * op); }' }));
       m.frustumCulled = false; m.renderOrder = ro; m.userData.tag = 'backdrop'; addObj(m); return { m, ang, ph, sp, D, rk: 0 }; };
-    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.5, 0.66, 0.012, 3.6, -0.0035, 40000, -31), mk('bd_ring.png', 58000, 0.3, 0.88, 0.035, 0.9, 0.006, 36000, -30)] }; }
+    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.5, 0.66, 0.012, 3.6, -0.022, 40000, -31), mk('bd_ring.png', 58000, 0.3, 0.88, 0.035, 0.9, 0.03, 36000, -30)] }; }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }
