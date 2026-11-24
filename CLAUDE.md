@@ -8,6 +8,7 @@ iPhone game capturing the joy of CS:GO surfing. Owner: Jeffry (knows CS surf wel
 - Don't touch unrelated code. Flag uncertainty explicitly.
 - Point out second-order effects and long-term risks. Challenge assumptions.
 - Commit after each completed step.
+- Design taste (Jeffry): strongly prefers ASYMMETRY. No perfect distributions, regular spacing or repeating patterns in visuals, level layout or timing (no even spacing, no mirrored halves, no uniform grids, no lockstep cycles). Aim for uneven, organic, semi-random placement that still feels intentional. Golden-ratio or other low-discrepancy sequences are still too regular if they read as a pattern; add real irregularity (uneven clusters, gaps, varied scale).
 
 ## Files
 - index.html: the whole game (three.js r128 from cdnjs). Physics lives between `// ==PHYSICS START==` and `// ==PHYSICS END==` and is shared verbatim with the verifier. Stages are the STAGES list inside buildCourse().
