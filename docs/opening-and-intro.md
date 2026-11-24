@@ -19,7 +19,7 @@ Status: proposal for Jeffry. Nothing here is built except the music data (music/
 | 4:41 | the climax ends | the run-out |
 | 4:51.8 to 4:57 | last phrase, fade, silence at 4:57 | arrival, the finish |
 
-Files: `windmill_expo.mp3` = 2:35.0 to 3:14.0 (39.0 s, fades in over 2 s), `windmill_track.mp3` = 3:14.0 to 4:59.0 (105.0 s). They join gaplessly at the drop. Event `campaign` plays expo then the track follows by itself; event `start` (what a run does today, and a restart) plays the track from the drop with no exposition. The Intro level uses this song now, so today a run starts at 3:14 (the piano in, quiet), which is the right place for it.
+Files: `windmill_expo.mp3` = 2:35.0 to 3:14.5 (39.5 s, fades in over 2 s), `windmill_track.mp3` = 3:14.5 to 4:59.0 (104.5 s). They join gaplessly at 3:14.5, the first clean piano note: the riser stops at 3:14.0 (the stamp) but its reverb rings out for half a second, and cutting at 3:14.0 put a loud blast at the start of the track. Both pieces are 4 dB quieter than the source (the source decodes above full scale and clipped) and encoded at 256 kbps. Event `campaign` plays expo then the track follows by itself; event `start` (what a run does today, and a restart) plays the track from the drop with no exposition. The Intro level uses this song now, so today a run starts at 3:14 (the piano in, quiet), which is the right place for it.
 
 ## Does the plan and mood work?
 Yes, and the music is doing most of the work already. Three reasons it fits:

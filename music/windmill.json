@@ -10,13 +10,13 @@
  "sections": {
   "expo": {
    "file": "windmill_expo.mp3",
-   "bars": 39.0,
+   "bars": 39.5,
    "once": true,
    "fadeIn": 2.0
   },
   "track": {
    "file": "windmill_track.mp3",
-   "bars": 105.0,
+   "bars": 104.5,
    "once": true
   }
  },

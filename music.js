@@ -55,7 +55,7 @@
       for (const [id, s] of Object.entries(c.sections)) {
         const files = [s.file, ...((s.layers || []).map(l => l.file))], layers = [], tails = [];
         for (const f of files) {
-          const b = await decode((c.base || '') + f + '?v=67'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
+          const b = await decode((c.base || '') + f + '?v=73'), sr = b.sampleRate, len = Math.round(s.bars * bar * sr), r = slice(b, s.startOffset ?? c.startOffset ?? 0, len);
           layers.push(r.body); tails.push(r.tail);
         }
         bufs[id] = { layers, tails };
@@ -70,7 +70,7 @@
     loading = (async () => {
       let fb = null;
       try {
-        const r = await fetch('music/' + name + '.json?v=68'); if (!r.ok) return false;
+        const r = await fetch('music/' + name + '.json?v=73'); if (!r.ok) return false;
         cfg = await r.json(); cfg.base = cfg.base ?? 'music/'; fb = cfg.fallback; ensureCtx(); bufs = {};
         await prepare(cfg); if (deferredAt !== null) { const p = deferredAt; deferredAt = null; Music.at(p); }
         return true;
