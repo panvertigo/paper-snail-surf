@@ -22,12 +22,12 @@ const P = [
   GT(40, 57000, 0.04, 0.03, { hue: 0.52, label: '4 Homeward' }), G(20000, 0.03, 0.03), GT(40, 57000, 0.03, 0.03), G(30000, 0.03, 0.03),
 ];
 const stage = {
-  name: 'The Pneumatic Mains', author: 'Paper Snail Surf', scenery: 'mains', theme0: 0, music: 'windmill', pull: 0.3, fall: 0,
-  // inside the Works' brass tube network: dark verdigris teal, a little warmer and browner toward the end (the fog colour is the sky colour, so the pipe fades into dark teal)
+  name: 'The Transit', author: 'Paper Snail Surf', scenery: 'mains', theme0: 0, music: 'windmill', pull: 0.3, fall: 0,
+  // dusk over a cloud sea: indigo night overhead and a rose horizon at the start, deeper and starrier mid-run, then a rose-gold dawn for the arrival (the fog colour is the horizon colour)
   palette: [
-    { top: 0x06161a, mid: 0x0d2b2e, bot: 0x143c3a, gnd: 0x0a2224 },
-    { top: 0x08181c, mid: 0x12312f, bot: 0x1d4640, gnd: 0x0d2626 },
-    { top: 0x14161a, mid: 0x2a302a, bot: 0x4a3a24, gnd: 0x1c2420 },
+    { top: 0x232668, mid: 0x5a4496, bot: 0xf0a8b4, gnd: 0x4a3a88 },
+    { top: 0x0e1450, mid: 0x2e3086, bot: 0xb872b0, gnd: 0x2e2872 },
+    { top: 0x2c2e78, mid: 0x8a68a8, bot: 0xffc9a0, gnd: 0x5a4a8a },
   ],
   pieces: P,
 };

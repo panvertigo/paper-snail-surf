@@ -1,5 +1,5 @@
 {
- "name": "The Pneumatic Mains",
+ "name": "The Transit",
  "author": "Paper Snail Surf",
  "scenery": "mains",
  "theme0": 0,
@@ -8,22 +8,22 @@
  "fall": 0,
  "palette": [
   {
-   "top": 398874,
-   "mid": 863022,
-   "bot": 1326138,
-   "gnd": 664100
+   "top": 2303592,
+   "mid": 5915798,
+   "bot": 15771828,
+   "gnd": 4864648
   },
   {
-   "top": 530460,
-   "mid": 1192239,
-   "bot": 1918528,
-   "gnd": 861734
+   "top": 922704,
+   "mid": 3027078,
+   "bot": 12087984,
+   "gnd": 3025010
   },
   {
-   "top": 1316378,
-   "mid": 2764842,
-   "bot": 4864548,
-   "gnd": 1844256
+   "top": 2895480,
+   "mid": 9070760,
+   "bot": 16763296,
+   "gnd": 5917322
   }
  ],
  "pieces": [

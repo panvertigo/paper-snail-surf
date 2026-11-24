@@ -51,12 +51,12 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #144 2026-11-23 20:40</div>
+<div id="build">build #145 2026-11-23 20:45</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
   <label>Level</label>
-  <div class="row" id="lvl"><button data-f="intro">Intro<br>the Mains</button><button data-l="5">Grand<br>descent</button></div>
+  <div class="row" id="lvl"><button data-f="intro">Intro<br>the Transit</button><button data-l="5">Grand<br>descent</button></div>
   <label>Music <span id="musv"></span></label>
   <input id="mus" type="range" min="0" max="100" step="5">
   <label>Sound effects <span id="sfxv"></span></label>
@@ -937,30 +937,54 @@ function buildLoft() {
   if (wi >= 0 && ramps[wi]) { const r = ramps[wi], u = r.L * 0.6, c = ridgeAt(r, u), rt = rightOf(r.h0), y = r.oy + zOf(r, u); win(c[0] - rt[0] * 17000, y + 3500, c[1] - rt[2] * 17000, c[0], c[1], 18000); }
   { const dx = fin.dir[0], dz = fin.dir[2]; win(fin.x + dx * 15000 - fin.right[0] * 6000, fin.y + 7000, fin.z + dz * 15000 - fin.right[2] * 6000, fin.x, fin.z, 20000); }
 }
-// ---------- the Pneumatic Mains (scenery 'mains'): the course runs inside a huge brass-and-verdigris pipe: ribs every 2400 u around the ridge, amber lamps on the ribs, dark fog between ----------
+// ---------- the Transit (scenery 'mains'): giant brass half-arches over the course, cloud sea, orrery rings, stars ----------
 function buildMains() {
-  const ribs = [], lamps = [], q = new THREE.Quaternion(), zAx = new THREE.Vector3(0, 0, 1), f = new THREE.Vector3(), ex = new THREE.Vector3(), ey = new THREE.Vector3(), pos = new THREE.Vector3(), m4 = new THREE.Matrix4(), one = new THREE.Vector3(1, 1, 1);
-  const STEP = 2400;
+  // The Transit: not a closed pipe but an impossibly large one. Giant half-arches of the Works' brass pipe stand over the course (the ride is a speck inside a cathedral), with a cloud sea far below, drifting orrery rings and stars out to the sides.
+  let sd = 5521; const rn = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, rA = (a, b) => a + rn() * (b - a);
+  let minY = 0; for (const r of ramps) minY = Math.min(minY, r.oy, r.ey); const fy = minY - 9000;
+  const pt = () => { const r = ramps[Math.floor(rn() * ramps.length)], u = rn() * r.L, c = ridgeAt(r, u), rt = rightOf(r.h0 + (r.k || 0) * u); return { r, u, x: c[0], z: c[1], y: r.oy + zOf(r, u), rx: rt[0], rz: rt[2] }; };
+  const side = (p, off) => ({ x: p.x + p.rx * off, z: p.z + p.rz * off });
+  // 1) the arches: half rings, radius 22 W (about 28000), every 14000 along each piece, lamps strung along each arch
+  const q = new THREE.Quaternion(), zAx = new THREE.Vector3(0, 0, 1), f = new THREE.Vector3(), ex = new THREE.Vector3(), ey = new THREE.Vector3(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), ms = [], lamps = [];
+  const R = ramps[0].W * 22;
   for (const r of ramps) {
     if (r.tube) continue;
-    const R = r.W * 5;
-    for (let u = STEP * 0.5; u < r.L; u += STEP) {
+    for (let u = 4000; u < r.L; u += 14000) {
       const c = ridgeAt(r, u), h = r.h0 + (r.k || 0) * u, d = dirOf(h);
       f.set(d[0], zD(r, u), d[2]).normalize(); q.setFromUnitVectors(zAx, f);
-      pos.set(c[0], r.oy + zOf(r, u) - r.W * 0.5, c[1]);
-      ribs.push(m4.clone().compose(pos, q, one));
+      pos.set(c[0], r.oy + zOf(r, u) - r.W * 0.4, c[1]); ms.push(new THREE.Matrix4().compose(pos, q, one));
       ex.set(1, 0, 0).applyQuaternion(q); ey.set(0, 1, 0).applyQuaternion(q);
-      if (ey.y < 0) { ey.negate(); ex.negate(); } // keep "up" up
-      for (const a of [-0.95, 0.95, -2.2, 2.2]) { const s = Math.sin(a) * R * 0.97, k = Math.cos(a) * R * 0.97; lamps.push(pos.x + ex.x * s + ey.x * k, pos.y + ex.y * s + ey.y * k, pos.z + ex.z * s + ey.z * k); }
+      for (let i = 1; i < 8; i++) { const a = i / 8 * Math.PI, x = Math.cos(a) * R, y = Math.sin(a) * R; lamps.push(pos.x + ex.x * x + ey.x * y, pos.y + ex.y * x + ey.y * y, pos.z + ex.z * x + ey.z * y); }
     }
   }
-  if (!ribs.length) return;
-  const R0 = ramps[0].W * 5, geo = new THREE.TorusGeometry(R0, 110, 5, 40);
-  const im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0x3d8a7a, fog: true }), ribs.length);
-  ribs.forEach((m, i) => im.setMatrixAt(i, m)); im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; im.renderOrder = -20; addObj(im);
-  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lamps), 3));
-  const lp = new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTexA(), color: 0xffb25a, size: 2200, sizeAttenuation: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
-  lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp);
+  if (ms.length) {
+    const im = new THREE.InstancedMesh(new THREE.TorusGeometry(R, 380, 6, 72, Math.PI), new THREE.MeshBasicMaterial({ color: 0x6fb8a8, fog: true }), ms.length);
+    ms.forEach((m, i) => im.setMatrixAt(i, m)); im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; im.renderOrder = -20; addObj(im);
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lamps), 3));
+    const lp = new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTexA(), color: 0xffcf8a, size: 4200, sizeAttenuation: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+    lp.frustumCulled = false; lp.renderOrder = 3; addObj(lp);
+  }
+  // 2) the cloud sea: a dim floor far below and soft puffs of cloud scattered along the course
+  const fl = new THREE.Mesh(new THREE.CircleGeometry(260000, 40), new THREE.MeshBasicMaterial({ color: 0x3a2f78, fog: true, depthWrite: false })); fl.rotation.x = -Math.PI / 2; fl.position.set(ramps[0].sx, fy - 1500, ramps[0].sz); fl.renderOrder = -26; addObj(fl);
+  for (let i = 0; i < 110; i++) {
+    const p = pt(), o = side(p, (rn() < 0.5 ? -1 : 1) * rA(5000, 90000)), s = rA(24000, 60000);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: rn() < 0.5 ? 0xffd2e0 : 0xc8bcff, transparent: true, opacity: rA(0.18, 0.38), depthWrite: false, fog: true }));
+    sp.scale.set(s, s * 0.34, 1); sp.position.set(o.x, fy + rA(0, 4500), o.z); sp.renderOrder = -25; addObj(sp);
+  }
+  // 3) orrery rings: huge thin brass rings tilted every which way beside the course, with small suns riding them
+  const brass = new THREE.MeshBasicMaterial({ color: 0xe0b060, fog: true });
+  for (let i = 0; i < 9; i++) {
+    const p = pt(), o = side(p, (i % 2 ? -1 : 1) * rA(38000, 80000)), rr = rA(16000, 40000), g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.TorusGeometry(rr, 220, 5, 64), brass));
+    for (let k = 0; k < 3; k++) { const a = rn() * 6.283, sx = Math.cos(a) * rr, sy = Math.sin(a) * rr; const sun = new THREE.Mesh(new THREE.SphereGeometry(rA(500, 1100), 12, 8), new THREE.MeshBasicMaterial({ color: k ? 0xffa6b8 : 0xfff0b8, fog: true })); sun.position.set(sx, sy, 0); g.add(sun);
+      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexA(), color: k ? 0xff9ab0 : 0xffe49a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: true })); gl.scale.set(6500, 6500, 1); gl.position.copy(sun.position); g.add(gl); }
+    g.position.set(o.x, p.y + rA(2000, 30000), o.z); g.rotation.set(rn() * 3.14, rn() * 3.14, rn() * 3.14); addObj(g);
+  }
+  // 4) stars: a scatter of fixed-size points in a wide corridor around the course
+  const sp = new Float32Array(2400 * 3);
+  for (let i = 0; i < 2400; i++) { const p = pt(), o = side(p, (rn() < 0.5 ? -1 : 1) * rA(30000, 160000)); sp[i * 3] = o.x; sp[i * 3 + 1] = p.y + rA(8000, 110000); sp[i * 3 + 2] = o.z + rA(-30000, 30000); }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+  const st = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xfff0d8, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.85, depthWrite: false, fog: false })); st.frustumCulled = false; st.renderOrder = -27; addObj(st);
 }
 function buildTowns() { // night levels: one lakeside town (inspired by Tiny Glade's night town) far below the course, plus a lit ferris wheel as a landmark
   for (const o of townPatches) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); } townPatches = [];
