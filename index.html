@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #185 2026-11-24 11:02</div>
+<div id="build">build #186 2026-11-24 11:18</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -985,7 +985,12 @@ function updateMains(dt) {
   camera.getWorldDirection(_f); mainsAx.lerp(_f, dt ? 1 - Math.exp(-dt * 1.2) : 1).normalize(); // axis for the sky: where you are looking, smoothed
   for (const o of orrery) { o.piv.rotation.y = o.p0 + o.wp * orT; o.spin.rotation.z = o.s0 + o.ws * orT; o.tilt.rotation.x = o.t0 + 0.12 * Math.sin(o.wt * orT + o.p0); }
   if (mains.bd) { const B = mains.bd, op = [0.5 + 0.2 * ss01(cl01((dayP - 0.3) / 0.4)), 0.14 + 0.86 * ss01(cl01((dayP - 0.18) / 0.34)), 0.8 * (1 - 0.4 * ss01(cl01((dayP - 0.6) / 0.35)))];
-    B.list.forEach((e, i) => { _qq.setFromAxisAngle(B.a, th * e.rk + e.ph); _mv.copy(B.a).multiplyScalar(Math.cos(e.ang)).addScaledVector(B.b, Math.sin(e.ang)).applyQuaternion(_qq); e.m.position.copy(camera.position).addScaledVector(_mv, e.D);
+    B.list.forEach((e, i) => {
+      if (e.wh || e.st) { const Wh = e.wh || e.st, p = e.wh ? cl01((dayP - Wh.d0) / (Wh.d1 - Wh.d0)) : 0, az = e.wh ? Wh.az0 + (Wh.az1 - Wh.az0) * p : Wh.az; // the whale: sweeps slowly across the sky, always upright, fading in and out
+        { const S = mains.smp; let bi = mains.wi || 0, bd = 1e18; for (let j = Math.max(0, bi - 8); j < Math.min(S.length, bi + 9); j++) { const d = S[j].p.distanceToSquared(pos); if (d < bd) { bd = d; mains.wi = j; } } const sx = e.st ? S[2].sax : S[Math.min(S.length - 1, mains.wi + 4)].sax; _mv.set(sx.x, 0, sx.z).normalize(); } _mv.applyAxisAngle(_wup, az); _mv.y = Math.tan(Wh.el + 0.02 * Math.sin(orT * 0.3)); _mv.normalize(); e.m.position.copy(camera.position).addScaledVector(_mv, e.D);
+        _wr.crossVectors(_mv, _wup).normalize(); _wz.copy(_mv).negate(); _wy.crossVectors(_wz, _wr); _wm.makeBasis(_wr, _wy, _wz); _wq.setFromRotationMatrix(_wm); _wq2.setFromAxisAngle(_wzz, e.wh ? Wh.tilt + 0.05 * Math.sin(orT * 0.21) : 0.04); e.m.quaternion.copy(_wq).multiply(_wq2);
+        e.m.material.uniforms.op.value = e.wh ? 0.6 * ss01(cl01(Math.min(p / 0.2, (1 - p) / 0.2))) : 0.55 * (1 - ss01(cl01((dayP - 0.1) / 0.14))); return; }
+      _qq.setFromAxisAngle(B.a, th * e.rk + e.ph); _mv.copy(B.a).multiplyScalar(Math.cos(e.ang)).addScaledVector(B.b, Math.sin(e.ang)).applyQuaternion(_qq); e.m.position.copy(camera.position).addScaledVector(_mv, e.D);
       _e.set(0, 0, e.sp * orT); _qa.setFromEuler(_e); e.m.quaternion.copy(_qq).multiply(B.q0).multiply(_qa); e.m.material.uniforms.op.value = op[i]; }); }
   const A = mains.arches; if (A) {
     const la = A.lampGeo.attributes.position.array, lk = A.lampGeo.attributes.k.array, NL = A.NL;
@@ -1168,6 +1173,11 @@ function updateInk() {
   { const cp = camera.position; for (const sp of inkFog) { const d = sp.position.distanceTo(cp), q = Math.min(1, Math.max(0, (d - 6000) / 14000)); sp.material.opacity = sp.userData.fog * q * q * (3 - 2 * q) * (1 - Math.min(1, Math.max(0, (d - 50000) / 20000))); } } // clear near the camera (no speckle in your face), thick ahead
   inkU.sn.value.set(snail.position.x, snail.position.z);
 }
+// A flat-colour RGBA texture from a canvas drawing: only the drawing's alpha is kept (rgb = the given colour), built as raw numbers so iOS cannot un-premultiply it into coloured noise. Rows are flipped so canvas top = v 1.
+const _wup = new THREE.Vector3(0, 1, 0), _wzz = new THREE.Vector3(0, 0, 1), _wr = new THREE.Vector3(), _wz = new THREE.Vector3(), _wy = new THREE.Vector3(), _wm = new THREE.Matrix4(), _wq = new THREE.Quaternion(), _wq2 = new THREE.Quaternion();
+function maskTex(w, h, draw, rgb) { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); draw(x, w, h); const src = x.getImageData(0, 0, w, h).data, d = new Uint8Array(w * h * 4);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const a = ((h - 1 - j) * w + i) * 4, o = (j * w + i) * 4; d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = src[a + 3]; }
+  const t = new THREE.DataTexture(d, w, h, THREE.RGBAFormat); t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; }
 const pastelToon = c => new THREE.MeshToonMaterial({ color: c, emissive: new THREE.Color(c).multiplyScalar(0.1), gradientMap: TOON });
 function buildMains() {
   // The Transit: not a closed pipe but an impossibly large one. Giant brass half-arches over the course with a light running along them, three gates at the dive, clouds, orrery rings, constellations, drifting paper tags, aurora, far-off ghost paths with travellers, and a sun, a ringed planet and a windmill in the sky. All of it rolls about the course (updateMains).
@@ -1296,12 +1306,26 @@ function buildMains() {
       sp.scale.set(sz, sz * 0.7, 1); sp.renderOrder = -26; sp.userData.tag = 'mist'; addObj(sp); mains.rolled.push({ obj: sp, p: P.p, off: offAt(P, (rn() < 0.5 ? -1 : 1) * rA(16000, 60000), rA(-30000, 30000)), ax: P.sax }); } }
   // 12) backdrop machines at infinity: huge images that ride with the camera (no parallax, they cannot be approached), fixed in direction (the course heading), rolling with the scenery. The skeletal one is vast, faint and counter-turning behind; the orbital ring is the hero, off to one side, and fades in through the middle.
   { const r0 = ramps[0], r1 = ramps[ramps.length - 1], aa = new THREE.Vector3(r1.ex - r0.sx, r1.ey - r0.oy, r1.ez - r0.sz).normalize(), bb = new THREE.Vector3().crossVectors(aa, new THREE.Vector3(0, 1, 0)).normalize(), q0 = new THREE.Quaternion().setFromUnitVectors(_mz, aa.clone().negate()), ld = new THREE.TextureLoader();
-    const mk = (file, size, haze, alpha, ang, ph, sp, D, ro, hzc, gn) => { const tx = ld.load('img/' + file);
+    const mk = (file, size, haze, alpha, ang, ph, sp, D, ro, hzc, gn) => { const tx = typeof file === 'string' ? ld.load('img/' + file) : file;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.ShaderMaterial({ uniforms: { map: { value: tx }, op: { value: 0 }, haze: { value: haze }, hz: { value: new THREE.Color(hzc || 0xd6b0dc) }, gain: { value: gn || 1.25 } }, transparent: false, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, side: THREE.DoubleSide, /* in the opaque list, drawn right after the sky and before everything else, so it sits behind all scenery wherever it is placed */
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: 'uniform sampler2D map; uniform float op, haze, gain; uniform vec3 hz; varying vec2 vUv; void main(){ vec4 t = texture2D(map, vUv); vec3 c = t.rgb; float m = max(c.r, max(c.g, c.b)); float a = smoothstep(0.035, 0.2, m) * t.a; c = mix(c * gain, hz, haze); gl_FragColor = vec4(c, a * op); }' }));
       m.frustumCulled = false; m.renderOrder = ro; m.userData.tag = 'backdrop'; addObj(m); return { m, ang, ph, sp, D, rk: 0 }; };
-    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.62, 0.66, 0.012, 3.6, -0.022, 28500, -29), mk('bd_ring.png', 58000, 0.4, 0.88, 0.035, 0.9, 0.03, 25800, -28), mk('bd_orrery.jpg', 18000, 0.3, 0.5, -0.3, 2.1, 0.007, 31000, -27, 0xc9a98e, 1.0)] }; } // third: a small, old, bronze-tinted orrery far off to one side, a quiet fixed reference
+    mains.bd = { a: aa, b: bb, q0, list: [mk('bd_skel.jpg', 92000, 0.62, 0.66, 0.012, 3.6, -0.022, 28500, -29), mk('bd_ring.png', 58000, 0.4, 0.88, 0.035, 0.9, 0.03, 25800, -28), mk('bd_orrery.jpg', 14000, 0.66, 0.5, 0, 0, 0, 33000, -27, 0xcdb0b4, 0.95)] };
+  // 13) a sky whale: one randomized silhouette (new every load) that drifts across the sky early in the run, far off and faint
+  const WR = rng((Math.random() * 1e9) | 0), wa = (a, b) => a + WR() * (b - a), wtex = maskTex(1024, 1024, (x, w, h) => {
+    const cx = 512, cy = 520, len = wa(560, 700), arch = wa(-40, 70), fat = wa(0.8, 1.25), blunt = wa(0.45, 0.8), N = 48, up = [], dn = [];
+    for (let i = 0; i <= N; i++) { const t = i / N, px = cx - len / 2 + len * t, sp = cy + arch * Math.sin(t * 3.1416), th = fat * len * 0.19 * Math.pow(Math.sin(t * 3.1416 * (0.5 + 0.5 * blunt)), 0.85) * (0.25 + 0.75 * Math.min(1, t * 2.2)); up.push([px, sp - th * 0.82]); dn.push([px, sp + th]); }
+    const body = () => { x.beginPath(); x.moveTo(up[0][0], (up[0][1] + dn[0][1]) / 2); for (const p of up) x.lineTo(p[0], p[1]); for (let i = N; i >= 0; i--) x.lineTo(dn[i][0], dn[i][1]); x.closePath(); x.fill(); };
+    x.fillStyle = '#fff'; body();
+    const tx0 = up[0][0], ty0 = (up[0][1] + dn[0][1]) / 2, fs = wa(0.7, 1.3) * len * 0.2, ang = wa(-0.5, 0.5), spread = wa(0.35, 0.8);
+    for (const sg of [-1, 1]) { const a = ang + sg * spread; x.beginPath(); x.moveTo(tx0 + 10, ty0 - 8); x.quadraticCurveTo(tx0 - fs * 0.5 * Math.cos(a), ty0 + fs * 0.5 * Math.sin(a) - sg * fs * 0.2, tx0 - fs * Math.cos(a), ty0 + fs * Math.sin(a)); x.quadraticCurveTo(tx0 - fs * 0.45 * Math.cos(a) + 18, ty0 + fs * 0.45 * Math.sin(a) + sg * 26, tx0 + 10, ty0 + 8); x.fill(); }
+    const fx = cx - len / 2 + len * wa(0.62, 0.78), fyy = dn[Math.round(N * (fx - (cx - len / 2)) / len)][1], fl = wa(0.16, 0.3) * len, fa = wa(0.5, 1.1);
+    x.beginPath(); x.moveTo(fx, fyy - 10); x.quadraticCurveTo(fx - fl * 0.6, fyy + fl * 0.5 * Math.sin(fa) + 10, fx - fl * 0.9, fyy + fl * Math.sin(fa)); x.quadraticCurveTo(fx - fl * 0.3, fyy + fl * 0.2, fx + 30, fyy - 4); x.fill();
+    if (WR() < 0.6) { const i = Math.round(N * wa(0.3, 0.5)); x.beginPath(); x.moveTo(up[i][0] - 30, up[i][1] + 6); x.quadraticCurveTo(up[i][0] + 6, up[i][1] - wa(25, 55), up[i][0] + 36, up[i][1] + 4); x.fill(); }
+    if (WR() < 0.6) { x.save(); x.translate(cx + wa(-60, 120), cy + wa(150, 230)); x.scale(0.34, 0.34); x.rotate(wa(-0.15, 0.15)); x.translate(-cx, -cy); body(); x.restore(); }
+  }, [96, 78, 150]);
+  const we = mk(wtex, 17000, 0.3, 0, 0, 0, 0, 32000, -27, 0x7a62ae, 1.0); we.wh = { az0: wa(-0.55, -0.2), az1: wa(0.2, 0.6), el: wa(0.06, 0.2), d0: wa(0.03, 0.08), tilt: wa(-0.12, 0.12), flip: WR() < 0.5 ? -1 : 1, i0: Math.floor(smp.length * 0.12) }; we.wh.d1 = we.wh.d0 + wa(0.12, 0.18); we.m.scale.x = we.wh.flip; mains.bd.list[2].st = { az: -0.27, el: 0.1 }; mains.bd.list.push(we); mains.smp = smp; } // third: a small, old, bronze-tinted orrery far off to one side, a quiet fixed reference
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
 }
@@ -2309,7 +2333,7 @@ let lastT = 0, pxSpeed = 0, moved = 0, downT = 0, startedRun = false, joyOff = 0
 let steerAcc = 0; const STEER_CLAMP = 5, STEER_FLIP = 2;
 function steerSign(dx) {
   steerAcc = Math.max(-STEER_CLAMP, Math.min(STEER_CLAMP, steerAcc + dx));
-  if (!cmd.touch) { if (Math.abs(dx) > 0.5) cmd.touch = Math.sign(dx); }
+  if (!cmd.touch) { if (Math.abs(steerAcc) > 0.5) cmd.touch = Math.sign(steerAcc); } // sums sub-pixel moves: a slow or coalesced swipe turned the snail (cmd.turn) but never set the strafe, so it rotated without swerving
   else if (steerAcc * cmd.touch < -STEER_FLIP) cmd.touch = -cmd.touch;
 }
 function inputMove(x, t) {
