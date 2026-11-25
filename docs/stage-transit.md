@@ -67,3 +67,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #209: arrival is slower and clearer (flat card visible 0.4 s, 3/4 view 49-69 degrees with random roll and pitch, ease-out-back unfolds); eye pop-outs are real damped springs (overshoot, wobble, stalk flare); hold 2.15 s, timer paused.
 
 - Build #210: arrival no longer rotates: the snail faces forward throughout and starts as an edge-on sliver (flat cut-out seen from behind) that the eyes (random order, damped springs), shell and body pop out of. 1.95 s hold.
+
+- Build #211: arrival pops now nearly together (eyes 0.50 and 0.58 s, shell 0.64, body 0.70), 1.45 s hold. The chase camera is frozen during the hold: the camera lag rig ran on the 600 u/s start velocity and drifted forward; it is snapped to the snail until the hold ends. Measured: camera moves under 3.5 units over the hold, fov and rotation constant.

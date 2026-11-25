@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #210 2026-11-25 00:46</div>
+<div id="build">build #211 2026-11-25 00:49</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -2380,7 +2380,7 @@ function lightRocket() { // double tap or B / space
   cmd.boost = 1; // no sound (Sfx.boost exists if wanted)
 }
 const PITCH_ON = false, /* the lean control is retired (physics code kept; replays read 0) */ PITCH_DEAD = 14, PITCH_RANGE = 100; // px: dead zone, then full lean
-function turn(r) { if (state === 'run') { if (mat.wait || (mat.t >= 0 && mat.t < 1.95)) return; cmd.turn += r; } else yaw += r; } // swipes during the arrival are read (the finger tracking stays live) but do not turn the snail, so nothing piles up and dumps in at once when it lands in play // while not running, turn the snail right away (no ticks to consume cmd)
+function turn(r) { if (state === 'run') { if (mat.wait || (mat.t >= 0 && mat.t < 1.45)) return; cmd.turn += r; } else yaw += r; } // swipes during the arrival are read (the finger tracking stays live) but do not turn the snail, so nothing piles up and dumps in at once when it lands in play // while not running, turn the snail right away (no ticks to consume cmd)
 const cv = renderer.domElement;
 cv.tabIndex = -1; cv.style.outline = 'none'; // so the page can put keyboard focus on the game
 function focusGame() { try { window.focus(); if (document.activeElement && document.activeElement !== cv && document.activeElement !== document.body) document.activeElement.blur(); cv.focus({ preventScroll: true }); } catch (e) {} }
@@ -2594,7 +2594,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000) * SLOWMO; { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
   joyFrame(dt); rocketHud(now);
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
-  if (state === 'run' && (mat.wait || (mat.t >= 0 && mat.t < 1.95))) { acc = 0; prevPos.copy(pos); } // the world holds still for half a second while the tear opens and the snail pops out; the timer does not run
+  if (state === 'run' && (mat.wait || (mat.t >= 0 && mat.t < 1.45))) { acc = 0; prevPos.copy(pos); } // the world holds still for half a second while the tear opens and the snail pops out; the timer does not run
   else if (state === 'run') {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
     while (acc >= P.dt && state === 'run') { prevPos.copy(pos); if (loopFly) guardRail(); step(); if (state === 'run' && loopFly) { if (contactN) setLoop(false); } else if (state === 'run') { tRun += P.dt; if (++ghostTick % 10 === 0) { const c = contactN || [0, 1, 0]; ghostRec.push(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z), Math.round(c[0] * 100), Math.round(c[1] * 100), Math.round(c[2] * 100)); } } acc -= P.dt; }
@@ -2613,7 +2613,7 @@ function frame(now) {
   } else {
   { // rig point camC moves with a SMOOTHED velocity and is pulled gently back to the snail: at steady speed it sits on the snail (no lag); when speed jumps it falls behind, then catches up
     const kv = 1 - Math.exp(-dt * 1.3), kp = 1 - Math.exp(-dt * 1.8);
-    if (camC.distanceToSquared(rp) > 1500 * 1500 || state !== 'run') { camC.copy(rp); camV.set(vel.x, vel.y, vel.z); } // respawn / not running: snap
+    if (camC.distanceToSquared(rp) > 1500 * 1500 || state !== 'run' || mat.wait || (mat.t >= 0 && mat.t < 1.45)) { camC.copy(rp); camV.set(vel.x, vel.y, vel.z); } // respawn / not running: snap
     camV.x += (vel.x - camV.x) * kv; camV.y += (vel.y - camV.y) * kv; camV.z += (vel.z - camV.z) * kv;
     camC.x += camV.x * dt; camC.y += camV.y * dt; camC.z += camV.z * dt;
     camC.x += (rp.x - camC.x) * kp; camC.y += (rp.y - camC.y) * kp; camC.z += (rp.z - camC.z) * kp;
@@ -2635,16 +2635,16 @@ function frame(now) {
     if (mat.wait) { snail.visible = false; shadow.visible = false; }
     else if (mat.t >= 0 && mat.base) {
       mat.t += dt; const t = mat.t, FL = 0.035, bk = (a0, b0) => { const x = cl01((t - a0) / (b0 - a0)) - 1; return x >= 0 ? 1 : 1 + 2.4 * x * x * x + 1.4 * x * x; }; // 0..1 with one clear overshoot (ease-out-back)
-      const fBody = FL + (1 - FL) * bk(1.55, 1.85), fShell = FL + (1 - FL) * bk(1.15, 1.6);
+      const fBody = FL + (1 - FL) * bk(0.7, 1.05), fShell = FL + (1 - FL) * bk(0.64, 1.05);
       snailInner.children.forEach((c, i) => { if (c === eyes) return; const b = mat.base[i]; c.scale.set(b.x * (c === mat.shell ? fShell : fBody), b.y, b.z); });
       eyeParts.forEach((e, k) => { // each eye is a real damped spring: it starts flat, gets kicked to full size at its time, overshoots and wobbles, and the stalk flares outward with the overshoot
-        const ta = k === mat.first ? 0.55 : 0.85, h = dt / 2; for (let n = 0; n < 2; n++) { const a = 240 * ((t >= ta ? 1 : FL) - mat.eS[k]) - 11 * mat.eV[k]; mat.eV[k] += a * h; mat.eS[k] = Math.max(0.02, mat.eS[k] + mat.eV[k] * h); }
+        const ta = k === mat.first ? 0.5 : 0.58, h = dt / 2; for (let n = 0; n < 2; n++) { const a = 240 * ((t >= ta ? 1 : FL) - mat.eS[k]) - 11 * mat.eV[k]; mat.eV[k] += a * h; mat.eS[k] = Math.max(0.02, mat.eS[k] + mat.eV[k] * h); }
         const f = mat.eS[k], o = f - 1; e.pivot.scale.set(f, 1 - 0.3 * Math.max(-0.3, o), 1 - 0.3 * Math.max(-0.3, o)); if (t >= ta) { e.pivot.rotation.z += -e.sx * 0.6 * o; e.pivot.rotation.x += 0.35 * o; } });
-      const q = t > 1.15 ? Math.exp(-7 * (t - 1.15)) * Math.sin((t - 1.15) * 17) : 0;
+      const q = t > 0.64 ? Math.exp(-7 * (t - 0.64)) * Math.sin((t - 0.64) * 17) : 0;
       snailInner.scale.x *= 1 - 0.12 * q; snailInner.scale.y *= 1 + 0.16 * q;
       const un = 1 - ss01(cl01((t - 1.5) / 0.6)); snailInner.rotation.y = mat.rot0 * un; snailInner.rotation.z = mat.roll * un; snailInner.rotation.x += mat.pit * un;
       snail.scale.setScalar(0.4 + 0.6 * bk(0, 0.32)); snail.visible = snail.visible && t >= 0.02;
-      if (t >= 1.95) { snailInner.children.forEach((c, i) => c.scale.copy(mat.base[i])); eyeParts.forEach(e => e.pivot.scale.set(1, 1, 1)); snailInner.rotation.y = 0; snailInner.rotation.z = 0; snail.scale.setScalar(1); mat.t = -1; }
+      if (t >= 1.45) { snailInner.children.forEach((c, i) => c.scale.copy(mat.base[i])); eyeParts.forEach(e => e.pivot.scale.set(1, 1, 1)); snailInner.rotation.y = 0; snailInner.rotation.z = 0; snail.scale.setScalar(1); mat.t = -1; }
     }
   }
   intro.k = 0;
