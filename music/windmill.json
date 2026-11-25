@@ -1,4 +1,5 @@
 {
+ "ver": 74,
  "bpm": 60,
  "beatsPerBar": 1,
  "quantize": "bar",
@@ -10,7 +11,7 @@
  "sections": {
   "expo": {
    "file": "windmill_expo.mp3",
-   "bars": 39.5,
+   "bars": 36.5,
    "once": true,
    "fadeIn": 2.0
   },

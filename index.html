@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #201 2026-11-24 23:49</div>
+<div id="build">build #202 2026-11-24 23:58</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -2595,7 +2595,7 @@ function frame(now) {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
     while (acc >= P.dt && state === 'run') { prevPos.copy(pos); if (loopFly) guardRail(); step(); if (state === 'run' && loopFly) { if (contactN) setLoop(false); } else if (state === 'run') { tRun += P.dt; if (++ghostTick % 10 === 0) { const c = contactN || [0, 1, 0]; ghostRec.push(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z), Math.round(c[0] * 100), Math.round(c[1] * 100), Math.round(c[2] * 100)); } } acc -= P.dt; }
   } else { acc = 0; prevPos.copy(pos); }
-  if (musicArm && state === 'run' && contactN) { if (musicT < 0) musicT = tRun + 0.35; else if (tRun >= musicT) { musicArm = false; Music.at(0); } }
+  if (musicArm && state === 'run') { let go = !!contactN; if (!go && vel.y < -200) { const sb = surfaceBelow(pos); go = !!sb && sb.t / -vel.y < 0.17; } if (go) { musicArm = false; Music.at(0); } } // the song starts just before the snail lands (the engine adds about 0.1 s and the track's first note is 70 ms in), so the first note lands with the snail
   rp.lerpVectors(prevPos, pos, state === 'run' ? acc / P.dt : 1);
   const speed = Math.hypot(vel.x, vel.z);
   updateSnail(dt, now, speed);
