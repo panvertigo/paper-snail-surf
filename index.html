@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #207 2026-11-25 00:31</div>
+<div id="build">build #208 2026-11-25 00:39</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -2251,7 +2251,7 @@ function onRing(g, off) {
 }
 let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
 let musicArm = true, musicT = -1;
-const arrLook = new THREE.Vector3(), camRight = new THREE.Vector3(), START_DROP = 1600, mat = { wait: false, t: -1, dur: 1.1, pts: null, n: 0 }; // the snail materialises in the air START_DROP above the ramp (about 2 s of free fall at gravity 800) when you press
+START_DROP = 1600, mat = { wait: false, t: -1, dur: 1.1, base: null, shell: null, side: 1, first: 0 }; // the snail materialises in the air START_DROP above the ramp (about 2 s of free fall at gravity 800) when you press
 let camPush = 0, camMinD = 1e9; const CAM_CLEAR = 340; // vertical clearance: a 51 degree face is only 0.63 of that perpendicular, and the near plane is 120
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
 const $ = id => document.getElementById(id);
@@ -2380,7 +2380,7 @@ function lightRocket() { // double tap or B / space
   cmd.boost = 1; // no sound (Sfx.boost exists if wanted)
 }
 const PITCH_ON = false, /* the lean control is retired (physics code kept; replays read 0) */ PITCH_DEAD = 14, PITCH_RANGE = 100; // px: dead zone, then full lean
-function turn(r) { if (state === 'run') cmd.turn += r; else yaw += r; } // while not running, turn the snail right away (no ticks to consume cmd)
+function turn(r) { if (state === 'run') { if (mat.wait || (mat.t >= 0 && mat.t < 1.25)) return; cmd.turn += r; } else yaw += r; } // swipes during the arrival are read (the finger tracking stays live) but do not turn the snail, so nothing piles up and dumps in at once when it lands in play // while not running, turn the snail right away (no ticks to consume cmd)
 const cv = renderer.domElement;
 cv.tabIndex = -1; cv.style.outline = 'none'; // so the page can put keyboard focus on the game
 function focusGame() { try { window.focus(); if (document.activeElement && document.activeElement !== cv && document.activeElement !== document.body) document.activeElement.blur(); cv.focus({ preventScroll: true }); } catch (e) {} }
@@ -2589,35 +2589,12 @@ function drawFlow() {
 let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
 
-// Pixel arrival (see frame): sample the snail's own surface, pick a mist start for each pixel, and stagger when each one flies in.
-function matBuild() {
-  snail.updateMatrixWorld(true); const meshes = []; snail.traverse(o => { if (o.isMesh && o.geometry && o.geometry.attributes.position && o.material && !o.material.transparent && o.material.blending !== THREE.AdditiveBlending) meshes.push(o); });
-  const N = 420, R = rng(97), v = new THREE.Vector3(), tmp = new THREE.Color(); let tot = 0; for (const o of meshes) tot += o.geometry.attributes.position.count;
-  mat.n = N; mat.st = new Float32Array(N * 3); mat.tg = new Float32Array(N * 3); mat.cl = new Float32Array(N * 3); mat.mc = new Float32Array(N * 3); mat.dl = new Float32Array(N);
-  mat.c = new THREE.Vector3(); snail.getWorldPosition(mat.c);
-  for (let i = 0; i < N; i++) {
-    let pick = R() * tot, o = meshes[0]; for (const m of meshes) { pick -= m.geometry.attributes.position.count; if (pick <= 0) { o = m; break; } }
-    const at = o.geometry.attributes.position, j = Math.floor(R() * at.count); v.fromBufferAttribute(at, j).applyMatrix4(o.matrixWorld);
-    mat.tg[i * 3] = v.x; mat.tg[i * 3 + 1] = v.y; mat.tg[i * 3 + 2] = v.z;
-    const cA = o.geometry.attributes.color; if (cA) tmp.setRGB(cA.getX(j), cA.getY(j), cA.getZ(j)); else if (o.material.color) tmp.copy(o.material.color); else tmp.set(0xf3e3c4);
-    mat.cl[i * 3] = tmp.r; mat.cl[i * 3 + 1] = tmp.g; mat.cl[i * 3 + 2] = tmp.b;
-    const a = R() * 6.283, el = (R() - 0.3) * 1.6, rr = 140 + R() * 260; mat.st[i * 3] = mat.c.x + Math.cos(a) * Math.cos(el) * rr; mat.st[i * 3 + 1] = mat.c.y + 60 + Math.sin(el) * rr * 0.8; mat.st[i * 3 + 2] = mat.c.z + Math.sin(a) * Math.cos(el) * rr;
-    const mc = 0.75 + 0.25 * R(); mat.mc[i * 3] = mc; mat.mc[i * 3 + 1] = 0.6 + 0.3 * R(); mat.mc[i * 3 + 2] = 1; mat.dl[i] = R() * 0.42;
-  }
-  if (!mat.pts) {
-    const g = new THREE.BufferGeometry(); mat.pos = new THREE.BufferAttribute(new Float32Array(N * 3), 3); mat.col = new THREE.BufferAttribute(new Float32Array(N * 3), 3); mat.sz = new THREE.BufferAttribute(new Float32Array(N), 1);
-    g.setAttribute('position', mat.pos); g.setAttribute('col', mat.col); g.setAttribute('sz', mat.sz);
-    mat.mt = new THREE.ShaderMaterial({ uniforms: { uH: { value: 800 } }, vertexShader: 'attribute vec3 col; attribute float sz; uniform float uH; varying vec3 vC; void main(){ vC = col; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = max(1.5, sz * projectionMatrix[1][1] * uH * 0.5 / -mv.z); gl_Position = projectionMatrix * mv; }', fragmentShader: 'varying vec3 vC; void main(){ gl_FragColor = vec4(vC, 1.0); }', fog: false });
-    mat.pts = new THREE.Points(g, mat.mt); mat.pts.frustumCulled = false; scene.add(mat.pts);
-  }
-  mat.pts.visible = true;
-}
 let hudT = 0; const SLOWMO = Math.max(0.02, Math.min(1, parseFloat(Q.get('slow')) || 1)); // ?slow=0.15 plays everything at 15 percent speed (to inspect animations)
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000) * SLOWMO; { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
   joyFrame(dt); rocketHud(now);
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
-  if (state === 'run' && (mat.wait || (mat.t >= 0 && mat.t < 1.0))) { acc = 0; prevPos.copy(pos); } // the world holds still for half a second while the tear opens and the snail pops out; the timer does not run
+  if (state === 'run' && (mat.wait || (mat.t >= 0 && mat.t < 1.25))) { acc = 0; prevPos.copy(pos); } // the world holds still for half a second while the tear opens and the snail pops out; the timer does not run
   else if (state === 'run') {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
     while (acc >= P.dt && state === 'run') { prevPos.copy(pos); if (loopFly) guardRail(); step(); if (state === 'run' && loopFly) { if (contactN) setLoop(false); } else if (state === 'run') { tRun += P.dt; if (++ghostTick % 10 === 0) { const c = contactN || [0, 1, 0]; ghostRec.push(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z), Math.round(c[0] * 100), Math.round(c[1] * 100), Math.round(c[2] * 100)); } } acc -= P.dt; }
@@ -2646,7 +2623,6 @@ function frame(now) {
   folPos.set(rp.x + camOff.x + camLag.x + (Math.random() - 0.5) * shake, rp.y + camOff.y + camLag.y + (Math.random() - 0.5) * shake, rp.z + camOff.z + camLag.z);
   folLook.set(rp.x + fx * CAM_AHEAD, rp.y + 30, rp.z + fz * CAM_AHEAD);
   }
-  if (mat.wait || mat.t >= 0) { const k = mat.wait ? 1 : 1 - ss01(cl01((mat.t - 1.0) / 0.9)); if (k > 0) folLook.lerp(arrLook.set(rp.x, rp.y + 40, rp.z), k); } // the arrival is framed on the snail itself, then the camera eases back to looking ahead
   { // camera collision: keep the camera a minimum distance off any ramp face under it (it can dip into a banked face and clip through it); the push eases in fast and out slowly
     let want = 0; const i0 = Math.max(0, lastTouched - 2), i1 = Math.min(ramps.length - 1, lastTouched + 6);
     for (let i = i0; i <= i1; i++) { const r = ramps[i], L = local(r, folPos.x, folPos.z); if (L.u < 0 || L.u > r.L) continue; const s = r.half ? r.half * L.v : Math.abs(L.v); if (s < 0 || s > r.W) continue;
@@ -2654,24 +2630,19 @@ function frame(now) {
     camPush += (want - camPush) * (1 - Math.exp(-dt * (want > camPush ? 25 : 3))); camMinD = Math.max(camMinD === 1e9 ? 0 : camMinD, want);
     if (camPush > 0.5) folPos.y += camPush; }
   snail.visible = camMode !== 1 || intro.on;
-  { // arrival: before the press the snail is not there. On the press a mist of opaque square pixels swirls in and snaps onto the snail's own surface (sampled from its meshes), then the real snail takes over and the pixels shrink away. Nothing is see-through.
-    if (mat.wait && state === 'run') { mat.wait = false; mat.t = 0; matBuild(); }
-    if (mat.wait) { snail.visible = false; shadow.visible = false; if (mat.pts) mat.pts.visible = false; }
-    else if (mat.t >= 0 && mat.pts) {
-      mat.t += dt; const t = mat.t, n = mat.n, P3 = mat.pos.array, C3 = mat.col.array, S1 = mat.sz.array, c = mat.c;
-      for (let i = 0; i < n; i++) {
-        const d = mat.dl[i], p = Math.min(1, Math.max(0, (t - d) / 0.55)), e = 1 - Math.pow(1 - p, 3), sw = 2.4 * Math.pow(1 - e, 1.5), cs = Math.cos(sw), sn = Math.sin(sw);
-        const sx = mat.st[i * 3] - c.x, sy = mat.st[i * 3 + 1] - c.y, sz = mat.st[i * 3 + 2] - c.z, rx = sx * cs - sz * sn, rz = sx * sn + sz * cs; // the start cloud swirls about the vertical axis as it falls in
-        let X = c.x + rx + (mat.tg[i * 3] - c.x - rx) * e, Y = c.y + sy + (mat.tg[i * 3 + 1] - c.y - sy) * e, Z = c.z + rz + (mat.tg[i * 3 + 2] - c.z - rz) * e;
-        if (p > 0.6) { const g = 5; X = Math.round(X / g) * g; Y = Math.round(Y / g) * g; Z = Math.round(Z / g) * g; } // snap to a pixel grid as it lands
-        P3[i * 3] = X; P3[i * 3 + 1] = Y; P3[i * 3 + 2] = Z;
-        const m = Math.min(1, e * 1.1), gl = p > 0.02 && p < 0.97 && ((i * 7 + ((t * 24) | 0) * 13) % 9 === 0) ? 1 : 0, fl = t > 1.0 ? Math.max(0, 1 - (t - 1.0) / 0.12) * 0.6 : 0;
-        for (let k = 0; k < 3; k++) { let v = mat.mc[i * 3 + k] + (mat.cl[i * 3 + k] - mat.mc[i * 3 + k]) * m; v = gl ? 0.85 + 0.15 * v : v; C3[i * 3 + k] = v + (1 - v) * fl; }
-        S1[i] = 8.5 * (0.55 + 0.45 * e) * (t > 1.0 ? Math.max(0, 1 - (t - 1.0 - d * 0.35) / 0.28) : 1);
-      }
-      mat.pos.needsUpdate = mat.col.needsUpdate = mat.sz.needsUpdate = true; mat.pts.visible = t < 1.5; mat.mt.uniforms.uH.value = renderer.domElement.height;
-      snail.visible = snail.visible && t >= 0.98; snail.scale.setScalar(1);
-      if (t >= 1.5) { mat.t = -1; mat.pts.visible = false; }
+  { // arrival: before the press the snail is not there. It appears as a flat cut-out of itself facing the camera (every part squashed flat), then unfolds with squash and stretch: one eye pops out (which one is random), then the other, then the shell, then the body and head fill out as the whole thing turns to face forward.
+    if (mat.wait && state === 'run') { mat.wait = false; mat.t = 0; mat.side = Math.random() < 0.5 ? -1 : 1; mat.first = Math.random() < 0.5 ? 0 : 1; mat.base = snailInner.children.map(c => c.scale.clone()); mat.shell = snailInner.children.find(c => c.isGroup && c !== eyes); }
+    if (mat.wait) { snail.visible = false; shadow.visible = false; }
+    else if (mat.t >= 0 && mat.base) {
+      mat.t += dt; const t = mat.t, FL = 0.035, sp = (a0, b0) => { const x = cl01((t - a0) / (b0 - a0)); return x >= 1 ? 1 : 1 - Math.exp(-7 * x) * Math.cos(x * 13); }; // springy 0..1 that overshoots
+      const fBody = FL + (1 - FL) * sp(0.9, 1.2), fShell = FL + (1 - FL) * sp(0.65, 0.97);
+      snailInner.children.forEach((c, i) => { if (c === eyes) return; const b = mat.base[i]; c.scale.set(b.x * (c === mat.shell ? fShell : fBody), b.y, b.z); });
+      eyeParts.forEach((e, k) => { const ta = k === mat.first ? 0.25 : 0.47, f = FL + (1 - FL) * sp(ta, ta + 0.22); e.pivot.scale.set(f, f > 1 ? 1 - 0.35 * (f - 1) : 1, f > 1 ? 1 - 0.35 * (f - 1) : 1); });
+      const q = t > 0.65 ? Math.exp(-9 * (t - 0.65)) * Math.sin((t - 0.65) * 26) : 0;
+      snailInner.scale.x *= 1 - 0.1 * q; snailInner.scale.y *= 1 + 0.14 * q;
+      snailInner.rotation.y = mat.side * Math.PI / 2 * (1 - ss01(cl01((t - 0.75) / 0.45)));
+      snail.scale.setScalar(0.4 + 0.6 * sp(0, 0.28)); snail.visible = snail.visible && t >= 0.02;
+      if (t >= 1.25) { snailInner.children.forEach((c, i) => c.scale.copy(mat.base[i])); eyeParts.forEach(e => e.pivot.scale.set(1, 1, 1)); snailInner.rotation.y = 0; snail.scale.setScalar(1); mat.t = -1; }
     }
   }
   intro.k = 0;
