@@ -55,3 +55,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #202: music starts about 0.17 s before the snail lands (first note lands with it; no 0.35 s delay). Windmill re-cut: source clipping rebuilt with cubic declip, mild 2.5-7k tame, -5 dB, expo now starts at 2:38 (158.0 s, for the future menu Start); track still starts at the first piano note (194.5). music.js: cache-bust windmill (?v=74, manifest "ver").
 
 - Build #203: default camera distance 60 -> 50 percent (a saved slider value still wins).
+
+- Build #204: first swipe in the drop-in gets a 3 degree pre-roll (input layer only) so it skips air steering dead zone (ELI5: the nose starts exactly on the path, so tiny swipes did nothing). Arrival is now the paper tear (cream torn rim, ink inside, snail squash-pops out, hole curls shut, 7 paper scraps); physics holds 0.55 s while it opens, timer paused. Replaced the scan ring.
