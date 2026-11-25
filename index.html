@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #195 2026-11-24 23:18</div>
+<div id="build">build #196 2026-11-24 23:24</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1327,10 +1327,10 @@ function buildMains() {
     if (WR() < 0.55) { x.save(); x.translate(cx + wa(-60, 100), cy + wa(170, 240)); x.scale(0.32, 0.32); x.rotate(wa(-0.15, 0.15)); x.translate(-cx, -cy); x.beginPath(); x.moveTo(up[0][0], (up[0][1] + dn[0][1]) / 2); sm(up.concat([[cx + len / 2 + 8, (up[N][1] + dn[N][1]) / 2]], dn.slice().reverse())); x.closePath(); x.fill(); x.restore(); }
   }, [96, 78, 150]);
   const we = mk(wtex, 17000, 0.3, 0, 0, 0, 0, 32000, -27, 0x7a62ae, 1.0); we.wh = { az0: wa(-0.6, -0.15), az1: wa(0.15, 0.6), el: wa(0.04, 0.22), t0: wa(5, 70), dur: wa(55, 95), tilt: wa(-0.1, 0.1), flip: WR() < 0.5 ? -1 : 1 }; we.m.scale.x = we.wh.flip; if (WR() >= 0.3) we.m.visible = false; /* the whale only appears on about 30 percent of runs */ mains.bd.list[2].st = { az: -0.43, el: 0.08 }; mains.bd.list.push(we); mains.smp = smp; } // third: a small, old, bronze-tinted orrery far off to one side, a quiet fixed reference
-  // 14) official signage. (a) Stencilled designation painted on the first ramp's two faces (different sizes and places, cream paint, worn): LEYLINE 07 on the right face, HDG 213 on the left. (b) Go signs: amber ring gates that turn green with a pulse as you pass through (one early, one just before the dive). (c) The Central Armature Works: a thick distant ring, its name stencilled around it and dotted with office lights.
-  { const r0 = ramps[0], stenTex = (top, big) => maskTex(512, 768, (x, w, h) => { x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
+  // 14) official signage: stencilled designation painted on the first ramp's right face (LEYLINE, 07, then a third line 11Ω), cream paint, worn.
+  { const r0 = ramps[0], stenTex = (top, big, low) => maskTex(512, low ? 1024 : 768, (x, w, h) => { x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
         const fit = (t, y, hgt, wid) => { x.save(); x.font = 'bold ' + hgt + 'px Arial, Helvetica, sans-serif'; const m = x.measureText(t).width; x.translate((w - wid) / 2, y); x.scale(wid / m, 1); x.fillText(t, 0, 0); x.restore(); };
-        fit(top, 250, 180, 440); fit(big, 740, 400, 460);
+        fit(top, 250, 180, 440); fit(big, 740, 400, 460); if (low) fit(low, 1000, 210, 300);
         x.globalCompositeOperation = 'destination-out'; for (const yy of [190, 120, 500, 640]) x.fillRect(0, yy, w, 7); for (let i = 0; i < 70; i++) { x.beginPath(); x.ellipse(Math.random() * w, Math.random() * h, 1 + Math.random() * 7, 1 + Math.random() * 5, Math.random() * 3, 0, 6.3); x.fill(); } }, [246, 236, 214]);
     const decal = (sd, u0, u1, v0, v1, tex) => { const NU = 4, P = [], UV = [], I = [], r = r0;
       for (let a = 0; a <= NU; a++) { const u = u0 + (u1 - u0) * a / NU, c = ridgeAt(r, u), h = r.h0 + (r.k || 0) * u, rt = rightOf(h), dr = dirOf(h), sl = -zD(r, u);
@@ -1339,8 +1339,7 @@ function buildMains() {
       for (let a = 0; a < NU; a++) I.push(2 * a, 2 * a + 1, 2 * a + 2, 2 * a + 1, 2 * a + 3, 2 * a + 2);
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3)); g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(UV), 2)); g.setIndex(I);
       const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.92, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); m.renderOrder = 2; m.frustumCulled = false; m.userData.tag = 'stencil'; addObj(m); };
-    decal(1, 2300, 3800, 180, 1180, stenTex('LEYLINE', '07'));
-    decal(-1, 5000, 6300, -1120, -270, stenTex('HDG', '213'));
+    decal(1, 2300, 4300, 180, 1180, stenTex('LEYLINE', '07', '11Ω'));
     }
   { const hide = (Q.get('hide') || '').split(','); if (hide[0]) for (const o of courseObjs) if (o.userData && hide.includes(o.userData.tag)) o.visible = false; } // ?hide=... for finding which layer is which
   updateMains(0);
@@ -2624,6 +2623,21 @@ function frame(now) {
       const base = r.oy + zOf(r, L.u), top = base + r.H * (1 - s / r.W); if (folPos.y > base - 100 && folPos.y < top + CAM_CLEAR) want = Math.max(want, top + CAM_CLEAR - folPos.y); }
     camPush += (want - camPush) * (1 - Math.exp(-dt * (want > camPush ? 25 : 3))); camMinD = Math.max(camMinD === 1e9 ? 0 : camMinD, want);
     if (camPush > 0.5) folPos.y += camPush; }
+  snail.visible = camMode !== 1 || intro.on;
+  intro.k = 0;
+  if (intro.on) {
+    intro.t += dt;
+    const a = Math.min(1, intro.t / intro.dur), e = a * a * a * (a * (a * 6 - 15) + 10), r = 1 - e; intro.k = r;
+    const sx = -fx, sz = -fz; // back along the run; across = perpendicular
+    icPos.set(folPos.x + sx * intro.bx * r - sz * intro.bz * r, folPos.y + intro.by * r, folPos.z + sz * intro.bx * r + sx * intro.bz * r);
+    icLook.set(rp.x + fx * CAM_AHEAD * 0.6, rp.y + 900 + 2600 * r, rp.z + fz * CAM_AHEAD * 0.6).lerp(folLook, e * e);
+    camera.position.copy(icPos); camera.lookAt(icLook); camera.rotateZ(intro.roll * r * r);
+    { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 62000 : FOG_FAR; scene.fog.near = mn ? 7000 : 6000; } camera.far = CAM_FAR;
+    if (a >= 1) { intro.on = false; showMsg(START_MSG); }
+  } else {
+    camera.position.copy(folPos); camera.lookAt(folLook);
+    { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 62000 : FOG_FAR; scene.fog.near = mn ? 7000 : 6000; } camera.far = CAM_FAR;
+  }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   { const g = gOf(speed) * fxAmt; if (g > 0.01) { camera.rotateZ(g * (0.012 * Math.sin(now * 0.0093) + 0.007 * Math.sin(now * 0.0231))); camera.position.x += g * 14 * Math.sin(now * 0.037); camera.position.y += g * 10 * Math.sin(now * 0.041 + 1); } camera.fov = baseFov + fovOff + (intro.on ? intro.fov * intro.k : 0) + fovKick + warpK * 13 + g * (9 + 2.5 * Math.sin(now * 0.0017 * (1.7 + 1.5 * g) * 3.6)); } camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
   try { updateMains(dt); updateInk(); } catch (e) { mains = null; console.error('updateMains', e); } updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));

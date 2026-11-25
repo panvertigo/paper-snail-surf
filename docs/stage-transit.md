@@ -39,3 +39,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #194: opening move on every level is now a drift-in descent (6 s, ease-out, high and behind the start, narrow FOV and slight roll settling out; random per load; tap skips). Replaces the overview pan. Camera only.
 
 - Build #195: intro move eases slow-fast-slow (smootherstep). Camera collision: if the chase camera is inside a ramp prism or within 150 units above its face, it is pushed up (fast in, slow out). Not reproduced headless; guard only fires when under the surface.
+
+- Build #196: FIXED camera block that #195 accidentally deleted (camera stopped following: user saw it far above/below after reset). Stencil: HDG decal removed; LEYLINE decal gets a third line under 07 ("11 omega").
