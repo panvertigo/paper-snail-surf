@@ -65,3 +65,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #208: arrival is now a flat cut-out of the snail (profile facing camera) that unfolds with squash and stretch: one eye pops (random which), then the other, then the shell, then body and head while it turns forward (1.25 s hold, timer paused). No camera override (normal chase camera). Swipes during the hold are ignored by turn() instead of piling up in cmd.turn (the likely start lurch); finger tracking stays live.
 
 - Build #209: arrival is slower and clearer (flat card visible 0.4 s, 3/4 view 49-69 degrees with random roll and pitch, ease-out-back unfolds); eye pop-outs are real damped springs (overshoot, wobble, stalk flare); hold 2.15 s, timer paused.
+
+- Build #210: arrival no longer rotates: the snail faces forward throughout and starts as an edge-on sliver (flat cut-out seen from behind) that the eyes (random order, damped springs), shell and body pop out of. 1.95 s hold.
