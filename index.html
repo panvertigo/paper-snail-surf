@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #213 2026-11-25 00:54</div>
+<div id="build">build #214 2026-11-25 09:11</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -2590,19 +2590,18 @@ let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
 
 
-// Arrival puffs: paper-cloud shapes (five merged circles, one flat colour, opaque), a pool reused each time.
+// Arrival mist: a dozen big soft puffs (radial alpha ramp in a DataTexture, never a canvas gradient: iOS un-premultiplies those), one white-lavender tint, fairly high alpha each so few layers overlap (many faint layers show coloured speckle on phones). Fades near the camera.
 const puffs = [];
 function puffInit() {
   if (!puffs.length) {
-    const C = [[0, 0, 1], [0.9, -0.2, 0.7], [-0.9, -0.15, 0.75], [0.4, 0.6, 0.7], [-0.4, 0.55, 0.65]], V = [];
-    for (const [cx, cy, r] of C) for (let i = 0; i < 18; i++) { const a0 = i / 18 * 6.2832, a1 = (i + 1) / 18 * 6.2832; V.push(cx, cy, 0, cx + Math.cos(a0) * r, cy + Math.sin(a0) * r, 0, cx + Math.cos(a1) * r, cy + Math.sin(a1) * r, 0); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(V, 3));
-    const cols = [0xf6efe8, 0xe6ddf4, 0xf3dfe8], mats = cols.map(c => new THREE.MeshBasicMaterial({ color: c, fog: false, side: THREE.DoubleSide }));
-    for (let i = 0; i < 18; i++) { const m = new THREE.Mesh(g, mats[i % 3]); m.visible = false; m.frustumCulled = false; scene.add(m); puffs.push({ m }); }
+    const N = 64, D = new Uint8Array(N * N * 4); for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const u = (x + 0.5) / N * 2 - 1, v = (y + 0.5) / N * 2 - 1, r2 = u * u + v * v, a = r2 >= 1 ? 0 : Math.pow(1 - r2, 1.6); const i = (y * N + x) * 4; D[i] = 255; D[i + 1] = 255; D[i + 2] = 255; D[i + 3] = Math.round(a * 255); }
+    const tex = new THREE.DataTexture(D, N, N, THREE.RGBAFormat); tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.needsUpdate = true;
+    const g = new THREE.PlaneGeometry(2, 2), cols = [0xf4eefa, 0xe9e1f6, 0xf6e8f0];
+    for (let i = 0; i < 12; i++) { const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, color: cols[i % 3], transparent: true, opacity: 0, depthWrite: false, fog: false, side: THREE.DoubleSide })); m.visible = false; m.frustumCulled = false; m.renderOrder = 5; scene.add(m); puffs.push({ m }); }
   }
   for (const p of puffs) {
     const a = Math.random() * 6.283, el = (Math.random() - 0.35) * 1.5, r = 22 + Math.random() * 46;
-    p.o = [Math.cos(a) * Math.cos(el) * r, Math.sin(el) * r * 0.8, Math.sin(a) * Math.cos(el) * r]; p.s = 11 + Math.random() * 17; p.k = 7 + Math.random() * 7; p.d = Math.random() * 0.18; p.hold = 1.8 + Math.random() * 1.6; p.w = (Math.random() - 0.5) * 1.2; p.ph = Math.random() * 6.28; p.free = false; p.tf = 0;
+    p.o = [Math.cos(a) * Math.cos(el) * r, Math.sin(el) * r * 0.8, Math.sin(a) * Math.cos(el) * r]; p.s = 26 + Math.random() * 36; p.k = 6 + Math.random() * 7; p.d = Math.random() * 0.18; p.hold = 0.7 + Math.random() * 0.9; p.w = (Math.random() - 0.5) * 1.2; p.ph = Math.random() * 6.28; p.free = false; p.tf = 0;
     p.x = rp.x + p.o[0] * 2.6; p.y = rp.y + p.o[1] * 2.6; p.z = rp.z + p.o[2] * 2.6;
   }
 }
@@ -2649,18 +2648,18 @@ function frame(now) {
   snail.visible = camMode !== 1 || intro.on;
   { // arrival: before the press the snail is not there. On the press it pops into being inside a burst of paper-cloud puffs (flat, opaque, so nothing is see-through). The puffs cling to it with a soft lag while it drops, trailing behind, and let go a couple of seconds after it lands on the ramp, then shrink away.
     if (mat.wait && state === 'run') { mat.wait = false; mat.t = 0; mat.land = -1; mat.rel = 0; puffInit(); }
-    if (mat.wait) { snail.visible = false; shadow.visible = false; puffs.forEach(p => p.m.visible = false); }
+    if (mat.wait) { snail.visible = false; shadow.visible = false; puffs.forEach(p => { p.m.visible = false; p.m.material.opacity = 0; }); }
     else if (mat.t >= 0) {
       mat.t += dt; const t = mat.t; if (mat.land < 0 && contactN) mat.land = t;
       const x0 = cl01(t / 0.3) - 1, pop = x0 >= 0 ? 1 : 1 + 2.4 * x0 * x0 * x0 + 1.4 * x0 * x0; snail.scale.setScalar(0.35 + 0.65 * pop);
       let alive = 0; const ah = Math.exp(-0.9 * t);
       for (const p of puffs) {
         const grow = ss01(cl01((t - p.d) / 0.28)); let det = 1;
-        if (mat.land >= 0 && t > mat.land + p.hold) { if (!p.free) { p.free = true; p.tf = t; } det = Math.max(0, 1 - (t - p.tf) / 0.9); }
-        if (det <= 0) { p.m.visible = false; continue; } alive++;
+        if (mat.land >= 0 && t > mat.land + p.hold) { if (!p.free) { p.free = true; p.tf = t; } det = Math.max(0, 1 - (t - p.tf) / 0.6); }
+        if (det <= 0) { p.m.visible = false; p.m.material.opacity = 0; continue; } alive++;
         const w = t * p.w + p.ph, ox = p.o[0] * Math.cos(w) - p.o[2] * Math.sin(w), oz = p.o[0] * Math.sin(w) + p.o[2] * Math.cos(w), spread = 1 + 1.6 * ah;
         if (!p.free) { const k = 1 - Math.exp(-p.k * dt); p.x += (rp.x + ox * spread - p.x) * k; p.y += (rp.y + p.o[1] * spread + 14 - p.y) * k; p.z += (rp.z + oz * spread - p.z) * k; } else { p.y += 35 * dt; }
-        p.m.visible = true; p.m.position.set(p.x, p.y, p.z); p.m.quaternion.copy(camera.quaternion); const dc = Math.hypot(p.x - camera.position.x, p.y - camera.position.y, p.z - camera.position.z), nf = ss01(cl01((dc - 180) / 320)); p.m.scale.setScalar(Math.max(0.01, p.s * grow * det * nf * (1 + 0.07 * Math.sin(t * 5 + p.ph)))); // shrinks away near the camera so it never fills the view
+        p.m.visible = true; p.m.position.set(p.x, p.y, p.z); p.m.quaternion.copy(camera.quaternion); const dc = Math.hypot(p.x - camera.position.x, p.y - camera.position.y, p.z - camera.position.z), nf = ss01(cl01((dc - 180) / 320)); p.m.scale.setScalar(Math.max(0.01, p.s * (0.6 + 0.4 * grow) * (0.7 + 0.3 * det) * (1 + 0.07 * Math.sin(t * 5 + p.ph)))); p.m.material.opacity = 0.62 * grow * det * nf; // fades near the camera so it never fills the view
       }
       snail.visible = snail.visible && t >= 0.02;
       if (alive === 0 || t > 12) { snail.scale.setScalar(1); mat.t = -1; puffs.forEach(p => p.m.visible = false); }
