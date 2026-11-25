@@ -7,11 +7,12 @@
   let ctx = null, master = null, sfxBus = null, cfg = null, bufs = {}, ready = false, loading = null;
   let cur = null, pending = null, wanted = null, groups = [], timer = null, speed = 0, events = [], deferredAt = null, progress = 0, ending = false;
   let musicVol = 0.7, sfxVol = 0.8;
+  const MUS_MAX = 0.4, musGain = v => MUS_MAX * Math.pow(Math.max(0, Math.min(1, v)), 1.5); // the slider 0..1 maps to a gain that tops out around -8 dB and rises gently: 100 percent used to be far too loud
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   function ensureCtx() {
     if (!AC) return null;
-    if (!ctx) { ctx = new AC(); master = ctx.createGain(); master.gain.value = musicVol; master.connect(ctx.destination); sfxBus = ctx.createGain(); sfxBus.gain.value = sfxVol; sfxBus.connect(ctx.destination); }
+    if (!ctx) { ctx = new AC(); master = ctx.createGain(); master.gain.value = musGain(musicVol); master.connect(ctx.destination); sfxBus = ctx.createGain(); sfxBus.gain.value = sfxVol; sfxBus.connect(ctx.destination); }
     if (ctx.state !== 'running') { try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } // 'suspended' at first; iOS can also report 'interrupted'
     return ctx;
   }
@@ -174,7 +175,7 @@
     setSpeed(v) { speed = v; },
     setProgress(p) { progress = p; },
     finishQ() { return cfg && cfg.linear ? 'phrase' : 'bar'; },
-    setVolume(v) { musicVol = v; if (master) master.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
+    setVolume(v) { musicVol = v; if (master) master.gain.setTargetAtTime(musGain(v), ctx.currentTime, 0.05); },
     setSfxVolume(v) { sfxVol = v; if (sfxBus) sfxBus.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     stop(fade = 0.6) { ending = false; wanted = null; pending = null; if (!ctx) return; const t = ctx.currentTime + fade; for (const g of groups) fadeStop(g, t); cur = null; },
     get debug() { return ctx && cur ? { now: ctx.currentTime, origin: cur.origin, id: cur.id, bar: cfg.bar, pending: pending && pending.id, groups: groups.length } : null; },
