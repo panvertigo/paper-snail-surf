@@ -41,3 +41,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #195: intro move eases slow-fast-slow (smootherstep). Camera collision: if the chase camera is inside a ramp prism or within 150 units above its face, it is pushed up (fast in, slow out). Not reproduced headless; guard only fires when under the surface.
 
 - Build #196: FIXED camera block that #195 accidentally deleted (camera stopped following: user saw it far above/below after reset). Stencil: HDG decal removed; LEYLINE decal gets a third line under 07 ("11 omega").
+
+- Build #197: 11 omega moved to the left face (own decal, big); right face is LEYLINE 07 again.
