@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #193 2026-11-24 19:36</div>
+<div id="build">build #194 2026-11-24 23:02</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -2530,26 +2530,13 @@ addEventListener('resize', resize); resize();
 // ---------- Course flyover (page load only) ----------
 // Opens on the whole course framed to fit, holds, then swoops down to the follow camera. Fog and far plane are
 // pushed out during the overview (uniforms only, no shader recompile) and eased back.
-const intro = { on: false, t: 0 }, INTRO_HOLD = 2.2, INTRO_SWOOP = 1.4;
+const intro = { on: false, t: 0, dur: 6, bx: 0, by: 0, bz: 0, roll: 0, fov: 0 };
 let FOG_FAR = 70000, CAM_FAR = 90000; // applyScenery() raises them for themed (space) scenery
-const ovPos = new THREE.Vector3(), ovLook = new THREE.Vector3(), folPos = new THREE.Vector3(), folLook = new THREE.Vector3();
-let ovFar = CAM_FAR;
+const folPos = new THREE.Vector3(), folLook = new THREE.Vector3(), icPos = new THREE.Vector3(), icLook = new THREE.Vector3();
+// Opening move: the camera starts high and far behind the start, looking over the snail at the scenery, and drifts down into the chase camera with a long ease-out. Randomised a little per load. Camera only.
 function startIntro() {
-  const pts = [], lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
-  for (const r of ramps) for (let u = 0; u <= r.L; u += 400) {
-    const c = ridgeAt(r, u), p = [c[0], r.oy + zOf(r, u) + r.H, c[1]]; pts.push(p);
-    for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
-  }
-  if (stageMeta.park) for (let a = 0; a < 12; a++) { const q = a * Math.PI / 6, p = [8400 * Math.cos(q), 3000, 8400 * Math.sin(q)]; pts.push(p); for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k]); } }
-  ovLook.set((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
-  let R = 0; for (const p of pts) R = Math.max(R, Math.hypot(p[0] - ovLook.x, p[1] - ovLook.y, p[2] - ovLook.z));
-  const pitch = 40 * Math.PI / 180, v = new THREE.Vector3();
-  let dx = fin.x - ramps[0].sx, dz = fin.z - ramps[0].sz; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl; // look down the run
-  const place = d => { ovPos.set(ovLook.x - dx * d * Math.cos(pitch), ovLook.y + d * Math.sin(pitch), ovLook.z - dz * d * Math.cos(pitch));
-    camera.position.copy(ovPos); camera.lookAt(ovLook); camera.fov = baseFov; camera.far = 1e6; camera.updateProjectionMatrix(); camera.updateMatrixWorld(); };
-  const fits = d => { place(d); for (const p of pts) { v.set(p[0], p[1], p[2]).project(camera); if (v.z > 1 || Math.abs(v.x) > 0.92 || Math.abs(v.y) > 0.92) return false; } return true; };
-  let lo2 = 0.2 * R, hi2 = 6 * R; for (let i = 0; i < 24; i++) { const m = (lo2 + hi2) / 2; fits(m) ? hi2 = m : lo2 = m; } // tightest distance that frames every ridge point
-  place(hi2); ovFar = hi2 + 2 * R;
+  const R = (a, b) => a + Math.random() * (b - a), sd = Math.random() < 0.5 ? -1 : 1;
+  intro.dur = R(5.5, 7); intro.bx = R(6500, 9500); intro.by = R(4500, 7500); intro.bz = sd * R(1200, 3600); intro.roll = sd * R(0.05, 0.14); intro.fov = R(-24, -14);
   intro.on = true; intro.t = 0; showMsg('');
 }
 
@@ -2631,18 +2618,22 @@ function frame(now) {
   folLook.set(rp.x + fx * CAM_AHEAD, rp.y + 30, rp.z + fz * CAM_AHEAD);
   }
   snail.visible = camMode !== 1 || intro.on;
+  intro.k = 0;
   if (intro.on) {
     intro.t += dt;
-    const a = Math.min(1, Math.max(0, (intro.t - INTRO_HOLD) / INTRO_SWOOP)), e = a * a * (3 - 2 * a);
-    camera.position.lerpVectors(ovPos, folPos, e); camera.lookAt(folLook.lerp(ovLook, 1 - e));
-    scene.fog.far = ovFar + (FOG_FAR - ovFar) * e; camera.far = ovFar + (CAM_FAR - ovFar) * e;
+    const a = Math.min(1, intro.t / intro.dur), e = 1 - Math.pow(1 - a, 2.6), r = 1 - e; intro.k = r;
+    const sx = -fx, sz = -fz; // back along the run; across = perpendicular
+    icPos.set(folPos.x + sx * intro.bx * r - sz * intro.bz * r, folPos.y + intro.by * r, folPos.z + sz * intro.bx * r + sx * intro.bz * r);
+    icLook.set(rp.x + fx * CAM_AHEAD * 0.6, rp.y + 900 + 2600 * r, rp.z + fz * CAM_AHEAD * 0.6).lerp(folLook, e * e);
+    camera.position.copy(icPos); camera.lookAt(icLook); camera.rotateZ(intro.roll * r * r);
+    { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 62000 : FOG_FAR; scene.fog.near = mn ? 7000 : 6000; } camera.far = CAM_FAR;
     if (a >= 1) { intro.on = false; showMsg(START_MSG); }
   } else {
     camera.position.copy(folPos); camera.lookAt(folLook);
     { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 62000 : FOG_FAR; scene.fog.near = mn ? 7000 : 6000; } camera.far = CAM_FAR;
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
-  { const g = gOf(speed) * fxAmt; if (g > 0.01) { camera.rotateZ(g * (0.012 * Math.sin(now * 0.0093) + 0.007 * Math.sin(now * 0.0231))); camera.position.x += g * 14 * Math.sin(now * 0.037); camera.position.y += g * 10 * Math.sin(now * 0.041 + 1); } camera.fov = baseFov + fovOff + fovKick + warpK * 13 + g * (9 + 2.5 * Math.sin(now * 0.0017 * (1.7 + 1.5 * g) * 3.6)); } camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
+  { const g = gOf(speed) * fxAmt; if (g > 0.01) { camera.rotateZ(g * (0.012 * Math.sin(now * 0.0093) + 0.007 * Math.sin(now * 0.0231))); camera.position.x += g * 14 * Math.sin(now * 0.037); camera.position.y += g * 10 * Math.sin(now * 0.041 + 1); } camera.fov = baseFov + fovOff + (intro.on ? intro.fov * intro.k : 0) + fovKick + warpK * 13 + g * (9 + 2.5 * Math.sin(now * 0.0017 * (1.7 + 1.5 * g) * 3.6)); } camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
   try { updateMains(dt); updateInk(); } catch (e) { mains = null; console.error('updateMains', e); } updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   if (now - hudT > 90) { hudT = now; { const cl = (x) => Math.max(0, Math.min(1, x)), u1 = cl((speed - 500) / 3500), u2 = cl((speed - 4000) / 2000), u3 = cl((speed - 6000) / 2500), deg = (((180 + 110 * u1 + 100 * u2 - 32 * u3) % 360) + 360) % 360, gl = cl((speed - 3800) / 2200 + 0.4 * u3); // cyan -> violet by 4k, then pink -> hot orange by 6k, glowing
