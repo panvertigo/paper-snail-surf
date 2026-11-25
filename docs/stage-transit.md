@@ -43,3 +43,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #196: FIXED camera block that #195 accidentally deleted (camera stopped following: user saw it far above/below after reset). Stencil: HDG decal removed; LEYLINE decal gets a third line under 07 ("11 omega").
 
 - Build #197: 11 omega moved to the left face (own decal, big); right face is LEYLINE 07 again.
+
+- Build #198: g-force look no longer rolls, jitters or wobbles the camera (steady view); FOV widening stays.
