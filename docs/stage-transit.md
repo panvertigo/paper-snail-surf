@@ -33,3 +33,4 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Input fix: slow swipes now set the air strafe (sub-pixel dx used to turn the snail without strafing). tools/air-swerve.js tests the air physics: with a finger down the path always bends toward the nose.
 
 - Central Armature Works ring (with floating office) was built and then removed on 2026-11-24: too on the nose. Go rings also dropped for beacons.
+- 2026-11-24 (build 191): beacons removed. Whale timing is random per load (t0 5 to 70 s, crossing 55 to 95 s, driven by the run clock, eased) instead of fixed ramps; its heading is smoothed; silhouette redrawn with smooth curves and wide flukes (check shapes by rendering the DataTexture, see git history).
