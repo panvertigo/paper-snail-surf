@@ -53,3 +53,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #201: (1) 07 now above LEYLINE on the right face. (2) Music: a reset stops the song (no old audio under the restart) and the song starts 0.35 s after the first ramp contact, not on the tap. (3) The snail now materialises (scan ring + clip plane + flicker) START_DROP=1600 above the ramp on the press (~2.1 s free fall, lands at ~930 u/s instead of 600); hidden on the ready screen. spawnOn (physics block) untouched; Level 5/park/editor spawns unchanged. Timer includes the fall. Sim: turning toward the ridge side lifts off the face and loses ~17 percent speed (design); turning into the face gains speed.
 
 - Build #202: music starts about 0.17 s before the snail lands (first note lands with it; no 0.35 s delay). Windmill re-cut: source clipping rebuilt with cubic declip, mild 2.5-7k tame, -5 dB, expo now starts at 2:38 (158.0 s, for the future menu Start); track still starts at the first piano note (194.5). music.js: cache-bust windmill (?v=74, manifest "ver").
+
+- Build #203: default camera distance 60 -> 50 percent (a saved slider value still wins).

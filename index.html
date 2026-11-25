@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #202 2026-11-24 23:58</div>
+<div id="build">build #203 2026-11-25 00:02</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1636,7 +1636,7 @@ buildScene();
 
 // ---------- Paper snail ----------
 const CAM_BACK = 700, CAM_UP = 850, CAM_AHEAD = 600, FP_EYE = 120;
-let zoomD = +(store.get('surf_zoom') || 60) / 100, fovOff = +(store.get('surf_fov') || 0);
+let zoomD = +(store.get('surf_zoom') || 50) / 100, fovOff = +(store.get('surf_fov') || 0);
 let camMode = +(store.get('surf_cam') || 3), gameSpeed = +(store.get('surf_speed') || 1.07);
 let musicVol = store.get('surf_music') === null ? 0 : +store.get('surf_music'), sfxVol = store.get('surf_sfx') === null ? 0.8 : +store.get('surf_sfx');
 let fxAmt = store.get('surf_fx') === null ? 1 : +store.get('surf_fx'); // speed-effects intensity (ribbons, clouds, edge shimmer, camera lag, long stalks); 0 = off

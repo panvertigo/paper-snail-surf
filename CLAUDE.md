@@ -36,7 +36,7 @@ Menu: Intro (the Transit, levels/intro.json, scenery 'mains', docs/stage-transit
 - Physics: Source-style air accel (sv_airaccelerate 400 default; 150/800 options), gravity 800, air wishspeed cap 30, fixed 100 Hz tick, deterministic. Frictionless; speed comes from altitude lost plus strafe gains.
 - Ramps: ~51 deg faces (H = 1.25 W). Base half-width 460, finales narrow to 310 (Level 1 uses 700, landing 1000).
 - Course rules: turns are analytic arcs, always banked toward the face being ridden. Zigzag transfers shift 0.75 W so you land on the face that faces you. Uphill ramp just before each checkpoint; never an uphill within 3 ramps after a checkpoint (respawn at 600 u/s soft-locks). Checkpoints about every 30 s; falls respawn there, clock keeps running.
-- Camera: third person, high and far (back 700, up 850, scaled by the camera-distance setting, default 60%). Avatar: cute paper snail. Speed FX: slime trail, wind streaks, FOV kick, eye stalks blow back.
+- Camera: third person, high and far (back 700, up 850, scaled by the camera-distance setting, default 50%). Avatar: cute paper snail. Speed FX: slime trail, wind streaks, FOV kick, eye stalks blow back.
 - Art scale: start inside an apartment, courses through its rooms, everything huge; outside views are rare. Level 5 (sky descent) is a later level. See docs/roadmap.md (Art direction).
 - Business: Trackmania model (timed stages, medals, ghosts, user maps, seasons). Cosmetics only, never pay-to-win.
 
