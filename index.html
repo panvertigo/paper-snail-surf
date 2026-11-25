@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #205 2026-11-25 00:11</div>
+<div id="build">build #206 2026-11-25 00:18</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -687,7 +687,7 @@ document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a2240);
 scene.fog = new THREE.Fog(0x1a2240, 6000, 70000); // light haze: whole course (~58k diagonal) stays visible for scale
-const camera = new THREE.PerspectiveCamera(70, 1, 120, 90000);
+const camera = new THREE.PerspectiveCamera(70, 1, 60, 90000);
 const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x302040, 0.75); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.75);
 sun.position.set(1, 1.4, 0.4); scene.add(sun);
@@ -2248,7 +2248,7 @@ function onRing(g, off) {
   else { flowGain(off < 0.25 ? 300 : 120, off < 0.25 ? 0.15 : 0.08); Sfx.hoop(1 - off * off); }
 }
 let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
-let musicArm = true, musicT = -1, air0 = false, pre0 = false; // air0: in the first drop (until the snail lands), where the nose starts exactly on the path and the first small swipes would fall inside air steering's dead zone
+let musicArm = true, musicT = -1;
 const camRight = new THREE.Vector3(), START_DROP = 1600, mat = { wait: false, t: -1, dur: 1.1, g: null, sc: null, p: new THREE.Vector3() }; // the snail materialises in the air START_DROP above the ramp (about 2 s of free fall at gravity 800) when you press
 let camPush = 0, camMinD = 1e9; const CAM_CLEAR = 340; // vertical clearance: a 51 degree face is only 0.63 of that perpendicular, and the near plane is 120
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
@@ -2296,7 +2296,7 @@ function resetRun() {
   intro.on = false; rocket.cd = 0; rocket.t = -1;
   setLoop(false); flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => { g.material.color.set(0xffe2a0); g.userData.sh.material.color.set(0xffe2a0); });
-  spawnOn(0); pos.y += START_DROP; prevPos.copy(pos); mat.wait = !stageMeta.spawn && !stageMeta.park; mat.t = -1; setTheme(0, true); Music.stop(0.2); musicArm = true; musicT = -1; air0 = mat.wait; pre0 = false; // the song starts a moment after the snail lands on the first ramp, not on the tap; stopping first means no old audio under the new start
+  spawnOn(0); pos.y += START_DROP; prevPos.copy(pos); mat.wait = !stageMeta.spawn && !stageMeta.park; mat.t = -1; setTheme(0, true); Music.stop(0.2); musicArm = true; musicT = -1; if (mat.wait) yaw -= 0.056; // the drop starts with the nose 3 degrees right of the path: air steering flips direction when the nose is within about 3 degrees of the path, so a nose exactly on it makes the first small swipes do nothing or the wrong thing // the song starts a moment after the snail lands on the first ramp, not on the tap; stopping first means no old audio under the new start
   showMsg(START_MSG);
   hud();
 }
@@ -2364,8 +2364,7 @@ function inputMove(x, t) {
   }
   pxSpeed += (Math.abs(dx) / dt - pxSpeed) * 0.5;
   const g = 1 + accAmt * Math.max(0, Math.min(1, (pxSpeed - ACC_V0) / (ACC_V1 - ACC_V0))), r = -dx * P.sens * g;
-  let r2 = r; if (air0 && !contactN && !pre0 && r !== 0) { pre0 = true; r2 += (r > 0 ? 1 : -1) * 0.055; } // first swipe in the drop-in: skip air steering's dead zone (about 3 degrees at 600 u/s) so the path answers right away
-  turn(r2); applied.push({ t, r }); while (applied.length && t - applied[0].t > 200) applied.shift();
+  turn(r); applied.push({ t, r }); while (applied.length && t - applied[0].t > 200) applied.shift();
   steerSign(dx);
 }
 function joyFrame(dt) { // joystick: turn rate from the finger's offset, once per frame
@@ -2388,7 +2387,7 @@ cv.addEventListener('pointerdown', e => {
   e.preventDefault(); $('settings').hidden = true; focusGame();
   if (pid !== null) return;
   if (intro.on) { intro.on = false; showMsg(START_MSG); return; } // tap skips the flyover, never drops in blind
-  pre0 = false; pid = e.pointerId; lastX = anchorX = e.clientX; lastT = downT = e.timeStamp; anchorY = e.clientY; fingerDown = true; steerAcc = 0; pxSpeed = 0; moved = 0; joyOff = 0; applied.length = 0; startedRun = state !== 'run';
+  pid = e.pointerId; lastX = anchorX = e.clientX; lastT = downT = e.timeStamp; anchorY = e.clientY; fingerDown = true; steerAcc = 0; pxSpeed = 0; moved = 0; joyOff = 0; applied.length = 0; startedRun = state !== 'run';
   if (state === 'ready') { state = 'run'; showMsg(''); }
   else if (state === 'done') resetRun();
 });
@@ -2587,17 +2586,16 @@ function drawFlow() {
 // ---------- Loop ----------
 let last = performance.now();
 const speedEl = $('speed'), timerEl = $('timer');
-let hudT = 0;
+let hudT = 0; const SLOWMO = Math.max(0.02, Math.min(1, parseFloat(Q.get('slow')) || 1)); // ?slow=0.15 plays everything at 15 percent speed (to inspect animations)
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
+  const dt = Math.min(0.05, (now - last) / 1000) * SLOWMO; { const raw = now - last; if (ADAPT && raw < 100 && !document.hidden) adaptMs += (raw - adaptMs) * 0.06; if (ADAPT && now - adaptT > 400) { adaptT = now; /* adaptive resolution: if frames stay slow, draw fewer pixels (a visible stutter fix on weak GPUs); creep back up when there is headroom */ if (adaptMs > 22) { adaptN++; adaptOK = 0; } else if (adaptMs < 13) { adaptOK++; adaptN = 0; } else { adaptN = 0; adaptOK = 0; } if (adaptN >= 4 && PR_SCALE > 0.6) { PR_SCALE = Math.max(0.6, PR_SCALE * 0.85); adaptN = 0; resize(); } else if (adaptOK >= 25 && PR_SCALE < 1) { PR_SCALE = Math.min(1, PR_SCALE * 1.1); adaptOK = 0; resize(); } } } last = now;
   joyFrame(dt); rocketHud(now);
   if (globalThis.EDIT && EDIT.active) { EDIT.frame(dt, now); requestAnimationFrame(frame); return; } // editor mode: free camera, no physics
-  if (state === 'run' && (mat.wait || (mat.t >= 0 && mat.t < 0.55))) { acc = 0; prevPos.copy(pos); } // the world holds still for half a second while the tear opens and the snail pops out; the timer does not run
+  if (state === 'run' && (mat.wait || (mat.t >= 0 && mat.t < 0.4))) { acc = 0; prevPos.copy(pos); } // the world holds still for half a second while the tear opens and the snail pops out; the timer does not run
   else if (state === 'run') {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
     while (acc >= P.dt && state === 'run') { prevPos.copy(pos); if (loopFly) guardRail(); step(); if (state === 'run' && loopFly) { if (contactN) setLoop(false); } else if (state === 'run') { tRun += P.dt; if (++ghostTick % 10 === 0) { const c = contactN || [0, 1, 0]; ghostRec.push(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z), Math.round(c[0] * 100), Math.round(c[1] * 100), Math.round(c[2] * 100)); } } acc -= P.dt; }
   } else { acc = 0; prevPos.copy(pos); }
-  if (air0 && contactN) air0 = false;
   if (musicArm && state === 'run') { let go = !!contactN; if (!go && vel.y < -200) { const sb = surfaceBelow(pos); go = !!sb && sb.t / -vel.y < 0.17; } if (go) { musicArm = false; Music.at(0); } } // the song starts just before the snail lands (the engine adds about 0.1 s and the track's first note is 70 ms in), so the first note lands with the snail
   rp.lerpVectors(prevPos, pos, state === 'run' ? acc / P.dt : 1);
   const speed = Math.hypot(vel.x, vel.z);
@@ -2630,19 +2628,20 @@ function frame(now) {
     if (camPush > 0.5) folPos.y += camPush; }
   snail.visible = camMode !== 1 || intro.on;
   { // arrival: before the press the snail is not there. On the press a ragged hole tears open in the sky (cream torn rim, ink inside), the snail squash-pops out and falls, the hole curls shut behind it and a few paper scraps drift down. All opaque shapes.
-    if (mat.wait && state === 'run') { mat.wait = false; mat.t = 0; camera.getWorldDirection(camRight); mat.p.set(rp.x + camRight.x * 160, rp.y + camRight.y * 160, rp.z + camRight.z * 160); }
+    if (mat.wait && state === 'run') { mat.wait = false; mat.t = 0; camera.getWorldDirection(camRight); mat.p.set(rp.x + camRight.x * 160, rp.y + 165 + camRight.y * 160, rp.z + camRight.z * 160); }
     if (mat.wait) { snail.visible = false; shadow.visible = false; snail.scale.setScalar(1); if (mat.g) { mat.g.visible = false; for (const m of mat.sc) m.visible = false; } }
     else if (mat.t >= 0) {
       if (!mat.g) {
-        const R = rng(41), pts = []; for (let i = 0; i < 22; i++) pts.push([i / 22 * Math.PI * 2, 0.72 + 0.5 * R() + (i % 5 === 0 ? 0.25 * R() : 0)]);
-        const shp = k => { const sh = new THREE.Shape(); pts.forEach(([an, j], i) => { const x = Math.cos(an) * 105 * j * k, y = Math.sin(an) * 105 * j * k * 1.25; i ? sh.lineTo(x, y) : sh.moveTo(x, y); }); sh.closePath(); return sh; };
-        mat.g = new THREE.Group(); const rim = new THREE.Mesh(new THREE.ShapeGeometry(shp(1)), new THREE.MeshBasicMaterial({ color: 0xf6ecd6, fog: false, side: THREE.DoubleSide })), ink = new THREE.Mesh(new THREE.ShapeGeometry(shp(0.8)), new THREE.MeshBasicMaterial({ color: 0x1b1740, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-        ink.position.z = 3; mat.g.add(rim, ink); mat.sc = []; const sg = new THREE.PlaneGeometry(16, 10), sm = new THREE.MeshBasicMaterial({ color: 0xf6ecd6, fog: false, side: THREE.DoubleSide });
+        const R = rng(41), N = 12, L = [], Rg = []; for (let i = 0; i <= N; i++) { const t = i / N, b = Math.pow(Math.sin(Math.PI * t), 0.75); L.push([b * (0.75 + 0.5 * R()), (R() - 0.5) * 0.03]); Rg.push([b * (0.75 + 0.5 * R()), (R() - 0.5) * 0.03]); }
+        // a tall narrow slit with ragged lips, like a cut in canvas: elegant, not a blob
+        const shp = (kx, ky) => { const sh = new THREE.Shape(); for (let i = 0; i <= N; i++) { const t = i / N, x = -L[i][0] * 30 * kx, y = (0.5 - t + L[i][1]) * 250 * ky; i ? sh.lineTo(x, y) : sh.moveTo(x, y); } for (let i = N; i >= 0; i--) { const t = i / N, x = Rg[i][0] * 30 * kx, y = (0.5 - t + Rg[i][1]) * 250 * ky; sh.lineTo(x, y); } sh.closePath(); return sh; };
+        mat.g = new THREE.Group(); const rim = new THREE.Mesh(new THREE.ShapeGeometry(shp(1, 1)), new THREE.MeshBasicMaterial({ color: 0xf6ecd6, fog: false, side: THREE.DoubleSide })), ink = new THREE.Mesh(new THREE.ShapeGeometry(shp(0.78, 0.985)), new THREE.MeshBasicMaterial({ color: 0x1b1740, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+        ink.position.z = 3; mat.g.add(rim, ink); { const sp = new THREE.PlaneGeometry(5, 5), sm2 = new THREE.MeshBasicMaterial({ color: 0xf6ecd6, fog: false }); for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(sp, sm2); m.position.set((R() - 0.5) * 16, (R() - 0.5) * 190, 6); m.rotation.z = R() * 3; mat.g.add(m); } } mat.sc = []; const sg = new THREE.PlaneGeometry(16, 10), sm = new THREE.MeshBasicMaterial({ color: 0xf6ecd6, fog: false, side: THREE.DoubleSide });
         for (let i = 0; i < 7; i++) { const m = new THREE.Mesh(sg, sm); m.userData = { r: [R(), R(), R()], s0: 0.35 + R() * 0.6 }; mat.sc.push(m); scene.add(m); }
         scene.add(mat.g); }
       camRight.set(1, 0, 0).applyQuaternion(camera.quaternion); mat.t += dt; const t = mat.t, open = ss01(cl01(t / 0.4)), shut = ss01(cl01((t - 0.6) / 0.5)), k = open * (1 - shut);
-      mat.g.visible = k > 0.01; mat.g.position.copy(mat.p); mat.g.quaternion.copy(camera.quaternion); mat.g.rotateZ(shut * 1.1); mat.g.scale.setScalar(Math.max(0.01, k));
-      const pop = t < 0.15 ? 0 : 0.35 + 0.65 * (t - 0.15 >= 0.5 ? 1 : (1 - Math.exp(-7 * (t - 0.15) / 0.5) * Math.cos((t - 0.15) / 0.5 * 15)));
+      mat.g.visible = k > 0.01; mat.g.position.copy(mat.p); mat.g.quaternion.copy(camera.quaternion); mat.g.rotateZ(0.06 + shut * 0.35); mat.g.scale.set(Math.max(0.01, k), Math.max(0.01, Math.min(1, k * 1.8)), 1);
+      const pop = t < 0.3 ? 0 : 1; // the snail simply is there once the hole is open, then drops out of it
       snail.visible = snail.visible && pop > 0; snail.scale.setScalar(Math.max(0.01, pop));
       for (const m of mat.sc) { const u = t - m.userData.s0, r = m.userData.r; m.visible = u > 0 && u < 2.4; if (m.visible) { const dir = r[0] < 0.5 ? -1 : 1; m.position.set(mat.p.x + camRight.x * (dir * (10 + u * (30 + 40 * r[1])) + Math.sin(u * 4 + r[2] * 9) * 8), mat.p.y - u * (60 + 40 * r[2]) + 20 * (r[1] - 0.5), mat.p.z + camRight.z * (dir * (10 + u * (30 + 40 * r[1])) + Math.sin(u * 4 + r[2] * 9) * 8)); m.quaternion.copy(camera.quaternion); m.rotateZ(u * (2 + 3 * r[1]) * dir); } }
       if (t >= 2.5) { snail.scale.setScalar(1); mat.t = -1; mat.g.visible = false; for (const m of mat.sc) m.visible = false; }

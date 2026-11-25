@@ -57,3 +57,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #203: default camera distance 60 -> 50 percent (a saved slider value still wins).
 
 - Build #204: first swipe in the drop-in gets a 3 degree pre-roll (input layer only) so it skips air steering dead zone (ELI5: the nose starts exactly on the path, so tiny swipes did nothing). Arrival is now the paper tear (cream torn rim, ink inside, snail squash-pops out, hole curls shut, 7 paper scraps); physics holds 0.55 s while it opens, timer paused. Replaced the scan ring.
+
+- Build #206: arrival is now a tall ragged slit (Fontana-style cut, thin cream lips, specks) high above the snail; he drops out of it (no pop), hold 0.4 s. Start: nose 3.2 degrees right of the path (replaces the swipe pre-roll): air steering flips direction within ~3 degrees of the path. Camera near plane 120 -> 60 (corner rays of a 101 degree fov clip at near/cos(55) = 2x the near distance). ?slow=0.15 plays everything slowed (inspection aid).
