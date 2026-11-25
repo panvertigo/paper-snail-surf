@@ -37,3 +37,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - 2026-11-24 (build 193): speed look extended past 6k. gOf(speed) = 0..1 from 5.2k to 8.5k u/s drives a g-force look: tunnel vision closing to a small clear centre, edges greying and darkening red, a laboured-breathing pulse (about 1.7 to 3.2 rad/s), longer radial streaks, FOV +9 with a breathing wobble, camera roll and shake, HUD speed going red. All scaled by the fx slider. Check stills with `node suite.js "#file-intro" g_ 9 7500 "state='run';"`.
 
 - Build #194: opening move on every level is now a drift-in descent (6 s, ease-out, high and behind the start, narrow FOV and slight roll settling out; random per load; tap skips). Replaces the overview pan. Camera only.
+
+- Build #195: intro move eases slow-fast-slow (smootherstep). Camera collision: if the chase camera is inside a ramp prism or within 150 units above its face, it is pushed up (fast in, slow out). Not reproduced headless; guard only fires when under the surface.

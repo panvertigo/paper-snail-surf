@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #194 2026-11-24 23:02</div>
+<div id="build">build #195 2026-11-24 23:18</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -2248,6 +2248,7 @@ function onRing(g, off) {
   else { flowGain(off < 0.25 ? 300 : 120, off < 0.25 ? 0.15 : 0.08); Sfx.hoop(1 - off * off); }
 }
 let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
+let camPush = 0, camMinD = 1e9; const CAM_CLEAR = 150;
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
 const $ = id => document.getElementById(id);
 const msg = $('msg');
@@ -2617,21 +2618,12 @@ function frame(now) {
   folPos.set(rp.x + camOff.x + camLag.x + (Math.random() - 0.5) * shake, rp.y + camOff.y + camLag.y + (Math.random() - 0.5) * shake, rp.z + camOff.z + camLag.z);
   folLook.set(rp.x + fx * CAM_AHEAD, rp.y + 30, rp.z + fz * CAM_AHEAD);
   }
-  snail.visible = camMode !== 1 || intro.on;
-  intro.k = 0;
-  if (intro.on) {
-    intro.t += dt;
-    const a = Math.min(1, intro.t / intro.dur), e = 1 - Math.pow(1 - a, 2.6), r = 1 - e; intro.k = r;
-    const sx = -fx, sz = -fz; // back along the run; across = perpendicular
-    icPos.set(folPos.x + sx * intro.bx * r - sz * intro.bz * r, folPos.y + intro.by * r, folPos.z + sz * intro.bx * r + sx * intro.bz * r);
-    icLook.set(rp.x + fx * CAM_AHEAD * 0.6, rp.y + 900 + 2600 * r, rp.z + fz * CAM_AHEAD * 0.6).lerp(folLook, e * e);
-    camera.position.copy(icPos); camera.lookAt(icLook); camera.rotateZ(intro.roll * r * r);
-    { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 62000 : FOG_FAR; scene.fog.near = mn ? 7000 : 6000; } camera.far = CAM_FAR;
-    if (a >= 1) { intro.on = false; showMsg(START_MSG); }
-  } else {
-    camera.position.copy(folPos); camera.lookAt(folLook);
-    { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 62000 : FOG_FAR; scene.fog.near = mn ? 7000 : 6000; } camera.far = CAM_FAR;
-  }
+  { // camera collision: keep the camera a minimum distance off any ramp face under it (it can dip into a banked face and clip through it); the push eases in fast and out slowly
+    let want = 0; const i0 = Math.max(0, lastTouched - 2), i1 = Math.min(ramps.length - 1, lastTouched + 6);
+    for (let i = i0; i <= i1; i++) { const r = ramps[i], L = local(r, folPos.x, folPos.z); if (L.u < 0 || L.u > r.L) continue; const s = r.half ? r.half * L.v : Math.abs(L.v); if (s < 0 || s > r.W) continue;
+      const base = r.oy + zOf(r, L.u), top = base + r.H * (1 - s / r.W); if (folPos.y > base - 100 && folPos.y < top + CAM_CLEAR) want = Math.max(want, top + CAM_CLEAR - folPos.y); }
+    camPush += (want - camPush) * (1 - Math.exp(-dt * (want > camPush ? 25 : 3))); camMinD = Math.max(camMinD === 1e9 ? 0 : camMinD, want);
+    if (camPush > 0.5) folPos.y += camPush; }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
   { const g = gOf(speed) * fxAmt; if (g > 0.01) { camera.rotateZ(g * (0.012 * Math.sin(now * 0.0093) + 0.007 * Math.sin(now * 0.0231))); camera.position.x += g * 14 * Math.sin(now * 0.037); camera.position.y += g * 10 * Math.sin(now * 0.041 + 1); } camera.fov = baseFov + fovOff + (intro.on ? intro.fov * intro.k : 0) + fovKick + warpK * 13 + g * (9 + 2.5 * Math.sin(now * 0.0017 * (1.7 + 1.5 * g) * 3.6)); } camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed
   try { updateMains(dt); updateInk(); } catch (e) { mains = null; console.error('updateMains', e); } updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
