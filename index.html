@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #191 2026-11-24 19:31</div>
+<div id="build">build #192 2026-11-24 19:32</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -1326,7 +1326,7 @@ function buildMains() {
     if (WR() < 0.55) { const i = Math.round(N * wa(0.3, 0.5)); x.beginPath(); x.moveTo(up[i][0] - 34, up[i][1] + 8); x.quadraticCurveTo(up[i][0], up[i][1] - wa(22, 50), up[i][0] + 30, up[i][1] + 6); x.fill(); }
     if (WR() < 0.55) { x.save(); x.translate(cx + wa(-60, 100), cy + wa(170, 240)); x.scale(0.32, 0.32); x.rotate(wa(-0.15, 0.15)); x.translate(-cx, -cy); x.beginPath(); x.moveTo(up[0][0], (up[0][1] + dn[0][1]) / 2); sm(up.concat([[cx + len / 2 + 8, (up[N][1] + dn[N][1]) / 2]], dn.slice().reverse())); x.closePath(); x.fill(); x.restore(); }
   }, [96, 78, 150]);
-  const we = mk(wtex, 17000, 0.3, 0, 0, 0, 0, 32000, -27, 0x7a62ae, 1.0); we.wh = { az0: wa(-0.6, -0.15), az1: wa(0.15, 0.6), el: wa(0.04, 0.22), t0: wa(5, 70), dur: wa(55, 95), tilt: wa(-0.1, 0.1), flip: WR() < 0.5 ? -1 : 1 }; we.m.scale.x = we.wh.flip; mains.bd.list[2].st = { az: -0.43, el: 0.08 }; mains.bd.list.push(we); mains.smp = smp; } // third: a small, old, bronze-tinted orrery far off to one side, a quiet fixed reference
+  const we = mk(wtex, 17000, 0.3, 0, 0, 0, 0, 32000, -27, 0x7a62ae, 1.0); we.wh = { az0: wa(-0.6, -0.15), az1: wa(0.15, 0.6), el: wa(0.04, 0.22), t0: wa(5, 70), dur: wa(55, 95), tilt: wa(-0.1, 0.1), flip: WR() < 0.5 ? -1 : 1 }; we.m.scale.x = we.wh.flip; if (WR() >= 0.3) we.m.visible = false; /* the whale only appears on about 30 percent of runs */ mains.bd.list[2].st = { az: -0.43, el: 0.08 }; mains.bd.list.push(we); mains.smp = smp; } // third: a small, old, bronze-tinted orrery far off to one side, a quiet fixed reference
   // 14) official signage. (a) Stencilled designation painted on the first ramp's two faces (different sizes and places, cream paint, worn): LEYLINE 07 on the right face, HDG 213 on the left. (b) Go signs: amber ring gates that turn green with a pulse as you pass through (one early, one just before the dive). (c) The Central Armature Works: a thick distant ring, its name stencilled around it and dotted with office lights.
   { const r0 = ramps[0], stenTex = (top, big) => maskTex(512, 768, (x, w, h) => { x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
         const fit = (t, y, hgt, wid) => { x.save(); x.font = 'bold ' + hgt + 'px Arial, Helvetica, sans-serif'; const m = x.measureText(t).width; x.translate((w - wid) / 2, y); x.scale(wid / m, 1); x.fillText(t, 0, 0); x.restore(); };
