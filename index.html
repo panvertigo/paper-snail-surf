@@ -51,7 +51,7 @@ canvas{display:block;touch-action:none}
 <div id="toast"></div>
 <div id="speed">0 <small>u/s</small></div>
 <div id="rkt"><i></i><span></span></div>
-<div id="build">build #199 2026-11-24 23:35</div>
+<div id="build">build #200 2026-11-24 23:39</div>
 <button class="btn" id="gear">⚙</button>
 <button class="btn" id="restart">↺</button>
 <div id="settings" hidden>
@@ -2487,18 +2487,15 @@ const blurMat = new THREE.ShaderMaterial({
       float e = smoothstep(0.22, 0.75, r) * strength;                       // 0 in the middle, 1 at the edges
       vec2 w = vec2(sin(vUv.y * 34.0 + time * 8.0), cos(vUv.x * 29.0 + time * 6.5)) * 0.0016 * e; // heat shimmer
       vec2 dir = d / (length(d) + 1e-4), uv = vUv + w;
-      float ca = (0.013 + 0.02 * hot) * e * (1.0 - 0.8 * clamp(warm - 1.0, 0.0, 1.0));                                    // chromatic fringe, radial (wider at hot speeds)
+      float ca = (0.013 + 0.02 * hot + 0.012 * gk) * e * (1.0 - 0.8 * clamp(warm - 1.0, 0.0, 1.0));                                    // chromatic fringe, radial (wider at hot speeds)
       vec3 c = vec3(texture2D(tDiffuse, uv + dir * ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - dir * ca).b);
       c *= 1.0 - 0.5 * strength * smoothstep(0.4, 0.95, r);                  // light tunnel vignette
       if (hot > 0.42) { float k = (hot - 0.42) / 0.58 * (1.0 + 1.2 * gk); vec3 acc = c; for (int i = 1; i <= 4; i++) acc += texture2D(tDiffuse, uv - dir * (float(i) * 0.012 * k * smoothstep(0.3, 0.9, r))).rgb; c = acc / 5.0; } // 4.6k+: radial streaks pulled in from the edges
       vec3 rim = mix(vec3(0.1, 0.75, 1.0), vec3(0.85, 0.35, 1.0), smoothstep(0.15, 0.6, hot)); rim = mix(rim, vec3(1.0, 0.72, 0.4), smoothstep(0.65, 1.0, hot)); rim = mix(rim, mix(vec3(1.0, 0.6, 0.72), vec3(1.0, 0.8, 0.5), smoothstep(0.3, 1.0, hot)), clamp(warm, 0.0, 1.0)); rim = mix(rim, vec3(0.88, 0.92, 1.0), clamp(warm - 1.0, 0.0, 1.0));
-      c += rim * hot * smoothstep(0.35, 0.98, r) * 0.3 * (0.85 + 0.15 * sin(time * 14.0)); // afterburner rim: cyan, then violet, then hot gold
+      c += rim * hot * smoothstep(0.35, 0.98, r) * 0.3 * 0.92; // afterburner rim (steady, no flicker): cyan, then violet, then hot gold
       c += c * c * hot * 0.18;                                               // highlights pop
       float lum = dot(c, vec3(0.299, 0.587, 0.114)); c = mix(vec3(lum), c, sat); c = (c - 0.5) * con + 0.5; // colour grade: more saturation and contrast at flow speeds
       { vec2 q = gl_FragCoord.xy; c += (vec3(fract(52.9829189 * fract(dot(q, vec2(0.06711056, 0.00583715)))) + fract(52.9829189 * fract(dot(q + 17.0, vec2(0.00583715, 0.06711056)))) - 1.0, fract(43.1 * fract(dot(q, vec2(0.0771, 0.0043)))) + fract(37.7 * fract(dot(q + 5.0, vec2(0.0043, 0.0771)))) - 1.0, fract(61.3 * fract(dot(q, vec2(0.0567, 0.0089)))) + fract(29.9 * fract(dot(q + 11.0, vec2(0.0089, 0.0567)))) - 1.0)) * (1.2 / 255.0); }
-      if (gk > 0.0) { // 5.2k to 8.5k: g-force. Tunnel vision closes in, the edges grey and darken red, and the whole view pulses like laboured breathing
-        float br = 0.5 + 0.5 * sin(time * (1.7 + 1.5 * gk)), r0 = mix(0.78, 0.22, gk) + 0.05 * gk * br, v = smoothstep(r0 - 0.2, r0 + 0.1, r);
-        vec3 gc = vec3(dot(c, vec3(0.299, 0.587, 0.114))) * vec3(1.0, 0.82, 0.82); c = mix(c, gc, v * 0.75 * gk); c = mix(c, vec3(0.07, 0.01, 0.02), v * v * gk * (0.92 - 0.15 * br)); c *= 1.0 - 0.14 * gk * br; }
       gl_FragColor = vec4(c, 1.0);
     }`,
   depthTest: false, depthWrite: false
@@ -2506,12 +2503,13 @@ const blurMat = new THREE.ShaderMaterial({
 let blurDirty = true;
 const blurScene = new THREE.Scene(), blurCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const blurQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurMat); blurQuad.frustumCulled = false; blurScene.add(blurQuad);
+let gS = 0; // smoothed g-look amount (speed jitters in the air; the look must not)
 const gOf = sp => { const t = Math.max(0, Math.min(1, (sp - 5200) / 3300)); return t * t * (3 - 2 * t); }; // g-force look 0..1 from 5.2k to 8.5k u/s
 function renderFrame(speed) {
   const s = Math.max(0, Math.min(1, (speed - 900) / 1800)) * fxAmt;
   if (s < 0.01) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
   blurMat.uniforms.strength.value = s; blurMat.uniforms.time.value = performance.now() / 1000;
-  const hk = Math.max(0, Math.min(1, (speed - 3300) / 2400)), hot = hk * hk * (3 - 2 * hk) * fxAmt; blurMat.uniforms.hot.value = hot; blurMat.uniforms.gk.value = gOf(speed) * fxAmt;
+  const hk = Math.max(0, Math.min(1, (speed - 3300) / 2400)), hot = hk * hk * (3 - 2 * hk) * fxAmt; blurMat.uniforms.hot.value = hot; blurMat.uniforms.gk.value = gS;
   { const g = s * s, mn = stageMeta.scenery === 'mains' || stageMeta.scenery === 'ink'; blurMat.uniforms.warm.value = stageMeta.scenery === 'ink' ? 2 : mn ? 1 : 0; blurMat.uniforms.sat.value = mn ? 1 + 0.12 * g + 0.1 * hot : 1 + 0.35 * g + 0.4 * hot; blurMat.uniforms.con.value = mn ? 1 + 0.06 * g + 0.04 * hot : 1 + 0.18 * g + 0.14 * hot; } // the grade builds up only near top speed (s is 1 at about 2700 u/s, scaled by the Speed effects slider)
   if (blurDirty) { blurDirty = false; const pr = renderer.getPixelRatio(), bw = Math.round(innerWidth * pr), bh = Math.round(innerHeight * pr); if (blurRT.samples !== undefined) blurRT.samples = bw * bh > 1.5e6 ? 2 : 4; blurRT.setSize(bw, bh); }
   renderer.setRenderTarget(blurRT); renderer.render(scene, camera);
@@ -2601,7 +2599,7 @@ function frame(now) {
   const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
   const k = 1 - Math.exp(-dt * 14);
   camOff.x += (-fx * CAM_BACK * zoomD - camOff.x) * k; camOff.y += (CAM_UP * zoomD - camOff.y) * k; camOff.z += (-fz * CAM_BACK * zoomD - camOff.z) * k;
-  const shake = Math.max(0, (speed - 1800) / 1700) * 5; // faint buzz at high speed
+  const shake = 0; // no random camera buzz: the view stays steady at any speed
   if (camMode === 1) { // first person: eye height, looking along yaw, slightly down at the ramp
     folPos.set(rp.x + (Math.random() - 0.5) * shake, rp.y + FP_EYE + (Math.random() - 0.5) * shake, rp.z);
     folLook.set(rp.x + fx * 600, rp.y + FP_EYE - 100, rp.z + fz * 600);
@@ -2640,7 +2638,7 @@ function frame(now) {
     { const mn = stageMeta.scenery === 'mains'; scene.fog.far = mn ? 62000 : FOG_FAR; scene.fog.near = mn ? 7000 : 6000; } camera.far = CAM_FAR;
   }
   fovKick += (Math.max(0, Math.min(1, (speed - 500) / 2500)) * 24 - fovKick) * (1 - Math.exp(-dt * 3)); // FOV widens with speed
-  { const g = gOf(speed) * fxAmt; camera.fov = baseFov + fovOff + (intro.on ? intro.fov * intro.k : 0) + fovKick + warpK * 13 + g * 9; } camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed. No roll, shake or wobble from the g-force look: the view stays steady
+  { gS += (gOf(speed) * fxAmt - gS) * (1 - Math.exp(-dt * 1.2)); camera.fov = baseFov + fovOff + (intro.on ? intro.fov * intro.k : 0) + fovKick + warpK * 13 + gS * 9; } camera.updateProjectionMatrix(); // warpK: the extra zoom-out at top speed. No roll, shake or wobble from the g-force look: the view stays steady
   try { updateMains(dt); updateInk(); } catch (e) { mains = null; console.error('updateMains', e); } updateFlow(dt); drawFlow(); updateNpcs(now); updateBeams(dt); if (FXPART) { updateBirds(now, speed, dt); updateDrops(speed); updateSpecks(speed, dt); updateStreaks(speed); updateContrails(speed, dt); updateFire(dt); updateSkid(dt); } updateWarp(speed, now); musicAhead(speed); tickTheme(dt); updateSky(dt, now); updateRings(dt, now); Music.setSpeed(speed + (flow.on ? 700 : 0));
   const hue = Math.max(0, Math.min(1, (speed - 500) / 2500));
   if (now - hudT > 90) { hudT = now; { const cl = (x) => Math.max(0, Math.min(1, x)), u1 = cl((speed - 500) / 3500), u2 = cl((speed - 4000) / 2000), u3 = cl((speed - 6000) / 2500), deg = (((180 + 110 * u1 + 100 * u2 - 32 * u3) % 360) + 360) % 360, gl = cl((speed - 3800) / 2200 + 0.4 * u3); // cyan -> violet by 4k, then pink -> hot orange by 6k, glowing

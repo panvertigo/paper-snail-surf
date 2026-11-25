@@ -47,3 +47,5 @@ tools/gen-intro.js writes levels/intro.json. If Jeffry edits the course in the e
 - Build #198: g-force look no longer rolls, jitters or wobbles the camera (steady view); FOV widening stays.
 
 - Build #199: camera clearance 150 -> 340. Cause of the corner clipping: steering across the face puts the camera near the sloped face, whose perpendicular distance is 0.63 of the vertical clearance (94 < near plane 120), so the near plane sliced it. Reproduced and verified in real Chrome. CLAUDE.md now says how to use real Chrome.
+
+- Build #200: removed the g-force tunnel, blackening and breathing pulse, the afterburner flicker, and the random camera buzz (was +-7 units per frame at 6.5k, the likely "rocking"). High speed is now signalled only by steady things: longer radial streaks, wider colour fringe, wider FOV (all from a smoothed g value), red HUD speed.
