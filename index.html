@@ -2248,7 +2248,7 @@ function onRing(g, off) {
   else { flowGain(off < 0.25 ? 300 : 120, off < 0.25 ? 0.15 : 0.08); Sfx.hoop(1 - off * off); }
 }
 let fingerDown = false, falls = 0, ghostRec = [], ghostTick = 0; // your run as a 10 Hz position track: the best one is saved as your ghost
-let musicArm = true, musicT = -1;
+let musicArm = true, musicT = -1, air0 = false, pre0 = false; // air0: in the first drop (until the snail lands), where the nose starts exactly on the path and the first small swipes would fall inside air steering's dead zone
 const START_DROP = 1600, mat = { wait: false, t: -1, dur: 1.1, mats: null, plane: null, band: null }; // the snail materialises in the air START_DROP above the ramp (about 2 s of free fall at gravity 800) when you press
 let camPush = 0, camMinD = 1e9; const CAM_CLEAR = 340; // vertical clearance: a 51 degree face is only 0.63 of that perpendicular, and the near plane is 120
 let state = 'ready', tRun = 0, acc = 0, fovKick = 0;
@@ -2296,7 +2296,7 @@ function resetRun() {
   intro.on = false; rocket.cd = 0; rocket.t = -1;
   setLoop(false); flowReset(); ghostRec = []; ghostTick = 0; nextCp = 0; cpRamp = 0; falls = 0; tRun = 0; trail.length = 0; aheadCp = -1; aheadFin = false; state = 'ready'; touchStrafe = cmd.touch = 0; cmd.pitch = 0; cmd.turn = 0;
   gates.forEach(g => { g.material.color.set(0xffe2a0); g.userData.sh.material.color.set(0xffe2a0); });
-  spawnOn(0); pos.y += START_DROP; prevPos.copy(pos); mat.wait = !stageMeta.spawn && !stageMeta.park; mat.t = -1; setTheme(0, true); Music.stop(0.2); musicArm = true; musicT = -1; // the song starts a moment after the snail lands on the first ramp, not on the tap; stopping first means no old audio under the new start
+  spawnOn(0); pos.y += START_DROP; prevPos.copy(pos); mat.wait = !stageMeta.spawn && !stageMeta.park; mat.t = -1; setTheme(0, true); Music.stop(0.2); musicArm = true; musicT = -1; air0 = mat.wait; pre0 = false; // the song starts a moment after the snail lands on the first ramp, not on the tap; stopping first means no old audio under the new start
   showMsg(START_MSG);
   hud();
 }
@@ -2364,7 +2364,8 @@ function inputMove(x, t) {
   }
   pxSpeed += (Math.abs(dx) / dt - pxSpeed) * 0.5;
   const g = 1 + accAmt * Math.max(0, Math.min(1, (pxSpeed - ACC_V0) / (ACC_V1 - ACC_V0))), r = -dx * P.sens * g;
-  turn(r); applied.push({ t, r }); while (applied.length && t - applied[0].t > 200) applied.shift();
+  let r2 = r; if (air0 && !contactN && !pre0 && r !== 0) { pre0 = true; r2 += (r > 0 ? 1 : -1) * 0.055; } // first swipe in the drop-in: skip air steering's dead zone (about 3 degrees at 600 u/s) so the path answers right away
+  turn(r2); applied.push({ t, r }); while (applied.length && t - applied[0].t > 200) applied.shift();
   steerSign(dx);
 }
 function joyFrame(dt) { // joystick: turn rate from the finger's offset, once per frame
@@ -2387,7 +2388,7 @@ cv.addEventListener('pointerdown', e => {
   e.preventDefault(); $('settings').hidden = true; focusGame();
   if (pid !== null) return;
   if (intro.on) { intro.on = false; showMsg(START_MSG); return; } // tap skips the flyover, never drops in blind
-  pid = e.pointerId; lastX = anchorX = e.clientX; lastT = downT = e.timeStamp; anchorY = e.clientY; fingerDown = true; steerAcc = 0; pxSpeed = 0; moved = 0; joyOff = 0; applied.length = 0; startedRun = state !== 'run';
+  pre0 = false; pid = e.pointerId; lastX = anchorX = e.clientX; lastT = downT = e.timeStamp; anchorY = e.clientY; fingerDown = true; steerAcc = 0; pxSpeed = 0; moved = 0; joyOff = 0; applied.length = 0; startedRun = state !== 'run';
   if (state === 'ready') { state = 'run'; showMsg(''); }
   else if (state === 'done') resetRun();
 });
@@ -2595,6 +2596,7 @@ function frame(now) {
     acc += dt * gameSpeed; // sim runs faster than real time; timer and bests stay in sim seconds
     while (acc >= P.dt && state === 'run') { prevPos.copy(pos); if (loopFly) guardRail(); step(); if (state === 'run' && loopFly) { if (contactN) setLoop(false); } else if (state === 'run') { tRun += P.dt; if (++ghostTick % 10 === 0) { const c = contactN || [0, 1, 0]; ghostRec.push(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z), Math.round(c[0] * 100), Math.round(c[1] * 100), Math.round(c[2] * 100)); } } acc -= P.dt; }
   } else { acc = 0; prevPos.copy(pos); }
+  if (air0 && contactN) air0 = false;
   if (musicArm && state === 'run') { let go = !!contactN; if (!go && vel.y < -200) { const sb = surfaceBelow(pos); go = !!sb && sb.t / -vel.y < 0.17; } if (go) { musicArm = false; Music.at(0); } } // the song starts just before the snail lands (the engine adds about 0.1 s and the track's first note is 70 ms in), so the first note lands with the snail
   rp.lerpVectors(prevPos, pos, state === 'run' ? acc / P.dt : 1);
   const speed = Math.hypot(vel.x, vel.z);
